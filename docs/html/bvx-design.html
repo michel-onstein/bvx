@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bvx — Design Document</title>
+<style>
+:root {
+  --bg: #ffffff;
+  --bg-soft: #f7f8fa;
+  --bg-code: #f4f5f7;
+  --fg: #1a1c21;
+  --fg-soft: #5b6472;
+  --fg-faint: #8b94a3;
+  --line: #e3e6ec;
+  --accent: #4f46e5;
+  --accent-soft: #eef2ff;
+  --quote: #6d28d9;
+  --table-head: #f4f5f9;
+  --shadow: 0 1px 2px rgba(16,24,40,.05), 0 8px 24px -12px rgba(16,24,40,.12);
+  --mermaid-bg: #ffffff;
+}
+:root[data-theme="dark"] {
+  --bg: #14161a;
+  --bg-soft: #191c22;
+  --bg-code: #1d2128;
+  --fg: #e6e9ef;
+  --fg-soft: #a5adbb;
+  --fg-faint: #7b8493;
+  --line: #2a2f38;
+  --accent: #a5b4fc;
+  --accent-soft: #23273a;
+  --quote: #c4b5fd;
+  --table-head: #1d2128;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  --mermaid-bg: #191c22;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14161a;
+    --bg-soft: #191c22;
+    --bg-code: #1d2128;
+    --fg: #e6e9ef;
+    --fg-soft: #a5adbb;
+    --fg-faint: #7b8493;
+    --line: #2a2f38;
+    --accent: #a5b4fc;
+    --accent-soft: #23273a;
+    --quote: #c4b5fd;
+    --table-head: #1d2128;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+    --mermaid-bg: #191c22;
+  }
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 1.5rem; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.68 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.skip { position: absolute; left: -9999px; }
+.skip:focus { left: 1rem; top: 1rem; background: var(--accent); color: #fff; padding: .5rem .75rem; border-radius: 6px; z-index: 50; }
+
+.shell { display: grid; grid-template-columns: 268px minmax(0, 1fr); min-height: 100vh; }
+
+.nav {
+  position: sticky; top: 0; align-self: start;
+  height: 100vh; overflow-y: auto;
+  padding: 1.5rem 1.1rem 2rem;
+  background: var(--bg-soft);
+  border-right: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: .5rem; font-weight: 650; letter-spacing: -.01em; margin-bottom: 1.25rem; }
+.brand .dot { width: 10px; height: 10px; border-radius: 3px; background: var(--accent); display: inline-block; }
+.nav nav a {
+  display: block; padding: .34rem .55rem; margin: .1rem 0;
+  border-radius: 6px; color: var(--fg-soft); text-decoration: none; font-size: .9rem;
+}
+.nav nav a:hover { background: var(--accent-soft); color: var(--fg); }
+.nav nav a.current { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.toc-head {
+  margin: 1.5rem 0 .4rem; padding: 0 .55rem;
+  font-size: .68rem; text-transform: uppercase; letter-spacing: .09em;
+  color: var(--fg-faint); font-weight: 700;
+}
+.toc { font-size: .84rem; border-left: 1px solid var(--line); margin-left: .55rem; }
+.toc ul { list-style: none; margin: 0; padding: 0 0 0 .55rem; }
+.toc li ul { padding-left: .7rem; }
+.toc a { display: block; padding: .2rem .5rem; color: var(--fg-faint); text-decoration: none; border-radius: 5px; line-height: 1.35; }
+.toc a:hover { color: var(--fg); background: var(--accent-soft); }
+.toc a.active { color: var(--accent); font-weight: 600; }
+.theme {
+  margin-top: 1.75rem; width: 100%; padding: .45rem .6rem;
+  background: transparent; color: var(--fg-soft);
+  border: 1px solid var(--line); border-radius: 7px;
+  font: inherit; font-size: .82rem; cursor: pointer;
+}
+.theme:hover { color: var(--fg); border-color: var(--accent); }
+
+.page { padding: 3rem 3.5rem 5rem; min-width: 0; }
+.prose { max-width: 62rem; }
+
+h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -.018em; font-weight: 680; }
+h1 { font-size: 2.3rem; margin: 0 0 1.4rem; }
+h2 { font-size: 1.5rem; margin: 2.9rem 0 1rem; padding-bottom: .4rem; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.16rem; margin: 2rem 0 .7rem; }
+h4 { font-size: 1rem; margin: 1.5rem 0 .5rem; color: var(--fg-soft); }
+h1 .toclink, h2 .toclink, h3 .toclink, h4 .toclink { color: inherit; text-decoration: none; }
+h1 .toclink:hover, h2 .toclink:hover, h3 .toclink:hover, h4 .toclink:hover { color: var(--accent); }
+p { margin: 0 0 1rem; }
+a { color: var(--accent); text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent); text-underline-offset: 2px; }
+strong { font-weight: 660; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 2.6rem 0; }
+ul, ol { margin: 0 0 1rem; padding-left: 1.35rem; }
+li { margin: .3rem 0; }
+li > ul, li > ol { margin-top: .3rem; }
+
+blockquote {
+  margin: 1.4rem 0; padding: .9rem 1.1rem;
+  border-left: 3px solid var(--quote);
+  background: var(--accent-soft);
+  border-radius: 0 8px 8px 0;
+  color: var(--fg);
+}
+blockquote p:last-child { margin-bottom: 0; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .875em;
+  background: var(--bg-code);
+  padding: .13em .38em;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+}
+pre {
+  background: var(--bg-code);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1rem 1.15rem;
+  overflow-x: auto;
+  margin: 0 0 1.4rem;
+  line-height: 1.55;
+}
+pre code { background: none; border: 0; padding: 0; font-size: .845rem; }
+
+.table-wrap { overflow-x: auto; margin: 0 0 1.5rem; border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; padding: .6rem .85rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th { background: var(--table-head); font-weight: 650; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: var(--bg-soft); }
+td code, th code { white-space: nowrap; }
+
+.mermaid-wrap {
+  margin: 0 0 1.6rem;
+  padding: 1.1rem;
+  background: var(--mermaid-bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow-x: auto;
+  box-shadow: var(--shadow);
+}
+pre.mermaid { background: none; border: 0; padding: 0; margin: 0; text-align: center; }
+pre.mermaid svg { max-width: 100%; height: auto; }
+
+.foot { margin-top: 4rem; padding-top: 1.2rem; border-top: 1px solid var(--line); color: var(--fg-faint); font-size: .82rem; }
+
+@media (max-width: 940px) {
+  .shell { grid-template-columns: 1fr; }
+  .nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .toc { display: none; }
+  .page { padding: 2rem 1.25rem 4rem; }
+  h1 { font-size: 1.8rem; }
+}
+@media print {
+  .nav, .theme, .skip { display: none; }
+  .shell { display: block; }
+  .page { padding: 0; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<div class="shell">
+  <aside class="nav">
+    <div class="brand"><span class="dot"></span> bvx docs</div>
+    <nav><a href="README.html">bvx Documentation</a><a href="bvx-design.html" class="current">bvx — Design Document</a><a href="feature-parity.html">bvx — Feature Parity Matrix</a></nav>
+    <div class="toc-head">On this page</div>
+    <nav class="toc"><div class="toc">
+<ul>
+<li><a href="#bvx-design-document">bvx — Design Document</a><ul>
+<li><a href="#1-summary">1. Summary</a></li>
+<li><a href="#2-what-bv-does-functional-inventory">2. What bv Does — Functional Inventory</a><ul>
+<li><a href="#21-data-layer">2.1 Data layer</a></li>
+<li><a href="#22-analysis-engine">2.2 Analysis engine</a></li>
+<li><a href="#23-git-correlation">2.3 Git correlation</a></li>
+<li><a href="#24-views-terminal">2.4 Views (terminal)</a></li>
+<li><a href="#25-outputs">2.5 Outputs</a></li>
+</ul>
+</li>
+<li><a href="#3-goals-and-non-goals">3. Goals and Non-Goals</a><ul>
+<li><a href="#31-goals">3.1 Goals</a></li>
+<li><a href="#32-non-goals">3.2 Non-Goals</a></li>
+</ul>
+</li>
+<li><a href="#4-architecture-decision-how-bvx-gets-its-engine">4. Architecture Decision: How bvx Gets Its Engine</a><ul>
+<li><a href="#41-the-options">4.1 The options</a></li>
+<li><a href="#42-decision">4.2 Decision</a></li>
+</ul>
+</li>
+<li><a href="#5-system-architecture">5. System Architecture</a><ul>
+<li><a href="#51-layer-contract">5.1 Layer contract</a></li>
+<li><a href="#52-package-layout">5.2 Package layout</a></li>
+</ul>
+</li>
+<li><a href="#6-the-engine-bridge">6. The Engine Bridge</a><ul>
+<li><a href="#61-c-abi">6.1 C ABI</a></li>
+<li><a href="#62-memory-ownership">6.2 Memory ownership</a></li>
+<li><a href="#63-threading-and-cancellation">6.3 Threading and cancellation</a></li>
+<li><a href="#64-payload-encoding">6.4 Payload encoding</a></li>
+<li><a href="#65-error-model">6.5 Error model</a></li>
+</ul>
+</li>
+<li><a href="#7-data-model">7. Data Model</a></li>
+<li><a href="#8-data-loading-watching-and-time-travel">8. Data Loading, Watching, and Time Travel</a><ul>
+<li><a href="#81-source-selection">8.1 Source selection</a></li>
+<li><a href="#82-file-watching">8.2 File watching</a></li>
+<li><a href="#83-sandboxing">8.3 Sandboxing</a></li>
+</ul>
+</li>
+<li><a href="#9-analysis-pipeline-in-bvx">9. Analysis Pipeline in bvx</a></li>
+<li><a href="#10-user-interface-design">10. User Interface Design</a><ul>
+<li><a href="#101-window-anatomy">10.1 Window anatomy</a></li>
+<li><a href="#102-view-by-view-mapping">10.2 View-by-view mapping</a></li>
+<li><a href="#103-keyboard-model">10.3 Keyboard model</a></li>
+<li><a href="#104-visual-design-and-accessibility">10.4 Visual design and accessibility</a></li>
+</ul>
+</li>
+<li><a href="#11-graph-rendering">11. Graph Rendering</a></li>
+<li><a href="#12-search">12. Search</a></li>
+<li><a href="#13-robot-protocol-cli-and-automation">13. Robot Protocol, CLI, and Automation</a></li>
+<li><a href="#14-exports-and-sharing">14. Exports and Sharing</a></li>
+<li><a href="#15-performance-budget">15. Performance Budget</a></li>
+<li><a href="#16-testing-strategy">16. Testing Strategy</a></li>
+<li><a href="#17-build-packaging-and-distribution">17. Build, Packaging, and Distribution</a></li>
+<li><a href="#18-delivery-plan">18. Delivery Plan</a></li>
+<li><a href="#19-risks">19. Risks</a></li>
+<li><a href="#20-open-questions">20. Open Questions</a></li>
+<li><a href="#appendix-a-engine-method-vocabulary">Appendix A — Engine Method Vocabulary</a></li>
+<li><a href="#appendix-b-glossary">Appendix B — Glossary</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</nav>
+    <button class="theme" type="button" data-theme-toggle>Toggle theme</button>
+  </aside>
+  <main id="content" class="page">
+    <article class="prose">
+<h1 id="bvx-design-document"><a class="toclink" href="#bvx-design-document">bvx — Design Document</a></h1>
+<p><strong>A native macOS implementation of <code>bv</code> (Beads Viewer)</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Document</strong></td>
+<td>Architecture &amp; design specification</td>
+</tr>
+<tr>
+<td><strong>Status</strong></td>
+<td>Draft for review</td>
+</tr>
+<tr>
+<td><strong>Date</strong></td>
+<td>2026-08-19</td>
+</tr>
+<tr>
+<td><strong>Upstream reference</strong></td>
+<td><a href="https://github.com/Dicklesworthstone/beads_viewer"><code>Dicklesworthstone/beads_viewer</code></a> (<code>bv</code>)</td>
+</tr>
+<tr>
+<td><strong>Target platform</strong></td>
+<td>macOS 14 Sonoma and later, Apple silicon + Intel (universal 2)</td>
+</tr>
+<tr>
+<td><strong>Companion document</strong></td>
+<td><a href="feature-parity.html">Feature Parity Matrix</a></td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="1-summary"><a class="toclink" href="#1-summary">1. Summary</a></h2>
+<p><code>bv</code> is a terminal UI (TUI) for <strong>beads</strong> issue graphs: it reads a <code>.beads/issues.jsonl</code>
+or <code>beads.db</code> store, builds a dependency DAG, computes nine graph-theoretic metrics over
+it, correlates beads with git history, and presents around twenty distinct views plus a
+JSON "robot protocol" for AI agents. It is roughly <strong>85,000 lines of Go</strong>, of which about
+<strong>34,000 lines are Bubble Tea terminal UI</strong> and the remaining <strong>~50,000 lines are
+platform-neutral engine</strong> (loading, graph analysis, correlation, search, export).</p>
+<p><code>bvx</code> delivers the same functionality as a <strong>native macOS application</strong> — SwiftUI/AppKit,
+document-based, multi-window, fully keyboard- and menu-driven, with real hit-testable
+graph rendering, native tables, Swift Charts dashboards, Quick Look, Spotlight, and
+Shortcuts integration.</p>
+<p><strong>The central architectural decision</strong> is that <code>bvx</code> <strong>reuses <code>bv</code>'s Go engine verbatim</strong>,
+compiled as a static library and packaged as an XCFramework, and replaces only the
+terminal UI layer. This buys exact numerical parity with upstream, keeps the ~50k lines of
+hard-won analysis logic in one place, and lets <code>bvx</code> track upstream releases by bumping a
+submodule instead of re-deriving algorithms. See <a href="#4-architecture-decision-how-bvx-gets-its-engine">§4</a>.</p>
+<hr />
+<h2 id="2-what-bv-does-functional-inventory"><a class="toclink" href="#2-what-bv-does-functional-inventory">2. What <code>bv</code> Does — Functional Inventory</a></h2>
+<p>Everything below is inherited scope. The <a href="feature-parity.html">Feature Parity Matrix</a> tracks
+each item to a concrete <code>bvx</code> surface.</p>
+<h3 id="21-data-layer"><a class="toclink" href="#21-data-layer">2.1 Data layer</a></h3>
+<ul>
+<li><strong>Sources:</strong> <code>.beads/issues.jsonl</code> → <code>beads.jsonl</code> → <code>beads.base.jsonl</code> discovery order;
+  SQLite (<code>beads.db</code>) via a read-only reader; <code>bd</code> workspace layouts; <code>BEADS_DIR</code> override.</li>
+<li><strong>Tolerant parsing:</strong> UTF-8 BOM stripping, 10 MB max line size, malformed lines skipped
+  with warnings, legacy field aliases (<code>depends_on</code>, <code>target_id</code> → <code>depends_on_id</code>),
+  comment IDs accepted as UUIDv7 string <em>or</em> legacy integer.</li>
+<li><strong>Multi-repo workspaces:</strong> <code>.bv/workspace.yaml</code>, repo auto-discovery, ID namespacing by
+  prefix, cross-repository dependency edges, per-repo filtering.</li>
+<li><strong>Live reload:</strong> fsnotify-based watcher with debouncing, polling fallback for
+  NFS/SMB/SSHFS, background snapshot worker (opt-in in <code>bv</code>).</li>
+<li><strong>Snapshots and time travel:</strong> load bead state as of an arbitrary git revision, diff two
+  snapshots, badge issues <code>[NEW]</code> <code>[CLOSED]</code> <code>[MODIFIED]</code> <code>[REOPENED]</code>.</li>
+</ul>
+<h3 id="22-analysis-engine"><a class="toclink" href="#22-analysis-engine">2.2 Analysis engine</a></h3>
+<p>Two-phase, size-aware, cache-backed:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Metrics</th>
+<th>Budget</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Phase 1</strong> (synchronous, must be instant)</td>
+<td>in/out degree, topological order, density, node/edge counts</td>
+<td>&lt; 50 ms</td>
+</tr>
+<tr>
+<td><strong>Phase 2</strong> (async, per-metric timeouts)</td>
+<td>PageRank, betweenness (exact or sampled), HITS hubs/authorities, eigenvector, critical-path depth and slack, cycle detection (Tarjan SCC), k-core, articulation points</td>
+<td>500 ms default per metric, size-adjusted</td>
+</tr>
+</tbody>
+</table></div>
+<p>Every Phase-2 metric carries a <strong>status entry</strong> — <code>computed</code> / <code>approx</code> / <code>timeout</code> /
+<code>skipped</code> — with elapsed milliseconds and a reason, so consumers can tell a real zero from
+a missing value. Results are memoised against a SHA-256 <strong>data hash</strong> of the sorted issue
+set; unchanged input skips recomputation entirely.</p>
+<p>Derived products layered on those metrics: composite <strong>impact/triage scoring</strong>
+(PageRank 30 %, betweenness 30 %, blocker ratio 20 %, staleness 10 %, priority 10 %),
+<strong>execution plans</strong> (actionable set + unblocks + parallel tracks from connected
+components), <strong>priority recommendations</strong> with confidence, <strong>ETA forecasting</strong> and capacity
+simulation, <strong>label health scores</strong>, <strong>cross-label flow matrix</strong> with bottleneck scores,
+<strong>attention ranking</strong>, <strong>alerts</strong>, <strong>drift vs. baseline</strong>, <strong>duplicate and dependency
+suggestions</strong>, <strong>what-if analysis</strong>, and <strong>risk scoring</strong>.</p>
+<h3 id="23-git-correlation"><a class="toclink" href="#23-git-correlation">2.3 Git correlation</a></h3>
+<p><code>pkg/correlation</code> (~11k LOC) links beads to commits via explicit references, co-commit
+patterns, file-path overlap, and temporal proximity; scores each link with a confidence
+value; supports user feedback (confirm/reject) that adjusts future confidence; detects
+orphan commits; builds an impact network with clusters; performs causal-chain analysis;
+and maintains incremental per-commit disk caches so re-analysis is cheap.</p>
+<p>Optional <strong>cass</strong> integration correlates AI coding-agent sessions with beads.</p>
+<h3 id="24-views-terminal"><a class="toclink" href="#24-views-terminal">2.4 Views (terminal)</a></h3>
+<p>List · Kanban board · dependency graph · parent–child tree · insights dashboard (6 panels
+with calculation proofs) · actionable plan (parallel tracks) · flow matrix · attention view ·
+label dashboard · sprint dashboard with burndown · history view with timeline · alerts
+panel · recipe picker · label picker · repo picker · semantic search · shortcuts sidebar ·
+interactive tutorial · time-travel mode · update modal · agent-prompt modal · cass session
+modal.</p>
+<h3 id="25-outputs"><a class="toclink" href="#25-outputs">2.5 Outputs</a></h3>
+<ul>
+<li><strong>Robot protocol:</strong> around 45 <code>--robot-*</code> flags emitting stable JSON (plus TOON
+  token-optimised encoding) for AI agents, each payload carrying the data hash and config
+  for verification.</li>
+<li><strong>Markdown reports</strong> with embedded Mermaid diagrams.</li>
+<li><strong>Interactive HTML graph</strong> (self-contained, force-graph based).</li>
+<li><strong>Static site bundle</strong> with SQLite payload and an optional Rust/WASM hybrid search scorer.</li>
+<li><strong>Graph snapshots</strong> as SVG/PNG.</li>
+<li><strong>Shell script emission</strong>, agent brief bundles, GitHub Pages / Cloudflare deploy flows.</li>
+<li><strong>Hooks:</strong> user-defined commands fired around export phases.</li>
+</ul>
+<hr />
+<h2 id="3-goals-and-non-goals"><a class="toclink" href="#3-goals-and-non-goals">3. Goals and Non-Goals</a></h2>
+<h3 id="31-goals"><a class="toclink" href="#31-goals">3.1 Goals</a></h3>
+<ol>
+<li><strong>Functional parity</strong> with <code>bv</code> — every view, every metric, every export, every robot
+   command, reachable from <code>bvx</code>.</li>
+<li><strong>Numerical parity</strong> — a metric shown in <code>bvx</code> is identical to the same metric in <code>bv</code>
+   for the same input. This is testable and will be tested (<a href="#16-testing-strategy">§16</a>).</li>
+<li><strong>Native, not a port.</strong> Real <code>NSWindow</code> documents, native tables with column sorting and
+   drag, an Inspector sidebar, the standard menu bar, system-wide keyboard customisation,
+   Dark Mode, and VoiceOver.</li>
+<li><strong>Faster than the terminal where a GUI can be.</strong> GPU-accelerated graph rendering with
+   real pan/zoom/hit-testing; 10k+ issue lists at 120 Hz on ProMotion.</li>
+<li><strong>Track upstream cheaply.</strong> A <code>bv</code> release should be absorbable in hours, not weeks.</li>
+<li><strong>Agent-friendly.</strong> The robot protocol stays available from a CLI, and additionally as
+   App Intents (Shortcuts) and a URL scheme.</li>
+</ol>
+<h3 id="32-non-goals"><a class="toclink" href="#32-non-goals">3.2 Non-Goals</a></h3>
+<ol>
+<li><strong>Not an editor.</strong> <code>bvx</code> reads bead stores and shells out to <code>bd</code>/<code>br</code> for mutations,
+   exactly as <code>bv</code> does. Write support is a future, separately designed capability
+   (<a href="#20-open-questions">§20</a>).</li>
+<li><strong>Not cross-platform.</strong> iOS/iPadOS are out of scope for v1, though the engine and model
+   layers would carry over.</li>
+<li><strong>Not a terminal emulator.</strong> <code>bvx</code> does not reproduce the TUI's character-cell layouts;
+   it reproduces their <em>meaning</em> with native controls.</li>
+<li><strong>No new analysis.</strong> v1 adds no metrics <code>bv</code> does not have.</li>
+</ol>
+<hr />
+<h2 id="4-architecture-decision-how-bvx-gets-its-engine"><a class="toclink" href="#4-architecture-decision-how-bvx-gets-its-engine">4. Architecture Decision: How <code>bvx</code> Gets Its Engine</a></h2>
+<h3 id="41-the-options"><a class="toclink" href="#41-the-options">4.1 The options</a></h3>
+<div class="mermaid-wrap"><pre class="mermaid">flowchart LR
+    classDef opt fill:#eef2ff,stroke:#818cf8,stroke-width:2px,color:#3730a3,rx:8
+    classDef pro fill:#ecfdf5,stroke:#6ee7b7,stroke-width:1.5px,color:#065f46,rx:6
+    classDef con fill:#fef2f2,stroke:#fca5a5,stroke-width:1.5px,color:#991b1b,rx:6
+
+    A[&quot;Option A&lt;br/&gt;Full Swift rewrite&quot;]:::opt
+    B[&quot;Option B&lt;br/&gt;Go core as XCFramework&lt;br/&gt;(c-archive + C ABI)&quot;]:::opt
+    C[&quot;Option C&lt;br/&gt;Sidecar bv binary&lt;br/&gt;(robot JSON over pipes)&quot;]:::opt
+
+    A --&gt; A1[&quot;Pure Swift, no cgo,&lt;br/&gt;smallest binary&quot;]:::pro
+    A --&gt; A2[&quot;~50k LOC to rewrite&lt;br/&gt;Metric drift is invisible&lt;br/&gt;Upstream tracking is manual&quot;]:::con
+
+    B --&gt; B1[&quot;Exact parity by construction&lt;br/&gt;In-process, no IPC&lt;br/&gt;Upstream = submodule bump&quot;]:::pro
+    B --&gt; B2[&quot;cgo build complexity&lt;br/&gt;Go runtime in-process&lt;br/&gt;ABI must be designed&quot;]:::con
+
+    C --&gt; C1[&quot;Zero coupling&lt;br/&gt;Trivial to prototype&quot;]:::pro
+    C --&gt; C2[&quot;Process spawn per query&lt;br/&gt;No shared warm state&lt;br/&gt;Embedded-binary notarization&quot;]:::con</pre></div>
+<h3 id="42-decision"><a class="toclink" href="#42-decision">4.2 Decision</a></h3>
+<blockquote>
+<p><strong>Adopt Option B.</strong> Compile <code>bv</code>'s non-UI packages into a static library with
+<code>go build -buildmode=c-archive</code>, wrap it in an XCFramework (<code>BeadsEngine.xcframework</code>),
+and build a fully native SwiftUI/AppKit front end against it.</p>
+<p><strong>Use Option C as the Phase-0 scaffold</strong> so UI work can start on day one against the real
+<code>bv</code> binary, behind the same Swift protocol the XCFramework will later implement.</p>
+</blockquote>
+<p><strong>Rationale.</strong></p>
+<ul>
+<li>The value of <code>bv</code> is concentrated in <code>pkg/analysis</code>, <code>pkg/correlation</code>, <code>pkg/search</code>,
+  <code>pkg/loader</code>, and <code>pkg/export</code> — about 40k lines whose behaviour is subtle (approximation
+  thresholds, timeout semantics, confidence blending, cache-key derivation). Reimplementing
+  that in Swift is a multi-quarter effort whose bugs would surface as <em>plausible but wrong
+  numbers</em>, the worst failure mode for a decision-support tool.</li>
+<li>The layer that genuinely must be rewritten — <code>pkg/ui</code>, 34k lines of Bubble Tea — is
+  exactly the layer we are replacing on purpose.</li>
+<li><code>bv</code>'s dependencies are cgo-friendly: <code>gonum</code> is pure Go, and <code>modernc.org/sqlite</code> is a
+  pure-Go SQLite with no <code>libsqlite3</code> linkage, so the archive is self-contained.</li>
+<li>Upstream <code>bv</code> ships frequently (a 56 KB CHANGELOG). A submodule bump plus a bridge smoke
+  test is a far cheaper cadence than chasing algorithm changes by hand.</li>
+</ul>
+<p><strong>Accepted costs and mitigations.</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Cost</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cgo required; two-arch builds</td>
+<td>One <code>make engine</code> target produces both slices and <code>lipo</code>s them; cached in CI</td>
+</tr>
+<tr>
+<td>Go runtime lives in-process (~3 MB, own GC, own threads)</td>
+<td>Acceptable for a desktop app; measured in the perf budget (<a href="#15-performance-budget">§15</a>)</td>
+</tr>
+<tr>
+<td>Go runtime installs signal handlers that can interact with crash reporters</td>
+<td>Initialise the archive early, before any Swift crash-reporter install; validate crash symbolication in CI</td>
+</tr>
+<tr>
+<td>No cross-ABI dead-code elimination — the archive carries all of <code>bv</code>'s engine</td>
+<td>Roughly 15–25 MB static archive; strip and measure; small for a Mac app</td>
+</tr>
+<tr>
+<td>The ABI is hand-written surface area</td>
+<td>Keep it <em>tiny</em>: one generic <code>call(method, payload)</code> entry point plus a binary fast path (<a href="#6-the-engine-bridge">§6</a>)</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="5-system-architecture"><a class="toclink" href="#5-system-architecture">5. System Architecture</a></h2>
+<div class="mermaid-wrap"><pre class="mermaid">flowchart TB
+    classDef ui fill:#f5f3ff,stroke:#a78bfa,stroke-width:2px,color:#5b21b6,rx:8
+    classDef core fill:#eff6ff,stroke:#93c5fd,stroke-width:2px,color:#1e40af,rx:8
+    classDef bridge fill:#fffbeb,stroke:#fcd34d,stroke-width:2px,color:#92400e,rx:8
+    classDef go fill:#ecfeff,stroke:#67e8f9,stroke-width:2px,color:#155e75,rx:8
+    classDef data fill:#f0fdf4,stroke:#86efac,stroke-width:2px,color:#166534,rx:8
+
+    subgraph P[&quot;Presentation · SwiftUI + AppKit&quot;]
+        NV[&quot;Navigator&lt;br/&gt;sidebar&quot;]:::ui
+        CMD[&quot;Command palette&lt;br/&gt;menu bar · key equivalents&quot;]:::ui
+        VIEWS[&quot;View surfaces&lt;br/&gt;List · Board · Graph · Tree&lt;br/&gt;Insights · Plan · Flow · Attention&lt;br/&gt;Labels · Sprint · History · Alerts&quot;]:::ui
+        INSP[&quot;Inspector&lt;br/&gt;bead detail · proofs&quot;]:::ui
+    end
+
+    subgraph S[&quot;Application · Swift @MainActor&quot;]
+        SEL[&quot;Filter · sort&lt;br/&gt;selection model&quot;]:::core
+        VM[&quot;Per-view&lt;br/&gt;ViewModels&quot;]:::core
+        STORE[&quot;ProjectStore&lt;br/&gt;observable app state&quot;]:::core
+    end
+
+    subgraph D[&quot;Domain · actor-isolated&quot;]
+        WATCH[&quot;FileWatchService&lt;br/&gt;FSEvents&quot;]:::core
+        LAY[&quot;GraphLayoutService&lt;br/&gt;Sugiyama · force&quot;]:::core
+        EA[&quot;EngineActor&lt;br/&gt;serialises engine calls&quot;]:::core
+    end
+
+    subgraph B[&quot;Bridge&quot;]
+        SB[&quot;BeadsEngine.swift&lt;br/&gt;async/await facade&quot;]:::bridge
+        CABI[&quot;C ABI&lt;br/&gt;bvx_open · bvx_call&lt;br/&gt;bvx_call_async · bvx_cancel&quot;]:::bridge
+    end
+
+    subgraph G[&quot;Engine · Go, unchanged&quot;]
+        DS[&quot;internal/datasource&lt;br/&gt;JSONL · SQLite · workspace&quot;]:::go
+        AN[&quot;pkg/analysis&lt;br/&gt;9 metrics · triage · plan&quot;]:::go
+        CO[&quot;pkg/correlation&lt;br/&gt;git to bead linking&quot;]:::go
+        SE[&quot;pkg/search&quot;]:::go
+        EX[&quot;pkg/export&quot;]:::go
+    end
+
+    subgraph F[&quot;Storage · read only&quot;]
+        JL[&quot;.beads/issues.jsonl&quot;]:::data
+        DB[&quot;beads.db&quot;]:::data
+        GIT[&quot;.git&quot;]:::data
+        CACHE[&quot;~/Library/Caches/bvx&quot;]:::data
+    end
+
+    NV --&gt; VIEWS
+    CMD --&gt; VIEWS
+    VIEWS --&gt; INSP
+    VIEWS --&gt; VM
+    SEL --&gt; VM
+    VM --&gt; STORE
+    WATCH --&gt; STORE
+    STORE --&gt; LAY
+    STORE --&gt; EA
+    EA --&gt; SB
+    SB --&gt; CABI
+    CABI --&gt; DS &amp; AN &amp; CO &amp; SE &amp; EX
+    DS --&gt; JL &amp; DB
+    CO --&gt; GIT
+    AN --&gt; CACHE</pre></div>
+<h3 id="51-layer-contract"><a class="toclink" href="#51-layer-contract">5.1 Layer contract</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Language</th>
+<th>Isolation</th>
+<th>May depend on</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Presentation</td>
+<td>Swift / SwiftUI</td>
+<td><code>@MainActor</code></td>
+<td>Application</td>
+</tr>
+<tr>
+<td>Application</td>
+<td>Swift</td>
+<td><code>@MainActor</code>, <code>@Observable</code></td>
+<td>Domain</td>
+</tr>
+<tr>
+<td>Domain</td>
+<td>Swift</td>
+<td><code>actor</code> / <code>Sendable</code> values</td>
+<td>Bridge</td>
+</tr>
+<tr>
+<td>Bridge</td>
+<td>Swift + C</td>
+<td>non-isolated, thread-safe</td>
+<td>Engine</td>
+</tr>
+<tr>
+<td>Engine</td>
+<td>Go</td>
+<td>own scheduler</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+<p>Dependencies point strictly downward. Nothing in Presentation ever touches the C ABI;
+nothing in the Engine knows a UI exists.</p>
+<h3 id="52-package-layout"><a class="toclink" href="#52-package-layout">5.2 Package layout</a></h3>
+<pre><code>bvx/
+├── Engine/                       # Go submodule + build scripts
+│   ├── vendor-bv/                # git submodule → beads_viewer
+│   ├── bridge/                   # Go package exporting the C ABI (//export)
+│   └── Makefile                  # → BeadsEngine.xcframework
+├── Packages/
+│   ├── BeadsEngineKit/           # C ABI wrapper, async facade, JSON/binary codecs
+│   ├── BeadsModel/               # Sendable value types, decoding, formatting
+│   ├── BeadsGraphKit/            # layout algorithms, spatial index, Canvas/Metal renderer
+│   ├── BeadsUI/                  # shared views, theming, design tokens, chart styles
+│   └── BeadsFeatures/            # one module per view surface
+├── App/
+│   ├── bvx/                      # the macOS app target
+│   └── bvx-cli/                  # CLI target (robot protocol parity)
+└── docs/
+</code></pre>
+<hr />
+<h2 id="6-the-engine-bridge"><a class="toclink" href="#6-the-engine-bridge">6. The Engine Bridge</a></h2>
+<h3 id="61-c-abi"><a class="toclink" href="#61-c-abi">6.1 C ABI</a></h3>
+<p>Deliberately minimal — one open/close pair, one synchronous call, one asynchronous call
+with cancellation, and a free.</p>
+<pre><code class="language-c">typedef struct BvxHandle BvxHandle;          // opaque session
+typedef struct { uint8_t *ptr; int64_t len; } BvxBuf;
+
+// Lifecycle. config_json selects data source, workspace, cache dir, limits.
+BvxHandle *bvx_open(const char *config_json, BvxBuf *err_out);
+void       bvx_close(BvxHandle *h);
+
+// Synchronous request/response. Returns 0 on success, non-zero error code.
+int32_t    bvx_call(BvxHandle *h,
+                    const char *method,       // e.g. &quot;insights&quot;, &quot;triage&quot;, &quot;plan&quot;
+                    const uint8_t *req, int64_t req_len,
+                    BvxBuf *out);             // caller frees with bvx_free
+
+// Asynchronous: returns a token immediately; the process-wide callback fires on
+// progress, completion, or cancellation.
+int64_t    bvx_call_async(BvxHandle *h, const char *method,
+                          const uint8_t *req, int64_t req_len);
+int32_t    bvx_cancel(int64_t token);
+
+typedef void (*BvxCallback)(int64_t token, int32_t code,
+                            const uint8_t *payload, int64_t len);
+void       bvx_set_callback(BvxCallback cb);
+
+void       bvx_free(BvxBuf *buf);
+</code></pre>
+<p><strong>Why one generic <code>method</code> string rather than 45 typed entry points:</strong> the robot protocol
+already defines a stable, versioned, tested request/response vocabulary. Reusing it means
+the bridge surface never grows when <code>bv</code> gains a feature — a new <code>bv</code> robot command becomes
+callable from <code>bvx</code> with no C, no Go, and no build change.</p>
+<h3 id="62-memory-ownership"><a class="toclink" href="#62-memory-ownership">6.2 Memory ownership</a></h3>
+<ul>
+<li>Go allocates every response buffer with <code>C.malloc</code> and hands ownership to Swift.</li>
+<li>Swift copies into <code>Data</code> or decoded values, then calls <code>bvx_free</code> in a <code>defer</code>. This is
+  enforced by wrapping every call site in a single <code>withEngineBuffer { … }</code> helper, so no
+  call path can forget.</li>
+<li>Swift-owned request buffers are valid only for the duration of the call; the Go side
+  copies before returning from <code>bvx_call_async</code>.</li>
+</ul>
+<h3 id="63-threading-and-cancellation"><a class="toclink" href="#63-threading-and-cancellation">6.3 Threading and cancellation</a></h3>
+<div class="mermaid-wrap"><pre class="mermaid">sequenceDiagram
+    autonumber
+    participant V as View (MainActor)
+    participant S as ProjectStore (MainActor)
+    participant E as EngineActor
+    participant B as Bridge (nonisolated)
+    participant G as Go worker pool
+
+    V-&gt;&gt;S: user opens Insights
+    S-&gt;&gt;E: await insights(scope:)
+    E-&gt;&gt;B: bvx_call_async(&quot;insights&quot;, req)
+    B--&gt;&gt;E: token
+    Note over E: continuation parked, keyed by token
+    B-&gt;&gt;G: dispatch on Go pool
+    G--&gt;&gt;B: progress (PageRank computed)
+    B-&gt;&gt;E: callback(token, .progress, payload)
+    E--&gt;&gt;S: yield partial via AsyncStream
+    S--&gt;&gt;V: re-render &quot;PageRank ready&quot;
+    G--&gt;&gt;B: final payload
+    B-&gt;&gt;E: callback(token, .ok, payload)
+    E--&gt;&gt;S: resume continuation
+    S--&gt;&gt;V: full dashboard
+
+    V-&gt;&gt;S: user navigates away
+    S-&gt;&gt;E: Task cancelled
+    E-&gt;&gt;B: bvx_cancel(token)
+    B-&gt;&gt;G: ctx cancelled</pre></div>
+<ul>
+<li>Swift never blocks the main thread on the engine. <code>EngineActor</code> serialises access to a
+  single <code>BvxHandle</code>; concurrency happens inside Go, where the existing worker pools and
+  <code>errgroup</code> usage already live.</li>
+<li>The C callback is a <code>@convention(c)</code> free function. It cannot capture Swift context, so it
+  looks up the token in a lock-protected registry and resumes the parked
+  <code>CheckedContinuation</code> — or feeds an <code>AsyncStream</code> for progress-bearing calls.</li>
+<li>Swift structured-concurrency cancellation maps to <code>bvx_cancel</code>, which cancels the Go
+  <code>context.Context</code>. This is how the two-phase analyser's per-metric deadlines stay honest
+  when the user closes a window mid-computation.</li>
+</ul>
+<h3 id="64-payload-encoding"><a class="toclink" href="#64-payload-encoding">6.4 Payload encoding</a></h3>
+<p>Two codecs behind one Swift API:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Payload</th>
+<th>Codec</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Structured results (triage, plan, insights, alerts, forecast, history…)</td>
+<td><strong>JSON</strong>, the exact robot schema</td>
+<td>Free parity testing: the same bytes <code>bv --robot-triage</code> emits</td>
+</tr>
+<tr>
+<td>Bulk issue arrays, per-node metric vectors, graph edge lists</td>
+<td><strong>Packed columnar binary</strong></td>
+<td>10k issues as JSON is tens of MB; a columnar blob decodes far faster with much less transient allocation</td>
+</tr>
+</tbody>
+</table></div>
+<p>The binary path is an optimisation, not a semantic fork: it is generated from the same Go
+structs and validated in CI to round-trip identically to the JSON form. Ship JSON first and
+enable the binary path only where profiling shows it matters (<a href="#15-performance-budget">§15</a>).</p>
+<h3 id="65-error-model"><a class="toclink" href="#65-error-model">6.5 Error model</a></h3>
+<p>Go returns <code>(code, message, detail_json)</code>. Swift maps codes to a <code>BeadsEngineError</code> enum
+with cases the UI can act on distinctly: <code>sourceNotFound</code>, <code>parseWarnings([Warning])</code>,
+<code>metricTimeout(metric:)</code>, <code>cancelled</code>, <code>workspaceMisconfigured</code>, <code>gitUnavailable</code>,
+<code>internalPanic</code>. A Go panic inside the archive is recovered at the ABI boundary and
+surfaced as <code>internalPanic</code> with the goroutine dump attached to a diagnostics report — it
+must never take the app down.</p>
+<hr />
+<h2 id="7-data-model"><a class="toclink" href="#7-data-model">7. Data Model</a></h2>
+<p><code>BeadsModel</code> mirrors <code>bv</code>'s <code>pkg/model</code> as Swift value types. Decoding is lenient in exactly
+the places <code>bv</code> is lenient, so the two agree on what a malformed file means.</p>
+<div class="mermaid-wrap"><pre class="mermaid">classDiagram
+    class Issue {
+        +String id
+        +String title
+        +String description
+        +String design
+        +String acceptanceCriteria
+        +String notes
+        +Status status
+        +Int priority
+        +IssueType type
+        +String assignee
+        +Int estimatedMinutes
+        +Date createdAt
+        +Date updatedAt
+        +Date dueDate
+        +Date closedAt
+        +String externalRef
+        +String[] labels
+        +Dependency[] dependencies
+        +Comment[] comments
+        +String sourceRepo
+    }
+    class Dependency {
+        +String issueID
+        +String dependsOnID
+        +DependencyType type
+        +Date createdAt
+        +String createdBy
+        +isBlocking() Bool
+    }
+    class Comment {
+        +String id
+        +String issueID
+        +String author
+        +String text
+        +Date createdAt
+    }
+    class Sprint {
+        +String id
+        +String name
+        +Date startDate
+        +Date endDate
+        +String[] beadIDs
+        +Double velocityTarget
+    }
+    class GraphStats {
+        +Dictionary inDegree
+        +Dictionary outDegree
+        +String[] topologicalOrder
+        +Double density
+        +Int nodeCount
+        +Int edgeCount
+        +MetricStatus status
+    }
+    class Phase2Metrics {
+        +Dictionary pageRank
+        +Dictionary betweenness
+        +Dictionary eigenvector
+        +Dictionary hubs
+        +Dictionary authorities
+        +Dictionary criticalPath
+        +Dictionary coreNumber
+        +Dictionary articulation
+        +Dictionary slack
+        +Array cycles
+    }
+    Issue &quot;1&quot; o-- &quot;*&quot; Dependency
+    Issue &quot;1&quot; o-- &quot;*&quot; Comment
+    GraphStats &quot;1&quot; *-- &quot;1&quot; Phase2Metrics</pre></div>
+<p><strong>Design notes.</strong></p>
+<ul>
+<li><code>Status</code> is a <code>RawRepresentable</code> enum with <code>bv</code>'s cases (<code>open</code>, <code>in_progress</code>, <code>blocked</code>,
+  <code>deferred</code>, <code>draft</code>, <code>pinned</code>, <code>hooked</code>, <code>review</code>, <code>closed</code>, <code>tombstone</code>) <strong>plus an
+  <code>unknown(String)</code> case</strong> — beads is an evolving ecosystem and an unrecognised status must
+  render, not crash.</li>
+<li><code>IssueType</code> likewise: the five known types get icons and sort weights; anything else is
+  valid and renders with a default icon, matching <code>bv</code>'s <code>IsValid()</code> / <code>IsKnownType()</code> split
+  (which exists to accommodate Gastown types like <code>role</code>, <code>agent</code>, <code>molecule</code>).</li>
+<li><code>DependencyType.isBlocking</code> preserves the legacy quirk that an <strong>empty type means
+  blocking</strong>. Getting this wrong silently changes every downstream metric.</li>
+<li>All model types are <code>Sendable</code> value types so they cross actor boundaries freely.</li>
+<li>Metric maps are stored keyed by issue ID for API fidelity, but hot paths keep a parallel
+  dense <code>[Double]</code> indexed by a stable node index, built once per snapshot.</li>
+</ul>
+<hr />
+<h2 id="8-data-loading-watching-and-time-travel"><a class="toclink" href="#8-data-loading-watching-and-time-travel">8. Data Loading, Watching, and Time Travel</a></h2>
+<div class="mermaid-wrap"><pre class="mermaid">stateDiagram-v2
+    [*] --&gt; Discovering
+    Discovering --&gt; Loading: source resolved
+    Discovering --&gt; NoSource: nothing found
+    NoSource --&gt; Discovering: user picks folder
+
+    Loading --&gt; Phase1: parsed (warnings collected)
+    Loading --&gt; LoadFailed: unreadable
+    LoadFailed --&gt; Discovering: retry or pick another
+
+    Phase1 --&gt; Ready: degree, topo, density
+    Ready --&gt; Phase2Running: async metrics dispatched
+    Phase2Running --&gt; Ready: metrics land incrementally
+
+    Ready --&gt; Reloading: FSEvents, debounced 200 ms
+    Reloading --&gt; Phase1: data hash changed
+    Reloading --&gt; Ready: data hash unchanged (no-op)
+
+    Ready --&gt; TimeTravel: user picks a revision
+    TimeTravel --&gt; Ready: exit time travel</pre></div>
+<p>Discovery order is <code>issues.jsonl</code> → <code>beads.jsonl</code> → <code>beads.base.jsonl</code> → <code>beads.db</code>, with
+backups, merge artefacts, and deletion manifests skipped. Time travel loads a snapshot from
+the git object store and diffs it against the current state, producing per-issue badges:
+<code>NEW</code>, <code>CLOSED</code>, <code>MODIFIED</code>, <code>REOPENED</code>.</p>
+<h3 id="81-source-selection"><a class="toclink" href="#81-source-selection">8.1 Source selection</a></h3>
+<p><code>bvx</code> is a <strong>document-based app</strong>: a "document" is a bead workspace (a directory containing
+<code>.beads/</code>, or a <code>.bv/workspace.yaml</code>). This gives recent-documents, window restoration,
+drag-and-drop onto the Dock icon, and <code>open</code> from the CLI for free.</p>
+<p>Discovery order and the <code>BEADS_DIR</code> override are delegated to the Go engine so the rules
+cannot drift from <code>bv</code>. <code>bvx</code> adds a native folder picker when discovery finds nothing.</p>
+<h3 id="82-file-watching"><a class="toclink" href="#82-file-watching">8.2 File watching</a></h3>
+<p><code>FileWatchService</code> uses <strong>FSEvents</strong> rather than kqueue: it coalesces at directory level,
+survives atomic-rename writes (which is how <code>bd</code> rewrites JSONL), and is cheap. A 200 ms
+debounce matches <code>BV_DEBOUNCE_MS</code>. Network volumes are detected via <code>getattrlist</code> and fall
+back to 2 s polling, mirroring <code>BV_FORCE_POLLING</code>.</p>
+<p>Reload is <strong>hash-gated</strong>: the engine recomputes the data hash and returns "unchanged"
+without re-analysing, so an incidental touch does not cost a re-render.</p>
+<h3 id="83-sandboxing"><a class="toclink" href="#83-sandboxing">8.3 Sandboxing</a></h3>
+<p><code>bvx</code> ships <strong>sandboxed</strong> with:</p>
+<ul>
+<li><code>com.apple.security.files.user-selected.read-only</code> — the user grants a workspace folder.</li>
+<li><strong>Security-scoped bookmarks</strong> persisted per document, so reopening a workspace does not
+  re-prompt.</li>
+<li>Git history requires reading <code>.git</code>, which is inside the granted folder, so no extra
+  entitlement is needed — <em>provided</em> correlation reads the object database directly rather
+  than spawning <code>git</code>. <code>bv</code> currently shells out (<code>pkg/correlation/gitcmd.go</code>).
+  <strong>Decision:</strong> for the sandboxed app, route correlation through a Go path that reads the
+  object store directly; keep the subprocess path for <code>bvx-cli</code>, which is not sandboxed.
+  This is the one place the engine needs an upstream-friendly patch, and it is worth
+  contributing back.</li>
+</ul>
+<hr />
+<h2 id="9-analysis-pipeline-in-bvx"><a class="toclink" href="#9-analysis-pipeline-in-bvx">9. Analysis Pipeline in <code>bvx</code></a></h2>
+<p>Two-phase analysis maps naturally onto SwiftUI's incremental rendering.</p>
+<div class="mermaid-wrap"><pre class="mermaid">sequenceDiagram
+    autonumber
+    participant U as User
+    participant S as ProjectStore
+    participant E as EngineActor
+    participant G as Go analyser
+
+    U-&gt;&gt;S: open workspace
+    S-&gt;&gt;E: load(source)
+    E-&gt;&gt;G: datasource.LoadIssues
+    G--&gt;&gt;E: issues + parse warnings
+    E--&gt;&gt;S: issues (window paints list immediately)
+    S-&gt;&gt;E: analyze phase 1
+    E-&gt;&gt;G: NewAnalyzer + Phase 1
+    G--&gt;&gt;E: degree, topo, density (&lt;50 ms)
+    E--&gt;&gt;S: GraphStats phase 1
+    Note over S: blocking badges, ready filter,&lt;br/&gt;and tree view all become correct here
+    S-&gt;&gt;E: analyze phase 2 (AsyncStream)
+    E-&gt;&gt;G: dispatch metrics with per-metric deadlines
+    loop each metric
+        G--&gt;&gt;E: result + status (computed / approx / timeout / skipped)
+        E--&gt;&gt;S: stream element
+        S--&gt;&gt;U: that panel un-greys
+    end</pre></div>
+<p><strong>UI consequences of the phase model — requirements, not niceties:</strong></p>
+<ul>
+<li>Any view consuming a Phase-2 metric renders a <strong>determinate placeholder carrying the
+  metric's status</strong>, never a zero. A <code>timeout</code> state shows as "timed out (500 ms)" with a
+  "compute anyway" affordance that re-runs without a deadline.</li>
+<li><code>approx</code> metrics (sampled betweenness) are labelled in place with their sample size,
+  matching the robot payload's <code>{"state":"approx","sample":120}</code>.</li>
+<li>Sorting or filtering by a not-yet-ready metric is disabled rather than silently wrong.</li>
+<li><code>bv</code> fails closed on robot claims when PageRank or betweenness are incomplete
+  (<code>ClaimUnsafeReasons</code>); <code>bvx</code> mirrors this by disabling "claim this bead" actions with the
+  same reason text.</li>
+</ul>
+<hr />
+<h2 id="10-user-interface-design"><a class="toclink" href="#10-user-interface-design">10. User Interface Design</a></h2>
+<h3 id="101-window-anatomy"><a class="toclink" href="#101-window-anatomy">10.1 Window anatomy</a></h3>
+<pre><code class="language-text">┌───────────────────────────────────────────────────────────────────────────────────┐
+│  ● ● ●   bvx — acme-platform                                        [workspace ▾]  │  window
+├───────────────────────────────────────────────────────────────────────────────────┤
+│  ⟳ source ▾ │ filter ▾ │ sort ▾ │  🔍 search…        │ ⏱ time-travel │ ⚠ 3 │ ⇪ ▾  │  toolbar
+├──────────────────┬──────────────────────────────────────────┬─────────────────────┤
+│ VIEWS            │                                          │  INSPECTOR          │
+│  ▸ List          │                                          │  ─────────────      │
+│  ▸ Board         │                                          │  bd-142             │
+│  ▸ Graph         │                                          │  Split loader by    │
+│  ▸ Tree          │                                          │  source type        │
+│  ▸ Insights      │                                          │                     │
+│  ▸ Plan          │            C O N T E N T                 │  Status   in_progress
+│  ▸ Flow          │                                          │  Priority 1         │
+│  ▸ Attention     │   the active view surface —              │  PageRank 0.084 (#3)│
+│                  │   table · board · canvas ·               │  Betweenness  approx│
+│ FILTERS          │   outline · dashboard                    │           (sample 120)
+│  ○ Open          │                                          │  Unblocks 6         │
+│  ● Ready         │                                          │  ─────────────      │
+│  ○ Closed        │                                          │  Dependencies  ▸    │
+│  ○ All           │                                          │  Comments      ▸    │
+│                  │                                          │  History       ▸    │
+│ LABELS  ▸        │                                          │  Related work  ▸    │
+│ SPRINTS ▸        │                                          │  Proof of score▸    │
+│ RECIPES ▸        │                                          │                     │
+│ REPOS   ▸        │                                          │                     │
+├──────────────────┴──────────────────────────────────────────┴─────────────────────┤
+│ 1 284 issues · 412 ready · phase 2 ▓▓▓▓▓▓▓░░ 78 %  · watching · hash a91f…  │       status bar
+└───────────────────────────────────────────────────────────────────────────────────┘
+     sidebar                      content                        inspector
+  (NavigationSplitView column 1)  (column 2)                      (column 3)
+</code></pre>
+<p>Native affordances that replace TUI mechanics:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>TUI mechanic</th>
+<th><code>bvx</code> native equivalent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Tab</code> to switch focus list ↔ detail</td>
+<td>Real focus system; <code>⌘⌥←/→</code> moves between panes; the focus ring is visible</td>
+</tr>
+<tr>
+<td>Shortcuts sidebar (<code>;</code>)</td>
+<td>Menu bar + a <code>⌘/</code> Keyboard Shortcuts sheet + Help-menu search</td>
+</tr>
+<tr>
+<td>Help overlay (<code>?</code>)</td>
+<td>Standard Help menu, searchable, with deep links into views</td>
+</tr>
+<tr>
+<td>Modal pickers (label / recipe / repo)</td>
+<td>Command palette (<code>⌘K</code>) + sidebar sections + <code>NSPopover</code> filters</td>
+</tr>
+<tr>
+<td>Status-bar indicators</td>
+<td>Toolbar status item + window subtitle</td>
+</tr>
+<tr>
+<td>Character-cell heatmaps</td>
+<td>Swift Charts heat maps with real colour scales and tooltips</td>
+</tr>
+<tr>
+<td>Unicode sparklines</td>
+<td>Swift Charts inline area/line marks inside table cells</td>
+</tr>
+<tr>
+<td>ASCII graph</td>
+<td>Hit-testable vector canvas (<a href="#11-graph-rendering">§11</a>)</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="102-view-by-view-mapping"><a class="toclink" href="#102-view-by-view-mapping">10.2 View-by-view mapping</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th><code>bv</code> view</th>
+<th><code>bvx</code> surface</th>
+<th>Native technology</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>List</strong></td>
+<td><code>Table</code> with sortable columns</td>
+<td>SwiftUI <code>Table</code> (NSTableView-backed)</td>
+<td>Columns: ID, title, status, priority, type, assignee, labels, PageRank, unblocks, updated. Column visibility persisted. Multi-select.</td>
+</tr>
+<tr>
+<td><strong>Kanban board</strong></td>
+<td>Column-per-status board</td>
+<td><code>LazyHStack</code> + <code>LazyVStack</code>, drag-and-drop</td>
+<td>Four-line rich cards, per-column stats header, inline expansion via disclosure, swimlane grouping (label / assignee / type / epic) as a segmented control</td>
+</tr>
+<tr>
+<td><strong>Graph</strong></td>
+<td>Pan/zoom canvas</td>
+<td><code>BeadsGraphKit</code>: layered layout + <code>Canvas</code>/Metal</td>
+<td>See <a href="#11-graph-rendering">§11</a></td>
+</tr>
+<tr>
+<td><strong>Tree</strong></td>
+<td>Parent–child outline</td>
+<td><code>OutlineGroup</code> in a source-list <code>Table</code></td>
+<td>Expand/collapse all, keyboard <code>←/→</code>, reveal-in-graph</td>
+</tr>
+<tr>
+<td><strong>Insights dashboard</strong></td>
+<td>Six-panel grid</td>
+<td><code>Grid</code> + Swift Charts</td>
+<td>Panel focus with <code>Tab</code>; the "calculation proof" becomes an expandable inspector section showing the formula and the actual substituted numbers</td>
+</tr>
+<tr>
+<td><strong>Actionable plan</strong></td>
+<td>Track lanes</td>
+<td>Board-style lanes, one per parallel track</td>
+<td>Each item shows its unblock count and downstream chain</td>
+</tr>
+<tr>
+<td><strong>Flow matrix</strong></td>
+<td>Label × label matrix</td>
+<td>Swift Charts heat map + drill-down table</td>
+<td>Bottleneck-score colour scale; click a cell to filter the list to those edges</td>
+</tr>
+<tr>
+<td><strong>Attention view</strong></td>
+<td>Ranked label list</td>
+<td><code>Table</code> with score bars</td>
+<td>Score decomposition in the inspector</td>
+</tr>
+<tr>
+<td><strong>Label dashboard</strong></td>
+<td>Health cards</td>
+<td><code>Grid</code> of cards + charts</td>
+<td>Health level colour, trend sparkline</td>
+</tr>
+<tr>
+<td><strong>Sprint dashboard</strong></td>
+<td>Burndown</td>
+<td>Swift Charts line + ideal-line overlay</td>
+<td>At-risk banner; velocity comparison chart</td>
+</tr>
+<tr>
+<td><strong>History</strong></td>
+<td>Timeline + commit list</td>
+<td><code>Table</code> + a custom timeline <code>Canvas</code></td>
+<td>Confidence badges, causality markers, file-centric drill-down, Quick Look on diffs</td>
+</tr>
+<tr>
+<td><strong>Alerts</strong></td>
+<td>Severity-grouped list</td>
+<td><code>List</code> with sections</td>
+<td>Optional <code>UNUserNotificationCenter</code> delivery for critical alerts while watching</td>
+</tr>
+<tr>
+<td><strong>Semantic search</strong></td>
+<td>Unified search field</td>
+<td><code>.searchable</code> + scope bar</td>
+<td>Fuzzy ↔ semantic toggle; hybrid weights in a popover</td>
+</tr>
+<tr>
+<td><strong>Recipes</strong></td>
+<td>Sidebar section + editor</td>
+<td><code>List</code> + a form-based recipe editor</td>
+<td>Built-in and user recipes; applying one sets filter, sort, and view atomically</td>
+</tr>
+<tr>
+<td><strong>Time travel</strong></td>
+<td>Revision scrubber</td>
+<td>Toolbar control + diff badges</td>
+<td>Scrubber over recent commits; badges tint rows</td>
+</tr>
+<tr>
+<td><strong>Tutorial</strong></td>
+<td>Onboarding window</td>
+<td>A separate <code>WindowGroup</code> with progress</td>
+<td>Sections mirror <code>bv</code>'s; progress persisted; each view links to "learn this view"</td>
+</tr>
+<tr>
+<td><strong>Update modal</strong></td>
+<td>Sparkle</td>
+<td>Sparkle 2</td>
+<td>Native, signed, delta updates</td>
+</tr>
+<tr>
+<td><strong>Agent prompt / cass modals</strong></td>
+<td>Sheets</td>
+<td>SwiftUI sheets</td>
+<td>Copy-to-clipboard prompt builder; cass session preview</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="103-keyboard-model"><a class="toclink" href="#103-keyboard-model">10.3 Keyboard model</a></h3>
+<p><code>bv</code> is vim-keyed; macOS users expect <code>⌘</code>-keyed. <code>bvx</code> serves both:</p>
+<ul>
+<li><strong>Every action has a menu item with a standard macOS key equivalent.</strong> This is the
+  primary, discoverable path, and it is system-customisable because they are real menu items.</li>
+<li><strong>A "Terminal keys" mode</strong> (default <strong>on</strong>, toggleable in Settings) additionally binds
+  <code>bv</code>'s single-key map — <code>j/k</code>, <code>g/G</code>, <code>o/r/c/a</code>, <code>b/i/g/E/f</code>, <code>[</code>, <code>]</code>, <code>/</code>, <code>;</code>, <code>!</code>,
+  <code>'</code>, <code>t/T</code>, <code>x/C/O</code> — whenever no text field has focus. Users coming from <code>bv</code> keep their
+  muscle memory; users who do not, never see it.</li>
+<li><strong>Command palette</strong> (<code>⌘K</code>) exposes every command by name with fuzzy matching, showing both
+  bindings side by side. This is what makes the dual model teachable rather than confusing.</li>
+</ul>
+<p>Conflicts resolve by focus: a bare letter is a <code>bv</code> shortcut only when the first responder
+does not accept text.</p>
+<h3 id="104-visual-design-and-accessibility"><a class="toclink" href="#104-visual-design-and-accessibility">10.4 Visual design and accessibility</a></h3>
+<ul>
+<li>System materials, <code>.regularMaterial</code> sidebars, standard vibrancy behaviour.</li>
+<li>Semantic colours only, resolved per appearance from a single <code>BeadsUI</code> token set that is
+  contrast-checked in light and dark and ships a colour-blind-safe variant — status colour is
+  load-bearing on the board and in heat maps, so it cannot be the <em>only</em> encoding. Status is
+  always also carried by an SF Symbol.</li>
+<li>Full Dark Mode, Increase Contrast, and Reduce Motion support (graph animations degrade to
+  cross-fades).</li>
+<li><strong>VoiceOver:</strong> every chart carries an <code>accessibilityChartDescriptor</code>; the graph canvas
+  exposes an accessibility element tree of nodes with their dependency relationships as
+  custom rotors; the board announces column and position on move.</li>
+</ul>
+<hr />
+<h2 id="11-graph-rendering"><a class="toclink" href="#11-graph-rendering">11. Graph Rendering</a></h2>
+<p>This is the largest capability gap between a TUI and a native app. <code>bv</code> draws an ASCII
+approximation; <code>bvx</code> draws a real, interactive, hit-testable graph.</p>
+<div class="mermaid-wrap"><pre class="mermaid">flowchart LR
+    classDef st fill:#eff6ff,stroke:#93c5fd,stroke-width:2px,color:#1e40af,rx:6
+    A[&quot;Issues + blocking edges&quot;]:::st --&gt; B[&quot;Filter to view scope&lt;br/&gt;(depth, root, labels)&quot;]:::st
+    B --&gt; C{&quot;Node count&quot;}:::st
+    C --&gt;|&quot;≤ 2000&quot;| D[&quot;Sugiyama layered layout&lt;br/&gt;rank → order → position&quot;]:::st
+    C --&gt;|&quot;&gt; 2000&quot;| E[&quot;ForceAtlas2 over a&lt;br/&gt;Barnes–Hut quadtree&quot;]:::st
+    D --&gt; F[&quot;Edge routing:&lt;br/&gt;orthogonal splines,&lt;br/&gt;bundling for hubs&quot;]:::st
+    E --&gt; F
+    F --&gt; G[&quot;R-tree spatial index&quot;]:::st
+    G --&gt; H[&quot;Renderer:&lt;br/&gt;Canvas ≤ 5k primitives,&lt;br/&gt;Metal instanced above&quot;]:::st
+    G --&gt; I[&quot;Hit-testing, marquee select,&lt;br/&gt;hover, drag-to-reposition&quot;]:::st</pre></div>
+<p><strong>Decisions.</strong></p>
+<ul>
+<li><strong>Layout is computed off the main actor</strong> in <code>BeadsGraphKit</code>, in Swift rather than Go —
+  this is presentation, and <code>bv</code> has no equivalent worth reusing. Layered Sugiyama is the
+  right default because the graph <em>is</em> a dependency DAG and rank equals topological depth,
+  which the engine already computes in Phase 1.</li>
+<li><strong>Cycles</strong> break layering. Feed the engine's detected cycles in, condense each SCC into a
+  super-node for ranking, then expand and draw back-edges in a distinct style. This makes
+  the cycle warning <em>visible</em> rather than a footnote.</li>
+<li><strong>Rendering</strong> starts with SwiftUI <code>Canvas</code>, which handles a few thousand primitives at
+  60–120 Hz. An <code>MTKView</code> path with instanced quads and SDF-rendered edges takes over above
+  the measured threshold. Both consume the same scene description, so the switch is invisible.</li>
+<li><strong>Visual encoding</strong> carries the metrics: node radius = PageRank, fill = status, ring =
+  betweenness percentile, border = articulation point, opacity = staleness, edge weight =
+  criticality. Encoding is user-configurable and always legended.</li>
+<li><strong>Interaction:</strong> pinch/scroll zoom, drag pan, click select (synced to inspector and list),
+  double-click to focus a subgraph, <code>⌥</code>-hover to highlight the full transitive blocking set,
+  marquee multi-select, isolate, expand-neighbours, and export the current camera to SVG/PNG
+  — reusing the engine's snapshot exporter so output matches <code>bv --export-graph</code>.</li>
+</ul>
+<hr />
+<h2 id="12-search"><a class="toclink" href="#12-search">12. Search</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Mode</th>
+<th><code>bv</code></th>
+<th><code>bvx</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Fuzzy</strong></td>
+<td>Flattened-vector index, subsequence matching</td>
+<td>Same engine call; results ranked identically</td>
+</tr>
+<tr>
+<td><strong>Semantic</strong></td>
+<td><code>hash</code> embedder by default, pluggable provider, 384 dimensions</td>
+<td>Same engine call by default, <strong>plus</strong> an optional on-device embedder using Apple's <code>NLEmbedding</code> or a bundled Core ML sentence encoder</td>
+</tr>
+<tr>
+<td><strong>Hybrid</strong></td>
+<td>Text + graph-metric weighting, tunable presets</td>
+<td>Same, with a weights popover and live re-ranking</td>
+</tr>
+</tbody>
+</table></div>
+<p>The Core ML embedder is strictly opt-in and clearly labelled, because switching embedders
+changes ranking — a parity-relevant behaviour change. The default stays <code>bv</code>'s hash embedder
+so results match the CLI out of the box.</p>
+<p>Search is also wired to <strong>Spotlight</strong>: <code>bvx</code> indexes open workspaces into
+<code>CSSearchableIndex</code>, so a bead ID or title typed into Spotlight opens it directly in <code>bvx</code>.</p>
+<hr />
+<h2 id="13-robot-protocol-cli-and-automation"><a class="toclink" href="#13-robot-protocol-cli-and-automation">13. Robot Protocol, CLI, and Automation</a></h2>
+<p>Parity here is non-negotiable: <code>bv</code> is heavily used <em>by AI agents</em>, and a Mac app that drops
+that is not a replacement.</p>
+<p>Three surfaces, one engine:</p>
+<ol>
+<li><strong><code>bvx-cli</code></strong> — a separate executable target linking the same XCFramework, accepting the
+   full <code>--robot-*</code> flag set and emitting byte-identical JSON/TOON. Shipped inside the app
+   bundle at <code>Contents/MacOS/bvx-cli</code>, with an "Install Command Line Tool…" menu item that
+   symlinks it into <code>/usr/local/bin</code> (the Xcode / <code>gh</code> pattern). A CI job diffs
+   <code>bvx-cli --robot-X</code> against <code>bv --robot-X</code> across the fixture corpus.</li>
+<li><strong>App Intents / Shortcuts</strong> — <code>GetTriage</code>, <code>GetNextBead</code>, <code>GetExecutionPlan</code>, <code>GetAlerts</code>,
+   <code>ForecastBead</code>, <code>ExportReport</code>. This makes <code>bvx</code> scriptable from Shortcuts, Spotlight, and
+   Siri, and callable from other apps without shelling out.</li>
+<li><strong>URL scheme</strong> — <code>bvx://open?workspace=…&amp;bead=…&amp;view=graph</code> for deep links from commit
+   messages, chat, and agent output.</li>
+</ol>
+<div class="mermaid-wrap"><pre class="mermaid">flowchart TB
+    classDef s fill:#f0fdf4,stroke:#86efac,stroke-width:2px,color:#166534,rx:6
+    classDef e fill:#eff6ff,stroke:#93c5fd,stroke-width:2px,color:#1e40af,rx:6
+    GUI[&quot;bvx.app (SwiftUI)&quot;]:::s --&gt; K[&quot;BeadsEngineKit&quot;]:::e
+    CLI[&quot;bvx-cli (robot flags)&quot;]:::s --&gt; K
+    INT[&quot;App Intents / Shortcuts&quot;]:::s --&gt; K
+    URL[&quot;bvx:// URL handler&quot;]:::s --&gt; K
+    K --&gt; XC[&quot;BeadsEngine.xcframework&lt;br/&gt;bv engine, unmodified&quot;]:::e</pre></div>
+<hr />
+<h2 id="14-exports-and-sharing"><a class="toclink" href="#14-exports-and-sharing">14. Exports and Sharing</a></h2>
+<p>All export formats are produced by the engine's existing <code>pkg/export</code>, so output is
+identical to <code>bv</code>:</p>
+<ul>
+<li><strong>Markdown report</strong> with Mermaid — <code>⌘⇧E</code>, plus a Share-sheet destination.</li>
+<li><strong>Interactive HTML graph</strong> — self-contained, opens in the default browser.</li>
+<li><strong>Static site bundle</strong> — the wizard becomes a native multi-step sheet; deploy targets
+  (GitHub Pages, Cloudflare) keep their existing flows, with credentials stored in the
+  <strong>Keychain</strong> rather than environment variables.</li>
+<li><strong>SVG/PNG graph snapshots</strong> — additionally available as drag-out from the graph canvas and
+  as an <code>NSSharingService</code> provider.</li>
+<li><strong>Hooks</strong> — user shell commands around export phases. In the sandboxed app these run via a
+  user-approved <code>NSUserUnixTask</code> path or are disabled with an explanation pointing at
+  <code>bvx-cli</code>; the CLI keeps full hook behaviour.</li>
+</ul>
+<hr />
+<h2 id="15-performance-budget"><a class="toclink" href="#15-performance-budget">15. Performance Budget</a></h2>
+<p>Targets measured on an Apple-silicon Mac with a 2 000-issue / 6 000-edge workspace:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Target</th>
+<th>Strategy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cold launch → window visible</td>
+<td>&lt; 300 ms</td>
+<td><code>bvx_open</code> on a background task; list paints from Phase-1 data</td>
+</tr>
+<tr>
+<td>Workspace open → first list paint</td>
+<td>&lt; 120 ms</td>
+<td>Streamed decode; <code>Table</code> is lazy</td>
+</tr>
+<tr>
+<td>Phase-1 metrics</td>
+<td>&lt; 50 ms</td>
+<td>Inherited from <code>bv</code></td>
+</tr>
+<tr>
+<td>Phase-2 metrics, all</td>
+<td>&lt; 1.5 s, streamed</td>
+<td>Inherited; per-metric deadlines; the UI never waits</td>
+</tr>
+<tr>
+<td>Scroll a 10 000-row table</td>
+<td>120 Hz, no dropped frames</td>
+<td>Cell reuse; no per-row engine calls; precomputed display strings</td>
+</tr>
+<tr>
+<td>Graph layout, 2 000 nodes</td>
+<td>&lt; 400 ms off-main</td>
+<td>Sugiyama with incremental re-rank on filter change</td>
+</tr>
+<tr>
+<td>Graph render, pan and zoom</td>
+<td>120 Hz</td>
+<td>Canvas → Metal above threshold; R-tree culling</td>
+</tr>
+<tr>
+<td>Reload after file change</td>
+<td>&lt; 150 ms unchanged, &lt; 400 ms changed</td>
+<td>Hash gate; incremental analyser cache</td>
+</tr>
+<tr>
+<td>Memory, 10 000 issues</td>
+<td>&lt; 400 MB RSS</td>
+<td>Columnar metric storage; Go and Swift each hold one copy, not three</td>
+</tr>
+</tbody>
+</table></div>
+<p>For context, <code>bv</code>'s own measurements put betweenness at roughly 1.3 s for 1 000 nodes and
+4.6 s for 2 000 — which is precisely why it is a Phase-2, deadline-bounded, status-reporting
+metric, and why the <code>bvx</code> UI must be designed to render correctly without it.</p>
+<p>Everything is instrumented with <code>os_signpost</code> around each engine call and layout pass, so
+Instruments traces attribute time to a named phase. A <code>bvx --profile-startup</code> mode mirrors
+<code>bv</code>'s.</p>
+<hr />
+<h2 id="16-testing-strategy"><a class="toclink" href="#16-testing-strategy">16. Testing Strategy</a></h2>
+<div class="mermaid-wrap"><pre class="mermaid">flowchart LR
+    classDef t fill:#fff7ed,stroke:#fdba74,stroke-width:2px,color:#9a3412,rx:6
+    P[&quot;&lt;b&gt;Parity tests&lt;/b&gt;&lt;br/&gt;bvx-cli vs bv:&lt;br/&gt;byte-diff robot JSON&lt;br/&gt;over the fixture corpus&quot;]:::t
+    U[&quot;&lt;b&gt;Unit tests&lt;/b&gt;&lt;br/&gt;Swift Testing:&lt;br/&gt;decoding, filters,&lt;br/&gt;sort, layout math&quot;]:::t
+    B[&quot;&lt;b&gt;Bridge tests&lt;/b&gt;&lt;br/&gt;ABI round-trip, leak&lt;br/&gt;checks, cancellation,&lt;br/&gt;panic recovery&quot;]:::t
+    S[&quot;&lt;b&gt;Snapshot tests&lt;/b&gt;&lt;br/&gt;view rendering,&lt;br/&gt;light and dark,&lt;br/&gt;Dynamic Type&quot;]:::t
+    UI[&quot;&lt;b&gt;UI tests&lt;/b&gt;&lt;br/&gt;XCUITest: navigation,&lt;br/&gt;keyboard, drag-and-drop&quot;]:::t
+    A[&quot;&lt;b&gt;Accessibility audit&lt;/b&gt;&lt;br/&gt;performAccessibilityAudit()&quot;]:::t
+    F[&quot;&lt;b&gt;Fuzz corpus&lt;/b&gt;&lt;br/&gt;bv&#x27;s synthetic and&lt;br/&gt;corrupted JSONL fixtures&quot;]:::t
+    P --- U --- B --- S --- UI --- A --- F</pre></div>
+<p><strong>The parity suite is the backbone.</strong> <code>bv</code> already ships <code>testdata/</code> and synthetic-data
+fuzzing; <code>bvx</code> reuses that corpus and asserts that for every fixture and every robot method,
+<code>bvx-cli</code> output equals <code>bv</code> output modulo a documented, enumerated exception list (timing
+fields, absolute paths, version strings). Any divergence fails CI. This is what makes "same
+functionality" a claim rather than a hope.</p>
+<p>Bridge tests run under Address Sanitizer with a leak-checking harness asserting that every
+<code>bvx_call</code> buffer is freed and that cancelling mid-flight neither leaks nor double-frees.</p>
+<hr />
+<h2 id="17-build-packaging-and-distribution"><a class="toclink" href="#17-build-packaging-and-distribution">17. Build, Packaging, and Distribution</a></h2>
+<div class="mermaid-wrap"><pre class="mermaid">flowchart LR
+    classDef b fill:#f5f3ff,stroke:#c4b5fd,stroke-width:2px,color:#5b21b6,rx:6
+    SUB[&quot;git submodule&lt;br/&gt;beads_viewer @ pinned tag&quot;]:::b --&gt; GOB[&quot;go build -buildmode=c-archive&lt;br/&gt;GOOS=darwin,&lt;br/&gt;GOARCH=arm64 and amd64&quot;]:::b
+    GOB --&gt; LIPO[&quot;lipo → universal .a&lt;br/&gt;+ generated header&quot;]:::b
+    LIPO --&gt; XCF[&quot;xcodebuild -create-xcframework&lt;br/&gt;→ BeadsEngine.xcframework&quot;]:::b
+    XCF --&gt; SPM[&quot;SwiftPM binaryTarget&quot;]:::b
+    SPM --&gt; APP[&quot;xcodebuild archive&lt;br/&gt;→ bvx.app, universal&quot;]:::b
+    APP --&gt; SIGN[&quot;codesign: Developer ID,&lt;br/&gt;hardened runtime&quot;]:::b
+    SIGN --&gt; NOT[&quot;notarytool submit + staple&quot;]:::b
+    NOT --&gt; DIST[&quot;DMG + Sparkle appcast&lt;br/&gt;Homebrew cask&lt;br/&gt;optional Mac App Store&quot;]:::b</pre></div>
+<ul>
+<li><strong>Reproducibility:</strong> the engine build is content-addressed on the submodule SHA plus the Go
+  toolchain version and cached in CI, so most builds skip the Go step entirely.</li>
+<li><strong>Two distribution channels.</strong> Developer ID + Sparkle is primary — it preserves hooks, the
+  CLI symlink, and unrestricted git access. A Mac App Store build is possible but must drop
+  shell hooks and <code>/usr/local/bin</code>; ship it only if there is demand, and gate the affected
+  features behind a capability check rather than forking the codebase.</li>
+<li><strong>Homebrew cask</strong> <code>bvx</code>, so <code>bv</code> users can <code>brew install --cask bvx</code>.</li>
+</ul>
+<hr />
+<h2 id="18-delivery-plan"><a class="toclink" href="#18-delivery-plan">18. Delivery Plan</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Scope</th>
+<th>Exit criteria</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>0 — Scaffold</strong> (2 wks)</td>
+<td>App shell, document model, <code>EngineProtocol</code> implemented by the <strong>subprocess</strong> backend against the real <code>bv</code> binary; List view</td>
+<td>Open a workspace; see a sorted, filtered, searchable list</td>
+</tr>
+<tr>
+<td><strong>1 — Bridge</strong> (3 wks)</td>
+<td>Go <code>c-archive</code> + C ABI + XCFramework; <code>EngineProtocol</code> swapped in-process; async and cancellation; bridge test suite</td>
+<td>Subprocess backend deleted; parity suite green for <code>triage</code>, <code>insights</code>, <code>plan</code></td>
+</tr>
+<tr>
+<td><strong>2 — Core views</strong> (4 wks)</td>
+<td>Board, Tree, Inspector, filters, sorts, labels, recipes, live reload</td>
+<td>Daily-driver replacement for <code>bv</code>'s list/board/tree usage</td>
+</tr>
+<tr>
+<td><strong>3 — Graph</strong> (4 wks)</td>
+<td><code>BeadsGraphKit</code>: layout, Canvas renderer, interaction, cycle handling, SVG/PNG export</td>
+<td>2 000-node graph at 120 Hz with hit-testing</td>
+</tr>
+<tr>
+<td><strong>4 — Analytics</strong> (4 wks)</td>
+<td>Insights with proofs, Plan, Flow matrix, Attention, Label dashboard, Sprint/burndown, Alerts</td>
+<td>All Phase-2 metrics surfaced with correct status semantics</td>
+</tr>
+<tr>
+<td><strong>5 — History</strong> (3 wks)</td>
+<td>Correlation, timeline, causality, file drill-down, orphans, feedback, cass</td>
+<td>History parity with <code>--robot-history</code></td>
+</tr>
+<tr>
+<td><strong>6 — Automation</strong> (2 wks)</td>
+<td><code>bvx-cli</code> full robot flag set, App Intents, URL scheme, Spotlight</td>
+<td>Full parity suite green across all robot methods</td>
+</tr>
+<tr>
+<td><strong>7 — Polish and ship</strong> (3 wks)</td>
+<td>Time travel, tutorial, exports and wizard, accessibility audit, Sparkle, notarization, cask</td>
+<td>Public 1.0</td>
+</tr>
+</tbody>
+</table></div>
+<p>Roughly <strong>25 weeks</strong> for one engineer, materially less in parallel — phases 3, 4, and 5 are
+independent once phase 1 lands.</p>
+<hr />
+<h2 id="19-risks"><a class="toclink" href="#19-risks">19. Risks</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Impact</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cgo / <code>c-archive</code> friction (signal handlers, crash reporting, static-init order)</td>
+<td>High</td>
+<td>De-risk with a Phase-1 spike before committing; the Phase-0 subprocess backend remains a working fallback throughout</td>
+</tr>
+<tr>
+<td>Upstream <code>bv</code> refactors its internal packages</td>
+<td>Medium</td>
+<td>Depend on <code>pkg/*</code> public APIs and the robot method vocabulary, not internals; pin a tag; the parity suite catches drift immediately</td>
+</tr>
+<tr>
+<td>Metric divergence creeping in via convenience reimplementation in Swift</td>
+<td>High</td>
+<td><strong>Rule: no metric is ever computed in Swift.</strong> Layout and formatting only. Enforced in review and by the parity suite</td>
+</tr>
+<tr>
+<td>Sandbox blocks git-subprocess correlation</td>
+<td>Medium</td>
+<td>Direct object-store reads in the engine (<a href="#83-sandboxing">§8.3</a>); contribute upstream; the CLI keeps the subprocess path</td>
+</tr>
+<tr>
+<td>Graph layout quality on dense or cyclic real graphs</td>
+<td>Medium</td>
+<td>SCC condensation; user-switchable layouts; ship the force layout as an escape hatch</td>
+</tr>
+<tr>
+<td>Dual keyboard model confuses users</td>
+<td>Low</td>
+<td>The command palette makes both discoverable; Terminal-keys mode is one switch</td>
+</tr>
+<tr>
+<td>Binary size from the full Go engine</td>
+<td>Low</td>
+<td>Measure and strip; this is a desktop app, not an embedded target</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="20-open-questions"><a class="toclink" href="#20-open-questions">20. Open Questions</a></h2>
+<ol>
+<li><strong>Write support.</strong> <code>bv</code> is read-only and shells to <code>bd</code>/<code>br</code>. Should <code>bvx</code> v1 offer inline
+   status changes and drag-to-reprioritise on the board by invoking <code>bd</code>? It is the first
+   thing a GUI user will try. <em>Recommendation: yes, in v1.1, behind an explicit "enable
+   editing" preference, implemented strictly as <code>bd</code> invocations so the JSONL stays canonical.</em></li>
+<li><strong>Multi-window vs. tabs</strong> for multiple workspaces — native tabs come free with <code>NSWindow</code>;
+   confirm the workspace/document mapping with users of <code>.bv/workspace.yaml</code>.</li>
+<li><strong>Minimum macOS.</strong> Targeting 14.0 unlocks <code>@Observable</code>, <code>Inspector</code>, and modern <code>Table</code>
+   features. Does anyone need 13.0?</li>
+<li><strong>Rust/WASM hybrid search scorer</strong> — ship it as <code>bv</code> does for static exports, or compile
+   that crate natively for the app's own search path?</li>
+<li><strong>Telemetry.</strong> <code>bv</code> has none. <em>Recommendation: opt-in crash reports only, no analytics.</em></li>
+</ol>
+<hr />
+<h2 id="appendix-a-engine-method-vocabulary"><a class="toclink" href="#appendix-a-engine-method-vocabulary">Appendix A — Engine Method Vocabulary</a></h2>
+<p>The bridge's <code>method</code> strings map one-to-one onto <code>bv</code>'s robot commands, which keeps the
+surface self-documenting and the parity suite exhaustive:</p>
+<p><code>triage</code> · <code>triage_by_track</code> · <code>triage_by_label</code> · <code>next</code> · <code>plan</code> · <code>insights</code> · <code>metrics</code> ·
+<code>priority</code> · <code>impact</code> · <code>impact_network</code> · <code>blocker_chain</code> · <code>related</code> · <code>causality</code> ·
+<code>history</code> · <code>file_beads</code> · <code>file_hotspots</code> · <code>file_relations</code> · <code>orphans</code> ·
+<code>explain_correlation</code> · <code>confirm_correlation</code> · <code>reject_correlation</code> · <code>correlation_stats</code> ·
+<code>search</code> · <code>suggest</code> · <code>forecast</code> · <code>capacity</code> · <code>burndown</code> · <code>sprint_list</code> · <code>sprint_show</code> ·
+<code>label_health</code> · <code>label_flow</code> · <code>label_attention</code> · <code>alerts</code> · <code>drift</code> · <code>diff</code> · <code>graph</code> ·
+<code>recipes</code> · <code>by_label</code> · <code>by_assignee</code> · <code>capabilities</code> · <code>schema</code> · <code>docs</code></p>
+<p>Plus <code>bvx</code>-local methods that are not robot commands: <code>open</code>, <code>close</code>, <code>reload</code>, <code>data_hash</code>,
+<code>parse_warnings</code>, <code>snapshot_at</code>, <code>export_markdown</code>, <code>export_graph</code>, <code>export_site</code>.</p>
+<hr />
+<h2 id="appendix-b-glossary"><a class="toclink" href="#appendix-b-glossary">Appendix B — Glossary</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Bead</strong></td>
+<td>A single issue or work item in the beads system</td>
+</tr>
+<tr>
+<td><strong>Actionable</strong></td>
+<td>Open or in-progress with no open blocking dependency</td>
+</tr>
+<tr>
+<td><strong>Unblocks</strong></td>
+<td>The set of issues that become actionable if this one closes</td>
+</tr>
+<tr>
+<td><strong>Track</strong></td>
+<td>A connected component of the actionable subgraph — a parallel work stream</td>
+</tr>
+<tr>
+<td><strong>Data hash</strong></td>
+<td>SHA-256 over the sorted issue set; the cache key and the parity anchor</td>
+</tr>
+<tr>
+<td><strong>Phase 1 / Phase 2</strong></td>
+<td>Instant vs. asynchronously computed metric tiers</td>
+</tr>
+<tr>
+<td><strong>Robot protocol</strong></td>
+<td><code>bv</code>'s stable JSON interface for AI agents</td>
+</tr>
+<tr>
+<td><strong>TOON</strong></td>
+<td>Token-optimised output encoding for lower LLM context cost</td>
+</tr>
+<tr>
+<td><strong>Drift</strong></td>
+<td>Divergence of current state from a saved baseline</td>
+</tr>
+<tr>
+<td><strong>cass</strong></td>
+<td>Coding-agent session search tool; optionally correlated with beads</td>
+</tr>
+</tbody>
+</table></div>
+    </article>
+    <footer class="foot">Generated from <code>docs/bvx-design.md</code> &middot; bvx design documentation</footer>
+  </main>
+</div>
+<script src="assets/mermaid.min.js"></script>
+<script>
+(function () {
+  var root = document.documentElement;
+  var stored = null;
+  try { stored = localStorage.getItem('bvx-theme'); } catch (e) {}
+  if (stored) root.setAttribute('data-theme', stored);
+
+  function isDark() {
+    var t = root.getAttribute('data-theme');
+    if (t) return t === 'dark';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function initMermaid() {
+    if (!window.mermaid) return;
+    window.mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      theme: isDark() ? 'dark' : 'default',
+      fontFamily: 'ui-sans-serif, -apple-system, Segoe UI, Roboto, sans-serif',
+      flowchart: { curve: 'basis', htmlLabels: true },
+      themeVariables: { fontSize: '14px' }
+    });
+    var nodes = document.querySelectorAll('pre.mermaid');
+    nodes.forEach(function (n) {
+      if (!n.dataset.src) n.dataset.src = n.textContent;
+      n.textContent = n.dataset.src;
+      n.removeAttribute('data-processed');
+    });
+    window.mermaid.run({ nodes: nodes });
+  }
+
+  document.addEventListener('DOMContentLoaded', initMermaid);
+
+  var btn = document.querySelector('[data-theme-toggle]');
+  if (btn) btn.addEventListener('click', function () {
+    var next = isDark() ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('bvx-theme', next); } catch (e) {}
+    initMermaid();
+  });
+
+  // Highlight the current section in the sidebar TOC while scrolling.
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  if (links.length && 'IntersectionObserver' in window) {
+    var map = {};
+    links.forEach(function (a) {
+      var el = document.getElementById(decodeURIComponent(a.hash.slice(1)));
+      if (el) map[el.id] = a;
+    });
+    var obs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        var a = map[en.target.id];
+        if (!a) return;
+        if (en.isIntersecting) {
+          links.forEach(function (l) { l.classList.remove('active'); });
+          a.classList.add('active');
+        }
+      });
+    }, { rootMargin: '0px 0px -75% 0px', threshold: 0 });
+    Object.keys(map).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) obs.observe(el);
+    });
+  }
+})();
+</script>
+</body>
+</html>

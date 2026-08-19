@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bvx — Feature Parity Matrix</title>
+<style>
+:root {
+  --bg: #ffffff;
+  --bg-soft: #f7f8fa;
+  --bg-code: #f4f5f7;
+  --fg: #1a1c21;
+  --fg-soft: #5b6472;
+  --fg-faint: #8b94a3;
+  --line: #e3e6ec;
+  --accent: #4f46e5;
+  --accent-soft: #eef2ff;
+  --quote: #6d28d9;
+  --table-head: #f4f5f9;
+  --shadow: 0 1px 2px rgba(16,24,40,.05), 0 8px 24px -12px rgba(16,24,40,.12);
+  --mermaid-bg: #ffffff;
+}
+:root[data-theme="dark"] {
+  --bg: #14161a;
+  --bg-soft: #191c22;
+  --bg-code: #1d2128;
+  --fg: #e6e9ef;
+  --fg-soft: #a5adbb;
+  --fg-faint: #7b8493;
+  --line: #2a2f38;
+  --accent: #a5b4fc;
+  --accent-soft: #23273a;
+  --quote: #c4b5fd;
+  --table-head: #1d2128;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  --mermaid-bg: #191c22;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14161a;
+    --bg-soft: #191c22;
+    --bg-code: #1d2128;
+    --fg: #e6e9ef;
+    --fg-soft: #a5adbb;
+    --fg-faint: #7b8493;
+    --line: #2a2f38;
+    --accent: #a5b4fc;
+    --accent-soft: #23273a;
+    --quote: #c4b5fd;
+    --table-head: #1d2128;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+    --mermaid-bg: #191c22;
+  }
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 1.5rem; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.68 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.skip { position: absolute; left: -9999px; }
+.skip:focus { left: 1rem; top: 1rem; background: var(--accent); color: #fff; padding: .5rem .75rem; border-radius: 6px; z-index: 50; }
+
+.shell { display: grid; grid-template-columns: 268px minmax(0, 1fr); min-height: 100vh; }
+
+.nav {
+  position: sticky; top: 0; align-self: start;
+  height: 100vh; overflow-y: auto;
+  padding: 1.5rem 1.1rem 2rem;
+  background: var(--bg-soft);
+  border-right: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: .5rem; font-weight: 650; letter-spacing: -.01em; margin-bottom: 1.25rem; }
+.brand .dot { width: 10px; height: 10px; border-radius: 3px; background: var(--accent); display: inline-block; }
+.nav nav a {
+  display: block; padding: .34rem .55rem; margin: .1rem 0;
+  border-radius: 6px; color: var(--fg-soft); text-decoration: none; font-size: .9rem;
+}
+.nav nav a:hover { background: var(--accent-soft); color: var(--fg); }
+.nav nav a.current { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.toc-head {
+  margin: 1.5rem 0 .4rem; padding: 0 .55rem;
+  font-size: .68rem; text-transform: uppercase; letter-spacing: .09em;
+  color: var(--fg-faint); font-weight: 700;
+}
+.toc { font-size: .84rem; border-left: 1px solid var(--line); margin-left: .55rem; }
+.toc ul { list-style: none; margin: 0; padding: 0 0 0 .55rem; }
+.toc li ul { padding-left: .7rem; }
+.toc a { display: block; padding: .2rem .5rem; color: var(--fg-faint); text-decoration: none; border-radius: 5px; line-height: 1.35; }
+.toc a:hover { color: var(--fg); background: var(--accent-soft); }
+.toc a.active { color: var(--accent); font-weight: 600; }
+.theme {
+  margin-top: 1.75rem; width: 100%; padding: .45rem .6rem;
+  background: transparent; color: var(--fg-soft);
+  border: 1px solid var(--line); border-radius: 7px;
+  font: inherit; font-size: .82rem; cursor: pointer;
+}
+.theme:hover { color: var(--fg); border-color: var(--accent); }
+
+.page { padding: 3rem 3.5rem 5rem; min-width: 0; }
+.prose { max-width: 62rem; }
+
+h1, h2, h3, h4 { line-height: 1.25; letter-spacing: -.018em; font-weight: 680; }
+h1 { font-size: 2.3rem; margin: 0 0 1.4rem; }
+h2 { font-size: 1.5rem; margin: 2.9rem 0 1rem; padding-bottom: .4rem; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.16rem; margin: 2rem 0 .7rem; }
+h4 { font-size: 1rem; margin: 1.5rem 0 .5rem; color: var(--fg-soft); }
+h1 .toclink, h2 .toclink, h3 .toclink, h4 .toclink { color: inherit; text-decoration: none; }
+h1 .toclink:hover, h2 .toclink:hover, h3 .toclink:hover, h4 .toclink:hover { color: var(--accent); }
+p { margin: 0 0 1rem; }
+a { color: var(--accent); text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent); text-underline-offset: 2px; }
+strong { font-weight: 660; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 2.6rem 0; }
+ul, ol { margin: 0 0 1rem; padding-left: 1.35rem; }
+li { margin: .3rem 0; }
+li > ul, li > ol { margin-top: .3rem; }
+
+blockquote {
+  margin: 1.4rem 0; padding: .9rem 1.1rem;
+  border-left: 3px solid var(--quote);
+  background: var(--accent-soft);
+  border-radius: 0 8px 8px 0;
+  color: var(--fg);
+}
+blockquote p:last-child { margin-bottom: 0; }
+
+code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .875em;
+  background: var(--bg-code);
+  padding: .13em .38em;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+}
+pre {
+  background: var(--bg-code);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 1rem 1.15rem;
+  overflow-x: auto;
+  margin: 0 0 1.4rem;
+  line-height: 1.55;
+}
+pre code { background: none; border: 0; padding: 0; font-size: .845rem; }
+
+.table-wrap { overflow-x: auto; margin: 0 0 1.5rem; border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { text-align: left; padding: .6rem .85rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th { background: var(--table-head); font-weight: 650; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: var(--bg-soft); }
+td code, th code { white-space: nowrap; }
+
+.mermaid-wrap {
+  margin: 0 0 1.6rem;
+  padding: 1.1rem;
+  background: var(--mermaid-bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow-x: auto;
+  box-shadow: var(--shadow);
+}
+pre.mermaid { background: none; border: 0; padding: 0; margin: 0; text-align: center; }
+pre.mermaid svg { max-width: 100%; height: auto; }
+
+.foot { margin-top: 4rem; padding-top: 1.2rem; border-top: 1px solid var(--line); color: var(--fg-faint); font-size: .82rem; }
+
+@media (max-width: 940px) {
+  .shell { grid-template-columns: 1fr; }
+  .nav { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .toc { display: none; }
+  .page { padding: 2rem 1.25rem 4rem; }
+  h1 { font-size: 1.8rem; }
+}
+@media print {
+  .nav, .theme, .skip { display: none; }
+  .shell { display: block; }
+  .page { padding: 0; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<div class="shell">
+  <aside class="nav">
+    <div class="brand"><span class="dot"></span> bvx docs</div>
+    <nav><a href="README.html">bvx Documentation</a><a href="bvx-design.html">bvx — Design Document</a><a href="feature-parity.html" class="current">bvx — Feature Parity Matrix</a></nav>
+    <div class="toc-head">On this page</div>
+    <nav class="toc"><div class="toc">
+<ul>
+<li><a href="#bvx-feature-parity-matrix">bvx — Feature Parity Matrix</a><ul>
+<li><a href="#1-data-loading">1. Data Loading</a></li>
+<li><a href="#2-graph-analysis">2. Graph Analysis</a></li>
+<li><a href="#3-derived-analysis">3. Derived Analysis</a></li>
+<li><a href="#4-git-correlation-and-history">4. Git Correlation and History</a></li>
+<li><a href="#5-views">5. Views</a></li>
+<li><a href="#6-robot-protocol-and-outputs">6. Robot Protocol and Outputs</a></li>
+<li><a href="#7-exports-and-integration">7. Exports and Integration</a></li>
+<li><a href="#8-configuration">8. Configuration</a></li>
+<li><a href="#9-deliberate-divergences">9. Deliberate Divergences</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</nav>
+    <button class="theme" type="button" data-theme-toggle>Toggle theme</button>
+  </aside>
+  <main id="content" class="page">
+    <article class="prose">
+<h1 id="bvx-feature-parity-matrix"><a class="toclink" href="#bvx-feature-parity-matrix">bvx — Feature Parity Matrix</a></h1>
+<p>Companion to the <a href="bvx-design.html">bvx Design Document</a>. Every capability of <code>bv</code> is listed
+here with the <code>bvx</code> surface that delivers it, the mechanism, and the delivery phase from
+<a href="bvx-design.html#18-delivery-plan">§18 of the design doc</a>.</p>
+<p><strong>Mechanism legend</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Mechanism</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Engine</strong></td>
+<td>Delivered by the reused Go engine through the bridge — no reimplementation, parity by construction</td>
+</tr>
+<tr>
+<td><strong>Native</strong></td>
+<td>New Swift/SwiftUI code (presentation only)</td>
+</tr>
+<tr>
+<td><strong>Engine + Native</strong></td>
+<td>Engine computes, native renders</td>
+</tr>
+<tr>
+<td><strong>New</strong></td>
+<td>A macOS-only capability with no <code>bv</code> equivalent</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="1-data-loading"><a class="toclink" href="#1-data-loading">1. Data Loading</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th><code>bv</code> capability</th>
+<th><code>bvx</code> surface</th>
+<th>Mechanism</th>
+<th>Phase</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.beads/issues.jsonl</code> discovery order (<code>issues</code> → <code>beads</code> → <code>beads.base</code>)</td>
+<td>Document open</td>
+<td>Engine</td>
+<td>0</td>
+</tr>
+<tr>
+<td>SQLite <code>beads.db</code> read-only reader</td>
+<td>Document open</td>
+<td>Engine</td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>bd</code> workspace layout detection</td>
+<td>Document open</td>
+<td>Engine</td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>BEADS_DIR</code> override</td>
+<td>Settings + env</td>
+<td>Engine</td>
+<td>0</td>
+</tr>
+<tr>
+<td>BOM stripping, 10 MB line cap, malformed-line skip with warnings</td>
+<td>Warnings banner in the window, expandable to a list</td>
+<td>Engine + Native</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Legacy field aliases (<code>depends_on</code>, <code>target_id</code>)</td>
+<td>Transparent</td>
+<td>Engine</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Comment ID as UUIDv7 or legacy integer</td>
+<td>Transparent</td>
+<td>Engine</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Multi-repo workspace (<code>.bv/workspace.yaml</code>)</td>
+<td>Sidebar "Repos" section, repo picker</td>
+<td>Engine + Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Repo auto-discovery, monorepo layouts</td>
+<td>Workspace open flow</td>
+<td>Engine</td>
+<td>2</td>
+</tr>
+<tr>
+<td>ID namespacing across repos</td>
+<td>Displayed prefix badges on rows</td>
+<td>Engine + Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Cross-repository dependency edges</td>
+<td>Graph edges styled as cross-repo</td>
+<td>Engine + Native</td>
+<td>3</td>
+</tr>
+<tr>
+<td>Live reload (fsnotify + debounce)</td>
+<td>FSEvents watcher, hash-gated reload</td>
+<td>Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Polling fallback (<code>BV_FORCE_POLLING</code>)</td>
+<td>Auto-detected network volumes; Settings override</td>
+<td>Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Background snapshot worker</td>
+<td>Always-on: the engine runs off the main actor by construction</td>
+<td>Engine + Native</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Automatic <code>.bv/</code> gitignore handling</td>
+<td>Same behaviour, plus a Settings opt-out</td>
+<td>Engine</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Instance lock (<code>pkg/instance</code>)</td>
+<td>Not needed — replaced by document-based single-window-per-workspace</td>
+<td>Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Security-scoped bookmarks so a workspace reopens without re-prompting</td>
+<td><strong>New</strong></td>
+<td>2</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Recent Documents, drag-and-drop onto the Dock icon, Handoff</td>
+<td><strong>New</strong></td>
+<td>2</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="2-graph-analysis"><a class="toclink" href="#2-graph-analysis">2. Graph Analysis</a></h2>
+<p>All nine metrics are computed by the engine. <code>bvx</code> never reimplements one.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th><code>bvx</code> surface</th>
+<th>Mechanism</th>
+<th>Phase</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>In/out degree</td>
+<td>List column, node encoding, badges</td>
+<td>Engine + Native</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Topological sort</td>
+<td>Tree ranking, plan ordering, graph layer assignment</td>
+<td>Engine + Native</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Density</td>
+<td>Insights panel, status bar</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>PageRank</td>
+<td>List column, node radius, insights panel with proof</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Betweenness (exact and sampled)</td>
+<td>Insights panel, node ring, <code>approx</code> sample-size label</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>HITS hubs / authorities</td>
+<td>Insights panel</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Eigenvector centrality</td>
+<td>Insights panel</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Critical path depth and slack</td>
+<td>Insights panel, graph highlight of the critical chain</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Cycle detection (Tarjan SCC)</td>
+<td>Alerts entry + graph SCC condensation with back-edge styling</td>
+<td>Engine + Native</td>
+<td>3, 4</td>
+</tr>
+<tr>
+<td>k-core decomposition</td>
+<td>Insights panel</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Articulation points</td>
+<td>Node border encoding, insights panel</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Per-metric status (<code>computed</code> / <code>approx</code> / <code>timeout</code> / <code>skipped</code>) with elapsed ms</td>
+<td>Rendered inline everywhere the metric appears; never shown as a zero</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Size-aware configuration and per-metric deadlines</td>
+<td>Settings exposes the overrides <code>BV_SKIP_PHASE2</code> / <code>BV_PHASE2_TIMEOUT_S</code> provide</td>
+<td>Engine</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Data-hash memoisation and cache TTL</td>
+<td>Transparent; hash shown in the status bar for verification</td>
+<td>Engine</td>
+<td>1</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="3-derived-analysis"><a class="toclink" href="#3-derived-analysis">3. Derived Analysis</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th><code>bv</code> capability</th>
+<th><code>bvx</code> surface</th>
+<th>Mechanism</th>
+<th>Phase</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Composite impact/triage scoring</td>
+<td>List column + inspector score breakdown</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Priority recommendations with confidence</td>
+<td>Insights panel, priority-hints overlay on the list</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Execution plan: actionable set, unblocks, tracks</td>
+<td>Actionable Plan view with one lane per track</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Quick wins, blockers-to-clear, top picks</td>
+<td>Triage section of the Insights dashboard</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Project health and counts</td>
+<td>Header cards on the Insights dashboard</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Velocity (weekly)</td>
+<td>Sprint dashboard chart</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Staleness</td>
+<td>Node opacity, list column, alerts</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>ETA forecasting per bead</td>
+<td>Inspector "Forecast" section</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Capacity simulation</td>
+<td>Sprint dashboard scenario panel</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Label health scores and levels</td>
+<td>Label dashboard cards</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Cross-label flow matrix and bottleneck scores</td>
+<td>Flow Matrix heat map with drill-down</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Label attention ranking</td>
+<td>Attention view</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Alerts (drift + proactive health)</td>
+<td>Alerts list, severity-grouped</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Baseline save / show / drift check</td>
+<td>Toolbar menu + Alerts integration</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Duplicate detection</td>
+<td>Inspector "Possible duplicates"</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Dependency suggestions</td>
+<td>Inspector "Suggested dependencies"</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Label suggestions</td>
+<td>Inspector "Suggested labels"</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>What-if analysis</td>
+<td>Graph "what if this closes" mode</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Risk scoring</td>
+<td>List column + insights</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Blocker chain</td>
+<td>Inspector chain walk + graph path highlight</td>
+<td>Engine + Native</td>
+<td>3</td>
+</tr>
+<tr>
+<td>Feedback system (adaptive recommendation weights)</td>
+<td>Thumbs up/down on recommendations</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="4-git-correlation-and-history"><a class="toclink" href="#4-git-correlation-and-history">4. Git Correlation and History</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th><code>bv</code> capability</th>
+<th><code>bvx</code> surface</th>
+<th>Mechanism</th>
+<th>Phase</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bead ↔ commit correlation (explicit, co-commit, file, temporal)</td>
+<td>History view</td>
+<td>Engine + Native</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Confidence scoring</td>
+<td>Confidence badges on each link</td>
+<td>Engine + Native</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Correlation feedback: explain / confirm / reject</td>
+<td>Inline controls in the History view</td>
+<td>Engine + Native</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Correlation statistics</td>
+<td>History view header</td>
+<td>Engine + Native</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Timeline panel</td>
+<td>Custom <code>Canvas</code> timeline synced with the commit table</td>
+<td>Engine + Native</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Causality markers and causal-chain analysis</td>
+<td>Inspector "Causal chain" section</td>
+<td>Engine + Native</td>
+<td>5</td>
+</tr>
+<tr>
+<td>File-centric drill-down</td>
+<td>File list → beads that touched it, with Quick Look on diffs</td>
+<td>Engine + Native</td>
+<td>5</td>
+</tr>
+<tr>
+<td>File hotspots</td>
+<td>History view "Hotspots" tab</td>
+<td>Engine + Native</td>
+<td>5</td>
+</tr>
+<tr>
+<td>File relations</td>
+<td>Relation graph in the History inspector</td>
+<td>Engine + Native</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Orphan commit detection</td>
+<td>History view "Orphans" tab</td>
+<td>Engine + Native</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Impact network with clusters</td>
+<td>Graph view "Impact network" mode</td>
+<td>Engine + Native</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Related-work discovery</td>
+<td>Inspector "Related work"</td>
+<td>Engine + Native</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Incremental per-commit disk caches</td>
+<td>Transparent, under <code>~/Library/Caches/bvx</code></td>
+<td>Engine</td>
+<td>5</td>
+</tr>
+<tr>
+<td>cass session correlation + preview modal</td>
+<td>Optional; sheet showing matched sessions</td>
+<td>Engine + Native</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Git subprocess usage</td>
+<td>Replaced by direct object-store reads inside the sandbox; the CLI keeps the subprocess path</td>
+<td>Engine</td>
+<td>5</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="5-views"><a class="toclink" href="#5-views">5. Views</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th><code>bv</code> view</th>
+<th><code>bvx</code> surface</th>
+<th>Mechanism</th>
+<th>Phase</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>List view with virtualization</td>
+<td>SwiftUI <code>Table</code>, lazy, multi-select, sortable columns</td>
+<td>Native</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Sort modes (default, created ↑/↓, priority, updated)</td>
+<td>Column-header sorting + a Sort menu preserving <code>bv</code>'s exact orderings</td>
+<td>Engine + Native</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Filters: open / ready / closed / all</td>
+<td>Sidebar filter section + toolbar segmented control</td>
+<td>Engine + Native</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Fuzzy search</td>
+<td><code>.searchable</code> field</td>
+<td>Engine + Native</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Semantic search + mode toggle</td>
+<td>Search scope bar</td>
+<td>Engine + Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Hybrid search with weight presets</td>
+<td>Weights popover</td>
+<td>Engine + Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Label picker</td>
+<td>Sidebar labels section + <code>⌘K</code></td>
+<td>Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Kanban board with swimlanes</td>
+<td>Native board with drag-and-drop</td>
+<td>Engine + Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Board dependency indicators, column stats, card expansion</td>
+<td>Card chrome and column headers</td>
+<td>Engine + Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Graph visualizer</td>
+<td>Interactive vector canvas</td>
+<td>Engine + Native</td>
+<td>3</td>
+</tr>
+<tr>
+<td>Tree view (parent-child)</td>
+<td><code>OutlineGroup</code> source list</td>
+<td>Engine + Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Insights dashboard, six panels</td>
+<td><code>Grid</code> + Swift Charts</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Calculation proofs (<code>x</code> key)</td>
+<td>Expandable inspector section with substituted numbers</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Heatmap overlay (<code>m</code> key)</td>
+<td>Chart heat maps + optional list-row tinting</td>
+<td>Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Explanations toggle (<code>e</code> key)</td>
+<td>Persistent help text setting</td>
+<td>Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Actionable plan view</td>
+<td>Track lanes</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Flow matrix + drilldown</td>
+<td>Heat map + drill-down table</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Attention view</td>
+<td>Ranked table with score bars</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Label dashboard</td>
+<td>Health cards</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Sprint dashboard + burndown + at-risk</td>
+<td>Swift Charts</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Velocity comparison</td>
+<td>Chart</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>History view (all modes)</td>
+<td>See §4</td>
+<td>Engine + Native</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Alerts panel (<code>!</code>)</td>
+<td>Severity-grouped list</td>
+<td>Engine + Native</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Recipe picker (<code>'</code>) and recipe files</td>
+<td>Sidebar section + form editor</td>
+<td>Engine + Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Repo picker (<code>w</code>)</td>
+<td>Sidebar repos section</td>
+<td>Engine + Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Time-travel mode + diff badges + summary</td>
+<td>Revision scrubber + row badges</td>
+<td>Engine + Native</td>
+<td>7</td>
+</tr>
+<tr>
+<td>Shortcuts sidebar (<code>;</code>)</td>
+<td>Menu bar, <code>⌘/</code> shortcuts sheet, <code>⌘K</code> palette</td>
+<td>Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Help overlay (<code>?</code>)</td>
+<td>Searchable Help menu</td>
+<td>Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Interactive tutorial with progress</td>
+<td>Onboarding window with persisted progress</td>
+<td>Native</td>
+<td>7</td>
+</tr>
+<tr>
+<td>Update modal</td>
+<td>Sparkle 2</td>
+<td>Native</td>
+<td>7</td>
+</tr>
+<tr>
+<td>Agent prompt modal</td>
+<td>Prompt-builder sheet</td>
+<td>Engine + Native</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Context-sensitive shortcut filtering</td>
+<td>Palette scopes to the active view</td>
+<td>Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Adaptive layout engine (terminal size)</td>
+<td>Native responsive layout, split-view collapse, full-screen</td>
+<td>Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Theme detection and colour profiles</td>
+<td>System appearance, accent colour, contrast, colour-blind-safe palette</td>
+<td>Native</td>
+<td>2</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Inspector pane with live bead detail</td>
+<td><strong>New</strong></td>
+<td>2</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Multiple windows and native tabs over the same workspace</td>
+<td><strong>New</strong></td>
+<td>2</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Quick Look integration for diffs and exports</td>
+<td><strong>New</strong></td>
+<td>5</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Spotlight indexing of beads</td>
+<td><strong>New</strong></td>
+<td>6</td>
+</tr>
+<tr>
+<td>—</td>
+<td>Full VoiceOver support with chart descriptors and graph rotors</td>
+<td><strong>New</strong></td>
+<td>7</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="6-robot-protocol-and-outputs"><a class="toclink" href="#6-robot-protocol-and-outputs">6. Robot Protocol and Outputs</a></h2>
+<p>Every <code>--robot-*</code> command is available from <code>bvx-cli</code> with byte-identical output, verified by
+the parity suite. The table marks where the GUI additionally surfaces the same data.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th><code>bv</code> command</th>
+<th><code>bvx-cli</code></th>
+<th>GUI surface</th>
+<th>Phase</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--robot-triage</code>, <code>--robot-triage-by-track</code>, <code>--robot-triage-by-label</code></td>
+<td>✓</td>
+<td>Insights triage section</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-next</code></td>
+<td>✓</td>
+<td>"Next bead" toolbar action + Shortcuts intent</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-plan</code></td>
+<td>✓</td>
+<td>Actionable Plan view</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-insights</code>, <code>--robot-metrics</code></td>
+<td>✓</td>
+<td>Insights dashboard</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-priority</code></td>
+<td>✓</td>
+<td>Priority hints overlay</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-impact</code>, <code>--robot-impact-network</code></td>
+<td>✓</td>
+<td>Graph impact-network mode</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-blocker-chain</code></td>
+<td>✓</td>
+<td>Inspector chain walk</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-related</code></td>
+<td>✓</td>
+<td>Inspector related work</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-causality</code></td>
+<td>✓</td>
+<td>Inspector causal chain</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-history</code> (+ <code>--robot-history-timeout-ms</code>)</td>
+<td>✓</td>
+<td>History view</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-file-beads</code>, <code>--robot-file-hotspots</code>, <code>--robot-file-relations</code></td>
+<td>✓</td>
+<td>History file drill-down</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-orphans</code></td>
+<td>✓</td>
+<td>History orphans tab</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-explain-correlation</code>, <code>--robot-confirm-correlation</code>, <code>--robot-reject-correlation</code>, <code>--robot-correlation-stats</code></td>
+<td>✓</td>
+<td>History feedback controls</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-search</code> (+ mode, preset, weights, limit)</td>
+<td>✓</td>
+<td>Search field</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-suggest</code> (+ type, bead, confidence)</td>
+<td>✓</td>
+<td>Inspector suggestions</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-forecast</code>, <code>--robot-capacity</code></td>
+<td>✓</td>
+<td>Inspector forecast, sprint scenarios</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-burndown</code>, <code>--robot-sprint-list</code>, <code>--robot-sprint-show</code></td>
+<td>✓</td>
+<td>Sprint dashboard</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-label-health</code>, <code>--robot-label-flow</code>, <code>--robot-label-attention</code></td>
+<td>✓</td>
+<td>Label dashboard, Flow matrix, Attention</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-alerts</code> (+ severity, type, label)</td>
+<td>✓</td>
+<td>Alerts panel</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-drift</code>, <code>--check-drift</code>, baseline save/show</td>
+<td>✓</td>
+<td>Alerts + baseline menu</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-diff</code>, <code>--diff-since</code>, <code>--as-of</code></td>
+<td>✓</td>
+<td>Time-travel mode</td>
+<td>7</td>
+</tr>
+<tr>
+<td><code>--robot-graph</code> (+ format, root, depth)</td>
+<td>✓</td>
+<td>Graph export menu</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-recipes</code></td>
+<td>✓</td>
+<td>Recipe sidebar</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-by-label</code>, <code>--robot-by-assignee</code></td>
+<td>✓</td>
+<td>Grouping controls</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-capabilities</code>, <code>--robot-schema</code>, <code>--robot-docs</code>, <code>--robot-help</code></td>
+<td>✓</td>
+<td>Help menu → "Robot protocol reference"</td>
+<td>6</td>
+</tr>
+<tr>
+<td><code>--robot-not-ready-labels</code>, <code>--robot-max-results</code>, <code>--robot-min-confidence</code></td>
+<td>✓</td>
+<td>Corresponding UI controls</td>
+<td>6</td>
+</tr>
+<tr>
+<td>TOON token-optimised encoding</td>
+<td>✓</td>
+<td>—</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Data hash + config echoed in every payload</td>
+<td>✓</td>
+<td>Status bar shows the hash</td>
+<td>6</td>
+</tr>
+<tr>
+<td>—</td>
+<td>App Intents / Shortcuts actions</td>
+<td><strong>New</strong></td>
+<td>6</td>
+</tr>
+<tr>
+<td>—</td>
+<td><code>bvx://</code> URL scheme deep links</td>
+<td><strong>New</strong></td>
+<td>6</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="7-exports-and-integration"><a class="toclink" href="#7-exports-and-integration">7. Exports and Integration</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th><code>bv</code> capability</th>
+<th><code>bvx</code> surface</th>
+<th>Mechanism</th>
+<th>Phase</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--export-md</code> Markdown report with Mermaid</td>
+<td>File → Export → Markdown Report (<code>⌘⇧E</code>)</td>
+<td>Engine + Native</td>
+<td>7</td>
+</tr>
+<tr>
+<td>Priority brief, agent brief bundle</td>
+<td>Export submenu</td>
+<td>Engine + Native</td>
+<td>7</td>
+</tr>
+<tr>
+<td><code>--export-graph</code> interactive HTML</td>
+<td>Export submenu; opens in the browser</td>
+<td>Engine</td>
+<td>7</td>
+</tr>
+<tr>
+<td>Static site export wizard</td>
+<td>Native multi-step sheet</td>
+<td>Engine + Native</td>
+<td>7</td>
+</tr>
+<tr>
+<td>Static site preview / <code>--watch-export</code></td>
+<td>Preview window + live reload</td>
+<td>Engine + Native</td>
+<td>7</td>
+</tr>
+<tr>
+<td>GitHub Pages deploy</td>
+<td>Deploy sheet; token in the Keychain</td>
+<td>Engine + Native</td>
+<td>7</td>
+</tr>
+<tr>
+<td>Cloudflare deploy</td>
+<td>Deploy sheet; token in the Keychain</td>
+<td>Engine + Native</td>
+<td>7</td>
+</tr>
+<tr>
+<td>WASM hybrid search scorer for the static bundle</td>
+<td>Built and embedded as <code>bv</code> does</td>
+<td>Engine</td>
+<td>7</td>
+</tr>
+<tr>
+<td>Graph snapshots (SVG/PNG)</td>
+<td>Export + drag-out from the canvas + Share sheet</td>
+<td>Engine + Native</td>
+<td>3</td>
+</tr>
+<tr>
+<td>Shell script emission</td>
+<td>Export submenu; copy to clipboard</td>
+<td>Engine + Native</td>
+<td>7</td>
+</tr>
+<tr>
+<td>Hooks around export phases</td>
+<td>Full support in <code>bvx-cli</code>; in the sandboxed app via user-approved tasks</td>
+<td>Engine + Native</td>
+<td>7</td>
+</tr>
+<tr>
+<td><code>AGENTS.md</code> / <code>CLAUDE.md</code> blurb management</td>
+<td>Menu item "Add bv blurb to AGENTS.md"</td>
+<td>Engine + Native</td>
+<td>7</td>
+</tr>
+<tr>
+<td>Self-update engine</td>
+<td>Sparkle 2 with a signed appcast</td>
+<td>Native</td>
+<td>7</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="8-configuration"><a class="toclink" href="#8-configuration">8. Configuration</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th><code>bv</code> environment variable</th>
+<th><code>bvx</code> equivalent</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BEADS_DIR</code></td>
+<td>Honoured; also a per-document setting</td>
+<td></td>
+</tr>
+<tr>
+<td><code>BV_BACKGROUND_MODE</code></td>
+<td>Not needed — always off the main actor</td>
+<td></td>
+</tr>
+<tr>
+<td><code>BV_FORCE_POLLING</code> / <code>BV_FORCE_POLL</code></td>
+<td>Settings → "Force polling for file changes"</td>
+<td>Auto-detected for network volumes</td>
+</tr>
+<tr>
+<td><code>BV_DEBOUNCE_MS</code></td>
+<td>Settings (advanced)</td>
+<td>Default 200 ms</td>
+</tr>
+<tr>
+<td><code>BV_CHANNEL_BUFFER</code>, <code>BV_HEARTBEAT_INTERVAL_S</code>, <code>BV_WATCHDOG_INTERVAL_S</code></td>
+<td>Not applicable — replaced by structured concurrency</td>
+<td></td>
+</tr>
+<tr>
+<td><code>BV_FRESHNESS_WARN_S</code> / <code>BV_FRESHNESS_STALE_S</code></td>
+<td>Status-bar freshness indicator thresholds</td>
+<td></td>
+</tr>
+<tr>
+<td><code>BV_MAX_LINE_SIZE_MB</code></td>
+<td>Settings (advanced)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>BV_NO_GITIGNORE</code></td>
+<td>Settings → "Manage .bv/ ignore entries"</td>
+<td></td>
+</tr>
+<tr>
+<td><code>BV_SKIP_PHASE2</code></td>
+<td>Settings → "Skip expensive metrics"</td>
+<td></td>
+</tr>
+<tr>
+<td><code>BV_PHASE2_TIMEOUT_S</code></td>
+<td>Settings (advanced)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>BV_SEMANTIC_EMBEDDER</code> / <code>BV_SEMANTIC_DIM</code> / <code>BV_SEMANTIC_MODEL</code></td>
+<td>Settings → Search → Embedding provider</td>
+<td>Adds an on-device Core ML option</td>
+</tr>
+<tr>
+<td><code>~/.config/bv/config.yaml</code></td>
+<td>Read for compatibility; <code>bvx</code> writes its own <code>UserDefaults</code></td>
+<td>Shared workspace/recipe files stay canonical</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h2 id="9-deliberate-divergences"><a class="toclink" href="#9-deliberate-divergences">9. Deliberate Divergences</a></h2>
+<p>These are the only places <code>bvx</code> intentionally differs from <code>bv</code>. Each is a considered
+decision, not an omission.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Divergence</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No instance lock file</td>
+<td>Document-based apps handle single-workspace-per-window natively; the lock exists to arbitrate terminal instances</td>
+</tr>
+<tr>
+<td>No background-mode toggle</td>
+<td><code>bvx</code> is always asynchronous; the flag exists in <code>bv</code> because Bubble Tea is single-threaded</td>
+</tr>
+<tr>
+<td>Terminal single-key shortcuts are opt-out, not the only binding</td>
+<td>macOS users expect menu-driven <code>⌘</code> shortcuts; both are provided (<a href="bvx-design.html#103-keyboard-model">design doc §10.3</a>)</td>
+</tr>
+<tr>
+<td>Correlation reads the git object store directly in the sandboxed app</td>
+<td>The App Sandbox cannot spawn <code>git</code>; the CLI keeps the subprocess path</td>
+</tr>
+<tr>
+<td>Optional Core ML embedder for semantic search</td>
+<td>Better on-device quality, but off by default because it changes ranking relative to the CLI</td>
+</tr>
+<tr>
+<td>Shell hooks restricted under the sandbox</td>
+<td>Sandbox policy; <code>bvx-cli</code> retains full behaviour</td>
+</tr>
+<tr>
+<td>ASCII sparklines and heatmaps become real charts</td>
+<td>The whole point of a native UI</td>
+</tr>
+</tbody>
+</table></div>
+    </article>
+    <footer class="foot">Generated from <code>docs/feature-parity.md</code> &middot; bvx design documentation</footer>
+  </main>
+</div>
+<script src="assets/mermaid.min.js"></script>
+<script>
+(function () {
+  var root = document.documentElement;
+  var stored = null;
+  try { stored = localStorage.getItem('bvx-theme'); } catch (e) {}
+  if (stored) root.setAttribute('data-theme', stored);
+
+  function isDark() {
+    var t = root.getAttribute('data-theme');
+    if (t) return t === 'dark';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function initMermaid() {
+    if (!window.mermaid) return;
+    window.mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'strict',
+      theme: isDark() ? 'dark' : 'default',
+      fontFamily: 'ui-sans-serif, -apple-system, Segoe UI, Roboto, sans-serif',
+      flowchart: { curve: 'basis', htmlLabels: true },
+      themeVariables: { fontSize: '14px' }
+    });
+    var nodes = document.querySelectorAll('pre.mermaid');
+    nodes.forEach(function (n) {
+      if (!n.dataset.src) n.dataset.src = n.textContent;
+      n.textContent = n.dataset.src;
+      n.removeAttribute('data-processed');
+    });
+    window.mermaid.run({ nodes: nodes });
+  }
+
+  document.addEventListener('DOMContentLoaded', initMermaid);
+
+  var btn = document.querySelector('[data-theme-toggle]');
+  if (btn) btn.addEventListener('click', function () {
+    var next = isDark() ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('bvx-theme', next); } catch (e) {}
+    initMermaid();
+  });
+
+  // Highlight the current section in the sidebar TOC while scrolling.
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  if (links.length && 'IntersectionObserver' in window) {
+    var map = {};
+    links.forEach(function (a) {
+      var el = document.getElementById(decodeURIComponent(a.hash.slice(1)));
+      if (el) map[el.id] = a;
+    });
+    var obs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        var a = map[en.target.id];
+        if (!a) return;
+        if (en.isIntersecting) {
+          links.forEach(function (l) { l.classList.remove('active'); });
+          a.classList.add('active');
+        }
+      });
+    }, { rootMargin: '0px 0px -75% 0px', threshold: 0 });
+    Object.keys(map).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) obs.observe(el);
+    });
+  }
+})();
+</script>
+</body>
+</html>
