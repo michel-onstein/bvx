@@ -99,9 +99,9 @@ struct TreeRow: View {
             }
             .padding(.vertical, 2)
             .contentShape(Rectangle())
-            .onTapGesture { store.selection = issue.id }
+            .onTapGesture { store.select(id: issue.id) }
             .background(
-                store.selection == issue.id
+                store.isSelected(issue.id)
                     ? Color.accentColor.opacity(0.15) : Color.clear,
                 in: RoundedRectangle(cornerRadius: 4)
             )

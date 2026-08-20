@@ -63,7 +63,7 @@ struct MarkdownRenderTests {
     @Test("The inspector renders a Markdown description")
     func inspectorRendersMarkdown() async throws {
         let store = await Fixture.loadedStore()
-        store.selection = "bvx-3"
+        store.select(id: "bvx-3")
 
         let issue = try #require(store.selectedIssue)
         // Guard the premise: if the fixture loses its Markdown this test would

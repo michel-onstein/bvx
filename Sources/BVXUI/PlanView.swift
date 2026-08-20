@@ -46,7 +46,7 @@ struct PlanSummaryBar: View {
             if !plan.highestImpact.isEmpty {
                 Divider().frame(height: 14)
                 Button {
-                    store.selection = plan.highestImpact
+                    store.select(id: plan.highestImpact)
                 } label: {
                     Label(
                         "Highest impact: \(plan.highestImpact)"
@@ -100,7 +100,7 @@ struct TrackColumn: View {
                 LazyVStack(spacing: 8) {
                     ForEach(track.items) { item in
                         PlanCard(item: item)
-                            .onTapGesture { store.selection = item.id }
+                            .onTapGesture { store.select(id: item.id) }
                     }
                 }
             }
@@ -154,7 +154,7 @@ struct PlanCard: View {
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(
-                    store.selection == item.id ? Color.accentColor : .clear, lineWidth: 2)
+                    store.isSelected(item.id) ? Color.accentColor : .clear, lineWidth: 2)
         )
     }
 }

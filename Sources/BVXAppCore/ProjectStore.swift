@@ -102,7 +102,23 @@ public final class ProjectStore: ObservableObject {
 
     @Published public var surface: ViewSurface = .list
     @Published public var query = IssueQuery()
-    @Published public var selection: Issue.ID?
+
+    /// Every selected bead. Bound directly to the list's `Table`.
+    ///
+    /// A set rather than a single id, because the table supports shift- and
+    /// command-click. Most of the app still means *one* bead, and reaches for
+    /// ``focusedID`` or ``select(id:)`` instead.
+    @Published public var selection: Set<Issue.ID> = [] {
+        didSet { updateFocus(from: oldValue) }
+    }
+
+    /// The one bead the inspector shows and `j`/`k` move between.
+    ///
+    /// Distinct from the selection because a `Set` has no order: with three
+    /// beads selected, "the first" is whichever the hash happens to yield, and
+    /// the inspector would appear to jump around. This follows the bead most
+    /// recently added instead, which is the one just clicked.
+    @Published public private(set) var focusedID: Issue.ID?
     @Published public var terminalKeysEnabled = true
     @Published public var skipPhase2 = false
     @Published public private(set) var isWatching = false
@@ -258,9 +274,17 @@ public final class ProjectStore: ObservableObject {
         }
     }
 
+    /// The bead the inspector shows: the focused one, not "the first
+    /// selected", which a `Set` cannot meaningfully offer.
     public var selectedIssue: Issue? {
-        guard let selection else { return nil }
-        return issues.first { $0.id == selection }
+        guard let focusedID else { return nil }
+        return issues.first { $0.id == focusedID }
+    }
+
+    /// Every selected bead, in on-screen order.
+    public var selectedIssues: [Issue] {
+        let byID = issuesByID
+        return orderedSelection().compactMap { byID[$0] }
     }
 
     public var issuesByID: [String: Issue] {
@@ -310,15 +334,77 @@ public final class ProjectStore: ObservableObject {
         await spotlight.index(issues, workspace: info.source)
     }
 
-    /// Selects `id` if the workspace holds it. Returns whether it did.
+    /// Selects `id` alone, if the workspace holds it. Returns whether it did.
     ///
-    /// The guard is what keeps a stale reference — in prose, or in a URL from
-    /// outside the app — from clearing the current selection.
+    /// *Replaces* the selection rather than extending it. Every caller — an
+    /// inline bead link, a `bvx://` URL, a Spotlight hit, a drilldown from the
+    /// flow matrix, alerts or the sprint critical path — means "show me this
+    /// one", and adding to a selection the user built by hand would be a
+    /// surprising way to answer that.
+    ///
+    /// The membership guard is what keeps a stale reference — in prose, or in
+    /// a URL from outside the app — from clearing the current selection.
     @discardableResult
     public func select(id: String) -> Bool {
         guard issues.contains(where: { $0.id == id }) else { return false }
-        selection = id
+        selection = [id]
         return true
+    }
+
+    /// True when `id` is part of the selection.
+    public func isSelected(_ id: Issue.ID) -> Bool { selection.contains(id) }
+
+    /// The ids as a single line, in on-screen order, joined with `", "`.
+    ///
+    /// Pure, so the joining and the ordering can be tested without a
+    /// pasteboard.
+    public func idList(for ids: Set<Issue.ID>) -> String {
+        orderedSelection(ids).joined(separator: ", ")
+    }
+
+    /// Puts the ids on the general pasteboard.
+    ///
+    /// Returns what was written, or nil when there was nothing to write —
+    /// copying an empty string would silently replace whatever the user had
+    /// on the clipboard with nothing.
+    @discardableResult
+    public func copyIDs(_ ids: Set<Issue.ID>) -> String? {
+        let text = idList(for: ids)
+        guard !text.isEmpty else { return nil }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        return text
+    }
+
+    /// Keeps ``focusedID`` pointing at something sensible as the set changes.
+    private func updateFocus(from previous: Set<Issue.ID>) {
+        if let added = selection.subtracting(previous).first {
+            // Newly added wins: it is the row the user just clicked.
+            focusedID = added
+        } else if let current = focusedID, !selection.contains(current) {
+            // The focused bead was deselected. Anything still selected will
+            // do; nothing selected means nothing focused.
+            focusedID = selection.first
+        } else if selection.isEmpty {
+            focusedID = nil
+        }
+    }
+
+    /// The selected ids in the order they appear on screen.
+    ///
+    /// A `Set` is unordered, so anything user-visible built from the selection
+    /// — a copied list of ids, a count read aloud — has to impose an order or
+    /// it changes between identical actions.
+    public func orderedSelection(_ ids: Set<Issue.ID>? = nil) -> [Issue.ID] {
+        let wanted = ids ?? selection
+        guard !wanted.isEmpty else { return [] }
+        var ordered = visibleIssues.map(\.id).filter { wanted.contains($0) }
+        // Anything selected but not currently visible — the filter changed
+        // under it — still belongs in the list, sorted so the result is
+        // reproducible.
+        let missing = wanted.subtracting(ordered).sorted()
+        ordered.append(contentsOf: missing)
+        return ordered
     }
 
     // MARK: - Loading
@@ -343,6 +429,11 @@ public final class ProjectStore: ObservableObject {
         panel.allowsMultipleSelection = false
         panel.message = "Choose a project folder, a .beads directory, or a bead data file."
         panel.prompt = "Open"
+        // Held for the panel's lifetime: `delegate` is unowned, and the guard
+        // is also the probe cache, so it must not be collected mid-browse.
+        let guardDelegate = OpenPanelGuard()
+        panel.delegate = guardDelegate
+        defer { panel.delegate = nil }
         guard panel.runModal() == .OK, let url = panel.url else { return }
         Task { await open(path: url.path) }
     }
@@ -437,8 +528,14 @@ public final class ProjectStore: ObservableObject {
         // Triage depends on Phase-2 scores; it is refreshed again once they land.
         triage = (try? await engine.triage()) ?? .empty
         rebuildUnblocksCache()
-        if selection == nil || !issues.contains(where: { $0.id == selection }) {
-            selection = visibleIssues.first?.id
+        // Drop ids the reload removed, and fall back to the first row when
+        // that empties the selection — an empty inspector after a reload reads
+        // as a broken app rather than as a changed bead set.
+        let surviving = selection.filter { id in issues.contains { $0.id == id } }
+        if surviving.isEmpty {
+            selection = visibleIssues.first.map { [$0.id] } ?? []
+        } else if surviving != selection {
+            selection = surviving
         }
     }
 
@@ -565,8 +662,14 @@ public final class ProjectStore: ObservableObject {
             // A recipe that asks for the graph gets it; the rest leave the
             // current surface alone rather than yanking the user elsewhere.
             if applied.recipe.view.impliedSurface == "graph" { surface = .graph }
-            if selection == nil || !applied.issueIDs.contains(selection ?? "") {
-                selection = applied.issueIDs.first
+            // A recipe changes what is on screen, so a selection pointing
+            // outside its results would leave the inspector showing a bead the
+            // list no longer contains.
+            let surviving = selection.intersection(applied.issueIDs)
+            if surviving.isEmpty {
+                selection = applied.issueIDs.first.map { [$0] } ?? []
+            } else {
+                selection = surviving
             }
         } catch {
             loadError = error.localizedDescription

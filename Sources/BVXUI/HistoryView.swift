@@ -273,8 +273,8 @@ struct HistoryView: View {
                 )
             }
         }
-        .task(id: store.selection) {
-            guard let id = store.selection else { return }
+        .task(id: store.focusedID) {
+            guard let id = store.focusedID else { return }
             causality = await store.causality(for: id)
         }
     }

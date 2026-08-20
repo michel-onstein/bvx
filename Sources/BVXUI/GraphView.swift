@@ -130,7 +130,7 @@ struct GraphView: View {
             issuesByID: store.issuesByID,
             actionable: store.actionable,
             pageRank: store.metrics.pageRank,
-            selection: store.selection,
+            selection: store.focusedID,
             hovered: hovered,
             zoom: zoom,
             pan: pan
@@ -152,7 +152,7 @@ struct GraphView: View {
                             .onEnded { _ in dragStart = pan }
                     )
                     .onTapGesture { location in
-                        if let hit = canvas.node(at: location) { store.selection = hit.id }
+                        if let hit = canvas.node(at: location) { store.select(id: hit.id) }
                     }
                     .onContinuousHover { phase in
                         switch phase {

@@ -462,6 +462,39 @@ public actor BeadsEngine {
         try invoke(method, request: request)
     }
 
+    // MARK: - Probing without opening
+
+    /// Reports whether `path` holds bead data, without loading it.
+    ///
+    /// Static and synchronous on purpose. `NSOpenPanel` asks
+    /// `panel(_:shouldEnable:)` about every directory it draws and expects an
+    /// answer on the spot, so this cannot be an `await` on an actor — and it
+    /// must not open a session, which would run a full analysis to answer a
+    /// yes/no question.
+    ///
+    /// The answer comes from the same code discovery uses, so the panel and
+    /// the loader cannot disagree: what the panel offers, ``open(path:skipPhase2:)``
+    /// accepts.
+    public static func probe(path: String) throws -> ProbeResult {
+        let envelope = try path.withCString { p -> Envelope in
+            guard let result = bvx_probe(UnsafeMutablePointer(mutating: p)) else {
+                throw EngineError.callFailed(method: "probe", message: "no response")
+            }
+            defer { bvx_free(result) }
+            return try decodeEnvelope(from: result)
+        }
+
+        guard envelope.ok, let box = envelope.data else {
+            throw EngineError.callFailed(
+                method: "probe", message: envelope.error ?? "unknown error")
+        }
+        do {
+            return try decoder.decode(ProbeResult.self, from: box.raw)
+        } catch {
+            throw EngineError.decodeFailed(method: "probe", underlying: String(describing: error))
+        }
+    }
+
     // MARK: - Plumbing
 
     private struct IssuesResponse: Decodable { var issues: [Issue] }
