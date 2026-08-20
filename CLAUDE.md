@@ -10,7 +10,7 @@ analysis engine of [`bv`](https://github.com/Dicklesworthstone/beads_viewer).
 | [BVX_DESIGN.md](docs/BVX_DESIGN.md) | ADR-001 | Architecture: engine reuse, C ABI bridge, data model, UI, distribution | Built |
 | [FEATURE_PARITY.md](docs/FEATURE_PARITY.md) | — | Every bv capability mapped to a bvx surface and delivery phase | Living |
 | [project_notes/BUGS.md](docs/project_notes/BUGS.md) | — | Bug log with the regression test locking each fix in | Living |
-| [project_notes/DECISIONS.md](docs/project_notes/DECISIONS.md) | ADR-001…007 | Architectural decisions and their trade-offs | Living |
+| [project_notes/DECISIONS.md](docs/project_notes/DECISIONS.md) | ADR-001…008 | Architectural decisions and their trade-offs | Living |
 | [project_notes/KEY_FACTS.md](docs/project_notes/KEY_FACTS.md) | — | Toolchain, commands, layout, gotchas | Living |
 | [project_notes/WORK_LOG.md](docs/project_notes/WORK_LOG.md) | — | Dated work log | Living |
 
@@ -38,6 +38,12 @@ them.
 - **The engine archive is not committed.** Run `./scripts/build-engine.sh`
   before `swift build` in a fresh clone. The generated header *is* committed,
   because the Swift C target needs it to compile.
+- **The app icon *is* committed, and never hand-edited.**
+  `Resources/bvx-icon.svg` is output from `scripts/make-icon.py` — edit the
+  script's control points, not the SVG. `Resources/bvx.icns` is committed too
+  (unlike the engine archive) because rasterising it needs `rsvg-convert`,
+  which is not part of the toolchain, and `build-app.sh` has to be able to
+  bundle an icon on a bare clone. See ADR-008.
 - **Snapshot tests must not use `ImageRenderer`** — it does not lay out
   `ScrollView` content, so scrolling views render blank and pass a naive
   file-exists check. Use `NSHostingView`, and assert on ink coverage.
@@ -57,6 +63,7 @@ them.
 
 ```bash
 ./scripts/build-engine.sh --check   # Go archive + C ABI smoke test
+./scripts/build-icon.sh --check     # committed .icns has all 10 representations
 swift test                          # Swift suite
 cd Engine/bridge && go test ./...   # Go suite
 gofmt -l Engine/bridge              # must print nothing
