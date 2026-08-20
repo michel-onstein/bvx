@@ -16,6 +16,19 @@ BUILD="$ROOT/Engine/build"
 OUT="$BUILD/libbvxengine.a"
 HEADER_DEST="$ROOT/Sources/CBVXEngine/include/libbvxengine.h"
 
+# The deployment target the archive is built for.
+#
+# This has to match `platforms: [.macOS(...)]` in Package.swift. Without it the
+# Go toolchain targets whatever SDK the host has, and the linker warns that the
+# archive "was built for newer 'macOS' version (26.0) than being linked (14.0)"
+# — which is not cosmetic: the app would claim to support macOS 14 while
+# carrying objects that require 26. It runs on the build machine and fails on
+# the machine the deployment target promised.
+#
+# The two are checked against each other below rather than trusted to stay in
+# step, because nothing else would notice them drifting apart.
+MACOS_DEPLOYMENT_TARGET=14.0
+
 UNIVERSAL=0
 CHECK=0
 for arg in "$@"; do
@@ -29,12 +42,68 @@ done
 mkdir -p "$BUILD"
 cd "$BRIDGE"
 
+# assert_package_target fails when Package.swift and the value above disagree.
+#
+# Derived from the manifest rather than duplicated in a comment: a mismatch is
+# silent otherwise, and the symptom — an app that runs here and crashes on an
+# older machine — surfaces a long way from the cause.
+assert_package_target() {
+  local manifest="$ROOT/Package.swift" declared
+  declared="$(sed -n 's/.*\.macOS(\.v\([0-9]*\)).*/\1/p' "$manifest" | head -1)"
+  if [[ -z "$declared" ]]; then
+    echo "could not read the macOS platform from Package.swift" >&2
+    exit 1
+  fi
+  if [[ "${MACOS_DEPLOYMENT_TARGET%%.*}" != "$declared" ]]; then
+    echo "deployment target mismatch: this script targets" \
+      "$MACOS_DEPLOYMENT_TARGET, Package.swift declares macOS $declared" >&2
+    echo "update MACOS_DEPLOYMENT_TARGET in $0 to match the manifest" >&2
+    exit 1
+  fi
+}
+
 build_slice() {
   local arch="$1" out="$2"
-  echo "  building darwin/$arch"
+  echo "  building darwin/$arch (deployment target $MACOS_DEPLOYMENT_TARGET)"
+  # Both the environment variable and the explicit compiler flags are set, and
+  # the flags are the ones that actually work: with this toolchain
+  # MACOSX_DEPLOYMENT_TARGET alone leaves every object — the Go-linked `go.o`
+  # and the cgo-compiled ones alike — carrying the host SDK's minimum.
+  # -mmacosx-version-min reaches both. The variable is kept because it is the
+  # conventional knob and costs nothing.
   CGO_ENABLED=1 GOOS=darwin GOARCH="$arch" \
+    MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET" \
+    CGO_CFLAGS="-mmacosx-version-min=$MACOS_DEPLOYMENT_TARGET" \
+    CGO_LDFLAGS="-mmacosx-version-min=$MACOS_DEPLOYMENT_TARGET" \
     go build -buildmode=c-archive -trimpath -o "$out" ./cbridge
 }
+
+# assert_archive_target verifies the flag actually took effect.
+#
+# Setting an environment variable and assuming it worked is how the mismatch
+# went unnoticed in the first place. `otool` reports what is really recorded in
+# the Mach-O load commands, so this checks the artefact rather than the intent.
+assert_archive_target() {
+  local archive="$1" found count
+  # Every object is checked, not just the first. The archive holds the
+  # Go-linked object alongside one per cgo translation unit, and they are
+  # produced by different tools — a flag that reaches one need not reach the
+  # others, which is exactly the failure this catches.
+  found="$(otool -l "$archive" 2>/dev/null | awk '/minos/ {print $2}' | sort -u)"
+  if [[ -z "$found" ]]; then
+    echo "could not read a deployment target from $archive" >&2
+    exit 1
+  fi
+  count="$(printf '%s\n' "$found" | wc -l | tr -d ' ')"
+  if [[ "$count" != "1" || "$found" != "$MACOS_DEPLOYMENT_TARGET" ]]; then
+    echo "archive objects target macOS $(printf '%s' "$found" | tr '\n' ' ')," \
+      "expected only $MACOS_DEPLOYMENT_TARGET" >&2
+    exit 1
+  fi
+  echo "  verified minos $found across all objects"
+}
+
+assert_package_target
 
 echo "==> Building bvx engine archive"
 if [[ $UNIVERSAL -eq 1 ]]; then
@@ -55,6 +124,7 @@ cp "$BUILD/libbvxengine.h" "$HEADER_DEST"
 
 echo "==> Built $(du -h "$OUT" | cut -f1) archive"
 lipo -info "$OUT" 2>/dev/null || true
+assert_archive_target "$OUT"
 
 # SwiftPM does not treat the archive as a build input, so a rebuilt engine on
 # its own does NOT trigger a relink — `swift test` happily keeps running the
