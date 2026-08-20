@@ -182,6 +182,7 @@ public final class ProjectStore: ObservableObject {
     private let engine = BeadsEngine()
     private let watcher = FileWatchService()
     private let notifier = AlertNotifier()
+    private let spotlight = SpotlightIndexer()
     private var triageNeedsRefresh = false
     /// Unblocks lists already reported by the plan and triage, so the inspector
     /// can show the count immediately instead of flashing 0 while an async
@@ -265,6 +266,41 @@ public final class ProjectStore: ObservableObject {
     /// can carry one — because a tooltip is not worth trapping over.
     public var beadTitles: [String: String] {
         Dictionary(issues.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    // MARK: - Automation entry points
+
+    /// Handles a `bvx://` URL, opening a workspace and selecting a bead.
+    ///
+    /// Returns whether anything was acted on, so a caller can fall back to the
+    /// system for a URL that was not ours.
+    @discardableResult
+    public func open(url: URL) async -> Bool {
+        guard let workspace = BeadURL.workspace(in: url) ?? BeadURL.bead(in: url).map({ _ in "" })
+        else { return false }
+
+        // A workspace switch has to finish before the bead can be selected —
+        // the bead may not exist until it does.
+        if !workspace.isEmpty, workspace != info?.source {
+            await open(path: workspace)
+        }
+        if let bead = BeadURL.bead(in: url) {
+            return select(id: bead)
+        }
+        return !workspace.isEmpty
+    }
+
+    /// Handles a Spotlight activation.
+    @discardableResult
+    public func openSpotlightItem(_ userInfo: [AnyHashable: Any]) -> Bool {
+        guard let id = SpotlightIndexer.beadID(from: userInfo) else { return false }
+        return select(id: id)
+    }
+
+    /// Publishes the loaded beads to Spotlight.
+    public func updateSpotlightIndex() async {
+        guard let info else { return }
+        await spotlight.index(issues, workspace: info.source)
     }
 
     /// Selects `id` if the workspace holds it. Returns whether it did.
@@ -385,6 +421,9 @@ public final class ProjectStore: ObservableObject {
         labelFlow = (try? await engine.labelFlow()) ?? .empty
         labelAttention = (try? await engine.labelAttention()) ?? .empty
         repos = (try? await engine.repos()) ?? .empty
+        // Spotlight is refreshed on every load so a deleted bead stops being
+        // findable; the indexer replaces rather than merges for that reason.
+        await updateSpotlightIndex()
         // Alerts are cheap once the analysis exists, and they are the one
         // thing a user wants to see without asking.
         await refreshAlerts()

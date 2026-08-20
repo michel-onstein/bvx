@@ -1,6 +1,8 @@
+import AppKit
 import BVXAppCore
 import BVXUI
 import BVXCore
+import CoreSpotlight
 import SwiftUI
 
 @main
@@ -13,6 +15,17 @@ struct BVXApp: App {
                 .environmentObject(store)
                 .frame(minWidth: 1000, minHeight: 620)
                 .task { await store.openInitialWorkspace() }
+                // bvx://open?workspace=...&bead=... - the same shape the
+                // inspector's inline bead links use, so one handler serves
+                // links from inside and outside the app.
+                .onOpenURL { url in
+                    Task { await store.open(url: url) }
+                }
+                // A bead opened from Spotlight.
+                .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                    guard let info = activity.userInfo else { return }
+                    _ = store.openSpotlightItem(info)
+                }
         }
         .windowToolbarStyle(.unified)
         .commands { BVXCommands(store: store) }
@@ -40,6 +53,9 @@ struct BVXCommands: Commands {
             Button("Export Markdown Report…") { Task { await store.exportMarkdown() } }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
                 .disabled(!store.isLoaded)
+            Divider()
+            Button("Install Command Line Tool…") { installCommandLineTool() }
+                .disabled(!CommandLineTool.isAvailable)
         }
 
         CommandMenu("View") {
@@ -56,6 +72,29 @@ struct BVXCommands: Commands {
                 .keyboardShortcut("m", modifiers: [.command, .shift])
                 .disabled(store.metrics.hasPhase2Values || !store.isLoaded)
         }
+    }
+}
+
+extension BVXCommands {
+    /// Links the bundled `bvx-cli` somewhere on the user's PATH.
+    ///
+    /// The destination comes from a save panel because, under the App Sandbox,
+    /// that grant is the only thing authorising the write — a hardcoded
+    /// `/usr/local/bin` would simply fail.
+    fileprivate func installCommandLineTool() {
+        let alert = NSAlert()
+        switch CommandLineTool.install() {
+        case .installed(let path):
+            alert.messageText = "Command line tool installed"
+            alert.informativeText = "bvx-cli is linked at \(path)."
+        case .failed(let message):
+            alert.alertStyle = .warning
+            alert.messageText = "Could not install the command line tool"
+            alert.informativeText = message
+        case .cancelled:
+            return
+        }
+        alert.runModal()
     }
 }
 
