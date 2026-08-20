@@ -7,7 +7,7 @@ import SwiftUI
 
 /// The view surfaces in the sidebar.
 public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
-    case list, board, graph, tree, insights, plan, labels, flow, attention, history, alerts
+    case list, board, graph, tree, insights, plan, labels, flow, attention, history, alerts, sprint
 
     public var id: String { rawValue }
 
@@ -24,6 +24,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .attention: "Attention"
         case .history: "History"
         case .alerts: "Alerts"
+        case .sprint: "Sprint"
         }
     }
 
@@ -40,6 +41,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .attention: "exclamationmark.bubble"
         case .history: "clock.arrow.circlepath"
         case .alerts: "bell.badge"
+        case .sprint: "chart.line.downtrend.xyaxis"
         }
     }
 
@@ -58,6 +60,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .attention: "9"
         case .history: "0"
         case .alerts: "-"
+        case .sprint: "="
         }
     }
 
@@ -75,6 +78,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .attention: "A"
         case .history: "t"
         case .alerts: "!"
+        case .sprint: "S"
         }
     }
 }
@@ -130,6 +134,15 @@ public final class ProjectStore: ObservableObject {
     /// The historical bead set, for showing a bead as it was.
     @Published public private(set) var pastIssues: [String: Issue] = [:]
     @Published public private(set) var timeTravelLoading = false
+
+    // MARK: Sprints
+    @Published public private(set) var sprints: SprintList = .empty
+    @Published public private(set) var burndown: Burndown = .empty
+    @Published public private(set) var capacity: Capacity = .empty
+    @Published public private(set) var sprintError: String?
+    /// Which sprint the dashboard is showing. Empty means the active one.
+    @Published public var selectedSprintID: String = ""
+    @Published public var capacityAgents: Int = 1
 
     // MARK: Recipes
     @Published public private(set) var recipes: RecipeList = .empty
@@ -352,6 +365,40 @@ public final class ProjectStore: ObservableObject {
     public func close() async {
         stopWatching()
         await engine.close()
+    }
+
+    // MARK: - Sprints
+
+    /// Loads the sprint list, the selected sprint's burndown and the capacity
+    /// simulation.
+    public func loadSprints() async {
+        guard isLoaded else { return }
+        sprintError = nil
+
+        sprints = (try? await engine.sprints()) ?? .empty
+        // No sprint file at all is a normal state for a workspace, not an
+        // error, so it is reported by the empty list rather than a message.
+        guard !sprints.sprints.isEmpty else {
+            burndown = .empty
+            await loadCapacity()
+            return
+        }
+
+        do {
+            let target = selectedSprintID.isEmpty ? "current" : selectedSprintID
+            burndown = try await engine.burndown(sprintID: target)
+        } catch {
+            // The commonest case by far: sprints exist but none spans today.
+            burndown = .empty
+            sprintError = error.localizedDescription
+        }
+        await loadCapacity()
+    }
+
+    /// Re-runs the capacity simulation at the current agent count.
+    public func loadCapacity() async {
+        guard isLoaded else { return }
+        capacity = (try? await engine.capacity(agents: capacityAgents)) ?? .empty
     }
 
     // MARK: - Recipes

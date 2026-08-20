@@ -262,6 +262,14 @@ func (s *Session) Call(method string, req []byte) ([]byte, error) {
 		return s.fileRelations(req)
 	case "orphans":
 		return s.orphans(req)
+	case "sprint_list":
+		return s.sprintList()
+	case "sprint_show":
+		return s.sprintShow(req)
+	case "burndown":
+		return s.burndown(req)
+	case "capacity":
+		return s.capacity(req)
 	case "recipes":
 		return s.recipes()
 	case "recipe_apply":

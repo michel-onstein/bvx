@@ -233,6 +233,24 @@ public actor BeadsEngine {
         try call("orphans", request: request(limit: limit, refresh: false), as: OrphanReport.self)
     }
 
+    // MARK: - Sprints
+
+    public func sprints() throws -> SprintList {
+        try call("sprint_list", as: SprintList.self)
+    }
+
+    /// One sprint's burndown. Pass `current` for the active sprint.
+    public func burndown(sprintID: String = "current") throws -> Burndown {
+        try call("burndown", request: ["id": sprintID], as: Burndown.self)
+    }
+
+    /// How long the open work takes with `agents` working in parallel.
+    public func capacity(agents: Int, label: String? = nil) throws -> Capacity {
+        var req: [String: Any] = ["agents": agents]
+        if let label, !label.isEmpty { req["label"] = label }
+        return try call("capacity", request: req, as: Capacity.self)
+    }
+
     // MARK: - Recipes
 
     /// Every recipe, built-in and project-defined.
