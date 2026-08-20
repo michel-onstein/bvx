@@ -7,7 +7,7 @@ import SwiftUI
 
 /// The view surfaces in the sidebar.
 public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
-    case list, board, graph, tree, insights, plan, labels, flow, attention
+    case list, board, graph, tree, insights, plan, labels, flow, attention, history
 
     public var id: String { rawValue }
 
@@ -22,6 +22,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .labels: "Labels"
         case .flow: "Flow"
         case .attention: "Attention"
+        case .history: "History"
         }
     }
 
@@ -36,6 +37,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .labels: "tag"
         case .flow: "square.grid.3x3"
         case .attention: "exclamationmark.bubble"
+        case .history: "clock.arrow.circlepath"
         }
     }
 
@@ -52,6 +54,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .labels: "7"
         case .flow: "8"
         case .attention: "9"
+        case .history: "0"
         }
     }
 
@@ -67,6 +70,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .labels: "]"
         case .flow: "F"
         case .attention: "A"
+        case .history: "t"
         }
     }
 }
@@ -96,6 +100,20 @@ public final class ProjectStore: ObservableObject {
     @Published public private(set) var isWatching = false
     @Published public private(set) var lastReloadAt: Date?
     @Published public private(set) var lastExportPath: String?
+
+    // MARK: Correlation
+    //
+    // History is loaded on demand rather than with the workspace: walking the
+    // object store is the most expensive thing the engine does, and most
+    // sessions never open the History view at all.
+    @Published public private(set) var history: HistoryReport = .empty
+    @Published public private(set) var orphans: OrphanReport = .empty
+    @Published public private(set) var hotspots: FileHotspots = .empty
+    @Published public private(set) var feedback: CorrelationFeedbackReport = .empty
+    @Published public private(set) var historyLoaded = false
+    @Published public private(set) var historyLoading = false
+    /// Why history is unavailable — most often "not a git repository".
+    @Published public private(set) var historyError: String?
 
     private let engine = BeadsEngine()
     private let watcher = FileWatchService()
@@ -206,6 +224,11 @@ public final class ProjectStore: ObservableObject {
 
             try await refreshAll()
             if !skipPhase2 { await computePhase2() }
+            // Every correlation attribution was computed against the old bead
+            // set, so the report is stale. It is marked unloaded rather than
+            // re-walked here: the walk is expensive and only matters if the
+            // History view is actually open.
+            historyLoaded = false
             lastReloadAt = Date()
             return true
         } catch {
@@ -281,6 +304,88 @@ public final class ProjectStore: ObservableObject {
     public func close() async {
         stopWatching()
         await engine.close()
+    }
+
+    // MARK: - Correlation
+
+    /// Loads the git correlation report, once.
+    ///
+    /// Idempotent, so a view can call it from `.task` on every appearance
+    /// without paying for a second walk. Pass `refresh` to force one.
+    public func loadHistory(refresh: Bool = false) async {
+        guard isLoaded, !historyLoading else { return }
+        guard refresh || !historyLoaded else { return }
+
+        historyLoading = true
+        historyError = nil
+        defer { historyLoading = false }
+
+        do {
+            history = try await engine.history(refresh: refresh)
+            // These read the same cached report, so they are cheap once the
+            // walk is done.
+            orphans = (try? await engine.orphanCommits()) ?? .empty
+            hotspots = (try? await engine.fileHotspots()) ?? .empty
+            feedback = (try? await engine.correlationFeedback()) ?? .empty
+            historyLoaded = true
+        } catch {
+            // A workspace outside a git repository is a normal state, not a
+            // failure of the app — the History view says so rather than the
+            // whole window showing an error.
+            historyError = error.localizedDescription
+            historyLoaded = false
+            history = .empty
+            orphans = .empty
+            hotspots = .empty
+        }
+    }
+
+    /// The commits linked to one bead, newest first.
+    public func commits(for id: Issue.ID) -> [CorrelatedCommit] {
+        history.histories[id]?.commits ?? []
+    }
+
+    /// One bead's causal chain, fetched on demand.
+    public func causality(for id: Issue.ID) async -> CausalityResult? {
+        try? await engine.causality(id)
+    }
+
+    public func relatedWork(for id: Issue.ID) async -> RelatedWork? {
+        try? await engine.relatedWork(id)
+    }
+
+    public func beads(touching path: String) async -> FileBeadLookup? {
+        try? await engine.beads(touching: path)
+    }
+
+    public func fileRelations(for path: String) async -> CoChangeResult? {
+        try? await engine.fileRelations(path)
+    }
+
+    public func patch(sha: String, path: String? = nil) async -> CommitPatch? {
+        try? await engine.commitPatch(sha: sha, path: path)
+    }
+
+    /// Records a verdict on one commit-to-bead link and republishes the report.
+    ///
+    /// The report is re-read rather than patched locally: rejecting a link
+    /// also rebuilds the commit index and the orphan list, and reproducing
+    /// that here would be a second implementation of the same rule.
+    public func recordCorrelation(
+        sha: String, beadID: String, confirmed: Bool, reason: String = ""
+    ) async {
+        do {
+            if confirmed {
+                try await engine.confirmCorrelation(sha: sha, beadID: beadID, reason: reason)
+            } else {
+                try await engine.rejectCorrelation(sha: sha, beadID: beadID, reason: reason)
+            }
+            history = try await engine.history()
+            orphans = (try? await engine.orphanCommits()) ?? orphans
+            feedback = (try? await engine.correlationFeedback()) ?? feedback
+        } catch {
+            historyError = error.localizedDescription
+        }
     }
 
     // MARK: - Export

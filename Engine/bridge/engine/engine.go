@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/Dicklesworthstone/beads_viewer/pkg/analysis"
+	"github.com/Dicklesworthstone/beads_viewer/pkg/correlation"
 	"github.com/Dicklesworthstone/beads_viewer/pkg/export"
 	"github.com/Dicklesworthstone/beads_viewer/pkg/loader"
 	"github.com/Dicklesworthstone/beads_viewer/pkg/model"
@@ -261,6 +262,14 @@ func (s *Session) Call(method string, req []byte) ([]byte, error) {
 		return s.fileRelations(req)
 	case "orphans":
 		return s.orphans(req)
+	case "commit_patch":
+		return s.commitPatch(req)
+	case "correlation_feedback":
+		return s.correlationFeedback()
+	case "correlation_confirm":
+		return s.recordFeedback(req, correlation.FeedbackConfirm)
+	case "correlation_reject":
+		return s.recordFeedback(req, correlation.FeedbackReject)
 	default:
 		return nil, fmt.Errorf("unknown method %q", method)
 	}

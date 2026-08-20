@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -70,8 +71,172 @@ func (s *Session) correlationHistory(limit int, refresh bool) (*historyResult, e
 		return nil, err
 	}
 
+	// Feedback is applied after extraction rather than during it, so that a
+	// confirm or reject can be re-applied without re-walking the history.
+	if store, err := s.feedbackStore(); err == nil {
+		applyFeedback(result.report, store)
+	}
+
 	s.history, s.historyLimit = result, limit
 	return result, nil
+}
+
+// feedbackStore opens the workspace's correlation feedback sidecar.
+func (s *Session) feedbackStore() (*correlation.FeedbackStore, error) {
+	s.mu.RLock()
+	source := s.source
+	s.mu.RUnlock()
+	if source == "" {
+		return nil, fmt.Errorf("session has no source")
+	}
+	store := correlation.NewFeedbackStore(filepath.Dir(source))
+	if err := store.Load(); err != nil {
+		return nil, err
+	}
+	return store, nil
+}
+
+// applyFeedback folds a human verdict into the report's confidences.
+//
+// A rejected link is removed outright rather than merely downweighted: the
+// point of rejecting it is that it is wrong, and leaving it at low confidence
+// would keep it in every count and every file index. A confirmed link is
+// raised to the top of bv's band for its method — not past it, because the
+// band is what the method's confidence means.
+func applyFeedback(report *correlation.HistoryReport, store *correlation.FeedbackStore) {
+	for id, history := range report.Histories {
+		kept := history.Commits[:0]
+		for _, commit := range history.Commits {
+			verdict, found := store.Get(commit.SHA, id)
+			if !found {
+				kept = append(kept, commit)
+				continue
+			}
+			switch verdict.Type {
+			case correlation.FeedbackReject:
+				continue
+			case correlation.FeedbackConfirm:
+				if band, ok := correlation.MethodRanges[commit.Method]; ok {
+					commit.Confidence = band.Max
+				} else {
+					commit.Confidence = 1
+				}
+				commit.Reason = "confirmed: " + verdict.Reason
+			}
+			kept = append(kept, commit)
+		}
+		history.Commits = kept
+		report.Histories[id] = history
+	}
+
+	// The commit index is derived, so it has to be rebuilt rather than
+	// patched — a rejected link that stays in the index would keep the commit
+	// out of the orphan list while belonging to no bead.
+	rebuilt := correlation.CommitIndex{}
+	withCommits := 0
+	for id, history := range report.Histories {
+		if len(history.Commits) > 0 {
+			withCommits++
+		}
+		for _, commit := range history.Commits {
+			rebuilt[commit.SHA] = appendUnique(rebuilt[commit.SHA], id)
+		}
+	}
+	report.CommitIndex = rebuilt
+	report.Stats.BeadsWithCommits = withCommits
+}
+
+// feedbackRequest is a verdict on one commit-to-bead link.
+type feedbackRequest struct {
+	SHA    string `json:"sha"`
+	BeadID string `json:"bead_id"`
+	By     string `json:"by"`
+	Reason string `json:"reason"`
+}
+
+// correlationFeedback returns every recorded verdict and the accuracy stats.
+func (s *Session) correlationFeedback() ([]byte, error) {
+	store, err := s.feedbackStore()
+	if err != nil {
+		return nil, err
+	}
+	all := store.GetAll()
+	if all == nil {
+		all = []correlation.CorrelationFeedback{}
+	}
+	return json.Marshal(map[string]any{
+		"feedback": all,
+		"stats":    store.GetStats(),
+	})
+}
+
+// recordFeedback confirms or rejects one link.
+func (s *Session) recordFeedback(req []byte, verdict correlation.FeedbackType) ([]byte, error) {
+	var r feedbackRequest
+	if len(req) == 0 {
+		return nil, fmt.Errorf("feedback requires \"sha\" and \"bead_id\"")
+	}
+	if err := json.Unmarshal(req, &r); err != nil {
+		return nil, err
+	}
+	if r.SHA == "" || r.BeadID == "" {
+		return nil, fmt.Errorf("feedback requires a non-empty \"sha\" and \"bead_id\"")
+	}
+	if r.By == "" {
+		r.By = "bvx"
+	}
+
+	store, err := s.feedbackStore()
+	if err != nil {
+		return nil, err
+	}
+
+	// The original confidence is recorded alongside the verdict, so the
+	// accuracy stats can say what the engine believed at the time.
+	original := s.confidenceOf(r.SHA, r.BeadID)
+
+	switch verdict {
+	case correlation.FeedbackReject:
+		err = store.Reject(r.SHA, r.BeadID, r.By, original, r.Reason)
+	default:
+		err = store.Confirm(r.SHA, r.BeadID, r.By, original, r.Reason)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// Re-apply against the cached report so the change is visible without
+	// paying for another walk.
+	s.historyMu.Lock()
+	if s.history != nil {
+		applyFeedback(s.history.report, store)
+	}
+	s.historyMu.Unlock()
+
+	return json.Marshal(map[string]any{
+		"sha":           r.SHA,
+		"bead_id":       r.BeadID,
+		"type":          string(verdict),
+		"by":            r.By,
+		"reason":        r.Reason,
+		"original_conf": original,
+		"stats":         store.GetStats(),
+	})
+}
+
+// confidenceOf finds what the engine currently believes about one link.
+func (s *Session) confidenceOf(sha, beadID string) float64 {
+	s.historyMu.Lock()
+	defer s.historyMu.Unlock()
+	if s.history == nil {
+		return 0
+	}
+	for _, commit := range s.history.report.Histories[beadID].Commits {
+		if commit.SHA == sha {
+			return commit.Confidence
+		}
+	}
+	return 0
 }
 
 // invalidateHistory drops the cached report. Called whenever the bead set
@@ -277,6 +442,42 @@ func (s *Session) orphans(req []byte) ([]byte, error) {
 	}
 	issues, _, _ := s.snapshot()
 	return json.Marshal(detectOrphans(result, issues, r.Limit))
+}
+
+// commitPatch renders one commit's diff, optionally narrowed to one file.
+func (s *Session) commitPatch(req []byte) ([]byte, error) {
+	var r struct {
+		SHA  string `json:"sha"`
+		Path string `json:"path"`
+	}
+	if len(req) == 0 {
+		return nil, fmt.Errorf("commit_patch requires a \"sha\"")
+	}
+	if err := json.Unmarshal(req, &r); err != nil {
+		return nil, err
+	}
+	if r.SHA == "" {
+		return nil, fmt.Errorf("commit_patch requires a non-empty \"sha\"")
+	}
+
+	s.mu.RLock()
+	source, issues := s.source, s.issues
+	s.mu.RUnlock()
+
+	extractor, err := openObjectStore(source, issues)
+	if err != nil {
+		return nil, err
+	}
+	text, err := extractor.patch(context.Background(), r.SHA, r.Path)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(map[string]any{
+		"sha":   r.SHA,
+		"path":  r.Path,
+		"patch": text,
+		"bytes": len(text),
+	})
 }
 
 // titlesByID maps bead ids to titles.

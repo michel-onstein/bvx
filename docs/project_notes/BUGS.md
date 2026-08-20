@@ -163,3 +163,33 @@ and table termination, a false-positive suite covering prose like
 bearing one — the delimiter row must have exactly as many cells as the header,
 which is what stops a `---` rule under a pipe-containing sentence from reading
 as a one-column table.
+
+---
+
+## 2026-08-20 — History was empty in a git worktree
+
+**Symptom:** the History view reported "no history available" and the engine
+returned `resolving HEAD: reference not found`, in a checkout that plainly had
+commits.
+
+**Cause:** the checkout was a *linked worktree*. There `.git` is a file
+pointing at `<main>/.git/worktrees/<name>`, and the refs — HEAD included — live
+in the common directory rather than beside the worktree. go-git opens such a
+repository happily with `DetectDotGit` alone and only fails later, at HEAD
+resolution, which reads like an empty repository rather than a misconfigured
+one.
+
+**Fix:** `PlainOpenOptions.EnableDotGitCommonDir`, which is exactly the option
+for this layout.
+
+**Prevention:** `EngineTests.historyReachable` walks the fixture workspace,
+which lives inside this repository — so it exercises whatever checkout layout
+the tests are run from, worktree or not.
+
+**A second bug hid the first.** The fix appeared not to work: the Go tests
+passed and the Swift ones kept failing with the old message. SwiftPM does not
+treat `libbvxengine.a` as a build input, so rebuilding the engine alone does
+*not* trigger a relink — `swift test` kept running the previous archive.
+`build-engine.sh` now touches `Sources/BVXEngine/BeadsEngine.swift` after a
+successful build to force it. Worth remembering whenever a Go-side change seems
+to have no effect on the Swift side.

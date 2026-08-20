@@ -559,6 +559,115 @@ func TestHistoryIsCachedAndInvalidatedWhenBeadsChange(t *testing.T) {
 	}
 }
 
+type feedbackShape struct {
+	SHA          string  `json:"sha"`
+	BeadID       string  `json:"bead_id"`
+	Type         string  `json:"type"`
+	OriginalConf float64 `json:"original_conf"`
+	Stats        struct {
+		TotalFeedback int     `json:"total_feedback"`
+		Confirmed     int     `json:"confirmed"`
+		Rejected      int     `json:"rejected"`
+		AccuracyRate  float64 `json:"accuracy_rate"`
+	} `json:"stats"`
+}
+
+func TestRejectingALinkRemovesItAndFreesTheCommit(t *testing.T) {
+	s := openHistorySession(t)
+
+	before := call[historyPayloadShape](t, s, "history", nil)
+	linked := before.Histories["proj-1"].Commits
+	if len(linked) == 0 {
+		t.Fatal("nothing to reject")
+	}
+	target := linked[0]
+
+	result := call[feedbackShape](t, s, "correlation_reject",
+		map[string]any{"sha": target.SHA, "bead_id": "proj-1", "reason": "wrong bead"})
+	if result.Type != "reject" {
+		t.Errorf("verdict recorded as %q", result.Type)
+	}
+	// The verdict records what the engine believed at the time.
+	if result.OriginalConf != target.Confidence {
+		t.Errorf("recorded confidence %v, engine said %v", result.OriginalConf, target.Confidence)
+	}
+	if result.Stats.Rejected != 1 {
+		t.Errorf("stats report %d rejections", result.Stats.Rejected)
+	}
+
+	after := call[historyPayloadShape](t, s, "history", nil)
+	for _, commit := range after.Histories["proj-1"].Commits {
+		if commit.SHA == target.SHA {
+			t.Error("a rejected link is still attributed to the bead")
+		}
+	}
+
+	// The commit index is derived, so it has to be rebuilt: a rejected link
+	// left in the index would keep the commit out of the orphan list while
+	// belonging to no bead at all.
+	if ids := after.CommitIndex[target.SHA]; len(ids) > 0 {
+		for _, id := range ids {
+			if id == "proj-1" {
+				t.Error("the commit index still points the rejected commit at proj-1")
+			}
+		}
+	}
+}
+
+func TestConfirmingALinkRaisesItToItsMethodCeiling(t *testing.T) {
+	s := openHistorySession(t)
+
+	before := call[historyPayloadShape](t, s, "history", nil)
+	var target struct {
+		SHA        string
+		Method     string
+		Confidence float64
+	}
+	for _, commit := range before.Histories["proj-1"].Commits {
+		if commit.Method == "co_committed" {
+			target.SHA, target.Method, target.Confidence =
+				commit.SHA, commit.Method, commit.Confidence
+		}
+	}
+	if target.SHA == "" {
+		t.Fatal("no co-committed link to confirm")
+	}
+
+	call[feedbackShape](t, s, "correlation_confirm",
+		map[string]any{"sha": target.SHA, "bead_id": "proj-1", "reason": "correct"})
+
+	after := call[historyPayloadShape](t, s, "history", nil)
+	found := false
+	for _, commit := range after.Histories["proj-1"].Commits {
+		if commit.SHA != target.SHA {
+			continue
+		}
+		found = true
+		// bv's ceiling for co_committed is 0.99. Confirming raises the link to
+		// the top of its method's band, not past it: the band is what the
+		// method's confidence means.
+		if commit.Confidence != 0.99 {
+			t.Errorf("confirmed link sits at %v, want 0.99", commit.Confidence)
+		}
+		if commit.Confidence <= target.Confidence {
+			t.Errorf("confirming did not raise confidence (%v -> %v)",
+				target.Confidence, commit.Confidence)
+		}
+	}
+	if !found {
+		t.Error("the confirmed link disappeared")
+	}
+}
+
+func TestFeedbackRequiresBothIdentifiers(t *testing.T) {
+	s := openHistorySession(t)
+	for _, req := range []string{``, `{}`, `{"sha":"abc"}`, `{"bead_id":"proj-1"}`} {
+		if _, err := s.Call("correlation_confirm", []byte(req)); err == nil {
+			t.Errorf("expected an error for request %q", req)
+		}
+	}
+}
+
 func TestHistoryOutsideARepositoryIsAnError(t *testing.T) {
 	// The fixture workspace is a bare temp directory with no .git.
 	s := openFixture(t)

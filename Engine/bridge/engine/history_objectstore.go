@@ -86,7 +86,15 @@ type objectStoreExtractor struct {
 // openObjectStore locates the repository containing sourcePath.
 func openObjectStore(sourcePath string, issues []model.Issue) (*objectStoreExtractor, error) {
 	dir := filepath.Dir(sourcePath)
-	repo, err := git.PlainOpenWithOptions(dir, &git.PlainOpenOptions{DetectDotGit: true})
+	// EnableDotGitCommonDir is what makes a *linked worktree* work. There,
+	// `.git` is a file pointing at `<main>/.git/worktrees/<name>`, and the
+	// refs — HEAD included — live in the common directory rather than beside
+	// the worktree. Without it, opening succeeds and resolving HEAD then fails
+	// with "reference not found", which reads like an empty repository.
+	repo, err := git.PlainOpenWithOptions(dir, &git.PlainOpenOptions{
+		DetectDotGit:          true,
+		EnableDotGitCommonDir: true,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("opening git repository near %s: %w", dir, err)
 	}
@@ -195,6 +203,57 @@ func (e *objectStoreExtractor) extract(
 
 	report := e.assemble(records, head.Hash().String(), opts)
 	return &historyResult{report: report, commits: records}, nil
+}
+
+// patch renders one commit's unified diff, optionally narrowed to one path.
+//
+// The app cannot shell out to `git diff`, and a file list with line counts
+// does not answer "what actually changed". go-git already decodes the blobs
+// for the line counts, so the patch text costs little more.
+func (e *objectStoreExtractor) patch(
+	ctx context.Context, sha string, only string,
+) (string, error) {
+	hash := plumbing.NewHash(sha)
+	commit, err := e.repo.CommitObject(hash)
+	if err != nil {
+		return "", fmt.Errorf("reading commit %s: %w", shortHash(sha), err)
+	}
+	tree, err := commit.Tree()
+	if err != nil {
+		return "", err
+	}
+
+	var parentTree *object.Tree
+	if commit.NumParents() > 0 {
+		if parent, perr := commit.Parent(0); perr == nil {
+			parentTree, _ = parent.Tree()
+		}
+	}
+
+	changes, err := object.DiffTreeWithOptions(
+		ctx, parentTree, tree, &object.DiffTreeOptions{DetectRenames: true})
+	if err != nil {
+		return "", err
+	}
+
+	if only != "" {
+		filtered := object.Changes{}
+		for _, change := range changes {
+			if change.To.Name == only || change.From.Name == only {
+				filtered = append(filtered, change)
+			}
+		}
+		if len(filtered) == 0 {
+			return "", fmt.Errorf("commit %s does not touch %s", shortHash(sha), only)
+		}
+		changes = filtered
+	}
+
+	result, err := changes.PatchContext(ctx)
+	if err != nil {
+		return "", err
+	}
+	return result.String(), nil
 }
 
 // record turns one commit into a commitRecord, including the bead lifecycle

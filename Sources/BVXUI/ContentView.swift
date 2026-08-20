@@ -70,6 +70,7 @@ public struct ContentView: View {
         case .labels: LabelsView()
         case .flow: FlowMatrixView()
         case .attention: AttentionView()
+        case .history: HistoryView()
         }
     }
 

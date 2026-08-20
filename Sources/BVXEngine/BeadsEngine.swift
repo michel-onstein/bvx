@@ -233,6 +233,43 @@ public actor BeadsEngine {
         try call("orphans", request: request(limit: limit, refresh: false), as: OrphanReport.self)
     }
 
+    /// One commit's unified diff, optionally narrowed to a single file.
+    ///
+    /// Rendered from the object store, so it works where `git diff` cannot.
+    public func commitPatch(sha: String, path: String? = nil) throws -> CommitPatch {
+        var req: [String: Any] = ["sha": sha]
+        if let path, !path.isEmpty { req["path"] = path }
+        return try call("commit_patch", request: req, as: CommitPatch.self)
+    }
+
+    /// Every recorded verdict on a commit-to-bead link, and the accuracy stats.
+    public func correlationFeedback() throws -> CorrelationFeedbackReport {
+        try call("correlation_feedback", as: CorrelationFeedbackReport.self)
+    }
+
+    /// Confirms a link. The link is raised to the top of its method's
+    /// confidence band and the verdict is recorded for future reports.
+    @discardableResult
+    public func confirmCorrelation(
+        sha: String, beadID: String, reason: String = ""
+    ) throws -> CorrelationVerdict {
+        try call(
+            "correlation_confirm",
+            request: ["sha": sha, "bead_id": beadID, "reason": reason],
+            as: CorrelationVerdict.self)
+    }
+
+    /// Rejects a link, removing it from the report entirely.
+    @discardableResult
+    public func rejectCorrelation(
+        sha: String, beadID: String, reason: String = ""
+    ) throws -> CorrelationVerdict {
+        try call(
+            "correlation_reject",
+            request: ["sha": sha, "bead_id": beadID, "reason": reason],
+            as: CorrelationVerdict.self)
+    }
+
     private func request(limit: Int, refresh: Bool) -> [String: Any] {
         var req: [String: Any] = [:]
         if limit > 0 { req["limit"] = limit }
