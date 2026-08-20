@@ -29,7 +29,7 @@ MERMAID_URL = "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"
 MERMAID_LOCAL = ASSETS / "mermaid.min.js"
 
 # Order of the nav sidebar; anything else is appended alphabetically.
-NAV_ORDER = ["README.md", "bvx-design.md", "feature-parity.md"]
+NAV_ORDER = ["README.md", "BVX_DESIGN.md", "FEATURE_PARITY.md"]
 
 MERMAID_FENCE = re.compile(
     r"^[ \t]*```mermaid[ \t]*\n(.*?)^[ \t]*```[ \t]*$",

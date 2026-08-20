@@ -188,11 +188,12 @@ pre.mermaid svg { max-width: 100%; height: auto; }
 <div class="shell">
   <aside class="nav">
     <div class="brand"><span class="dot"></span> bvx docs</div>
-    <nav><a href="README.html">bvx Documentation</a><a href="bvx-design.html">bvx — Design Document</a><a href="feature-parity.html" class="current">bvx — Feature Parity Matrix</a></nav>
+    <nav><a href="README.html">bvx Documentation</a><a href="BVX_DESIGN.html">bvx — Design Document</a><a href="FEATURE_PARITY.html" class="current">bvx — Feature Parity Matrix</a></nav>
     <div class="toc-head">On this page</div>
     <nav class="toc"><div class="toc">
 <ul>
 <li><a href="#bvx-feature-parity-matrix">bvx — Feature Parity Matrix</a><ul>
+<li><a href="#implementation-status">Implementation status</a></li>
 <li><a href="#1-data-loading">1. Data Loading</a></li>
 <li><a href="#2-graph-analysis">2. Graph Analysis</a></li>
 <li><a href="#3-derived-analysis">3. Derived Analysis</a></li>
@@ -212,9 +213,43 @@ pre.mermaid svg { max-width: 100%; height: auto; }
   <main id="content" class="page">
     <article class="prose">
 <h1 id="bvx-feature-parity-matrix"><a class="toclink" href="#bvx-feature-parity-matrix">bvx — Feature Parity Matrix</a></h1>
-<p>Companion to the <a href="bvx-design.html">bvx Design Document</a>. Every capability of <code>bv</code> is listed
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Status</strong></td>
+<td>Living document — the Phase column is the <em>plan</em>, not the build state</td>
+</tr>
+<tr>
+<td><strong>Date</strong></td>
+<td>2026-08-19</td>
+</tr>
+<tr>
+<td><strong>Build state</strong></td>
+<td>See "Implementation status" below, and the root <code>README.md</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Companion to the <a href="BVX_DESIGN.html">bvx Design Document</a>. Every capability of <code>bv</code> is listed
 here with the <code>bvx</code> surface that delivers it, the mechanism, and the delivery phase from
-<a href="bvx-design.html#18-delivery-plan">§18 of the design doc</a>.</p>
+<a href="BVX_DESIGN.html#18-delivery-plan">§18 of the design doc</a>.</p>
+<h2 id="implementation-status"><a class="toclink" href="#implementation-status">Implementation status</a></h2>
+<p>As of 2026-08-19 the following are <strong>built and tested</strong>: JSONL and SQLite
+loading with discovery fallback, Phase-1 and Phase-2 metrics with honest status
+reporting, the actionable set, execution plan, unblocks and blocker chains,
+triage recommendations, the List / Board / Graph / Tree / Insights / Plan /
+Labels views with an Inspector, filters and fuzzy search, bv's single-key
+bindings, live reload via FSEvents, Markdown export, and <code>bvx-cli</code>.</p>
+<p><strong>Not built:</strong> git correlation and the history view, time travel, recipes, the
+sprint dashboard, the flow matrix and attention views, static-site export,
+multi-repo workspaces, semantic search, and the tutorial.</p>
+<p>The Phase numbers in the tables below are the original delivery plan and have
+not been re-sequenced; treat them as intent, not as a claim about what exists.</p>
 <p><strong>Mechanism legend</strong></p>
 <div class="table-wrap"><table>
 <thead>
@@ -1338,7 +1373,7 @@ decision, not an omission.</p>
 </tr>
 <tr>
 <td>Terminal single-key shortcuts are opt-out, not the only binding</td>
-<td>macOS users expect menu-driven <code>⌘</code> shortcuts; both are provided (<a href="bvx-design.html#103-keyboard-model">design doc §10.3</a>)</td>
+<td>macOS users expect menu-driven <code>⌘</code> shortcuts; both are provided (<a href="BVX_DESIGN.html#103-keyboard-model">design doc §10.3</a>)</td>
 </tr>
 <tr>
 <td>Correlation reads the git object store directly in the sandboxed app</td>
@@ -1359,7 +1394,7 @@ decision, not an omission.</p>
 </tbody>
 </table></div>
     </article>
-    <footer class="foot">Generated from <code>docs/feature-parity.md</code> &middot; bvx design documentation</footer>
+    <footer class="foot">Generated from <code>docs/FEATURE_PARITY.md</code> &middot; bvx design documentation</footer>
   </main>
 </div>
 <script src="assets/mermaid.min.js"></script>

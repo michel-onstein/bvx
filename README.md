@@ -3,8 +3,8 @@
 A native macOS app for [beads](https://github.com/steveyegge/beads) issue graphs — a
 SwiftUI implementation of [`bv`](https://github.com/Dicklesworthstone/beads_viewer).
 
-See [docs/bvx-design.md](docs/bvx-design.md) for the architecture and
-[docs/feature-parity.md](docs/feature-parity.md) for the capability map.
+See [docs/BVX_DESIGN.md](docs/BVX_DESIGN.md) for the architecture and
+[docs/FEATURE_PARITY.md](docs/FEATURE_PARITY.md) for the capability map.
 
 ## The idea in one paragraph
 
@@ -16,9 +16,21 @@ behind a small C ABI — and replaces only the UI with native Swift. Metrics are
 therefore identical to upstream by construction, and tracking a new `bv` release
 is a version bump rather than an algorithm re-derivation.
 
-```
-SwiftUI views  →  ProjectStore  →  BeadsEngine (actor)  →  C ABI  →  Go engine  →  .beads
-   BVXAppCore        BVXAppCore        BVXEngine          CBVXEngine   libbvxengine.a
+```mermaid
+flowchart LR
+    classDef ui fill:#f5f3ff,stroke:#a78bfa,stroke-width:2px,color:#5b21b6,rx:6
+    classDef core fill:#eff6ff,stroke:#93c5fd,stroke-width:2px,color:#1e40af,rx:6
+    classDef bridge fill:#fffbeb,stroke:#fcd34d,stroke-width:2px,color:#92400e,rx:6
+    classDef data fill:#f0fdf4,stroke:#86efac,stroke-width:2px,color:#166534,rx:6
+
+    V["SwiftUI views<br/>BVXUI"]:::ui
+    S["ProjectStore<br/>BVXAppCore"]:::core
+    E["BeadsEngine actor<br/>BVXEngine"]:::core
+    C["C ABI<br/>CBVXEngine"]:::bridge
+    G["Go engine<br/>libbvxengine.a"]:::bridge
+    D[".beads store"]:::data
+
+    V --> S --> E --> C --> G --> D
 ```
 
 ## Build and run

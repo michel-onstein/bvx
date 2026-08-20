@@ -1,8 +1,30 @@
 # bvx — Feature Parity Matrix
 
-Companion to the [bvx Design Document](bvx-design.md). Every capability of `bv` is listed
+| Field | Value |
+|---|---|
+| **Status** | Living document — the Phase column is the *plan*, not the build state |
+| **Date** | 2026-08-19 |
+| **Build state** | See "Implementation status" below, and the root `README.md` |
+
+Companion to the [bvx Design Document](BVX_DESIGN.md). Every capability of `bv` is listed
 here with the `bvx` surface that delivers it, the mechanism, and the delivery phase from
-[§18 of the design doc](bvx-design.md#18-delivery-plan).
+[§18 of the design doc](BVX_DESIGN.md#18-delivery-plan).
+
+## Implementation status
+
+As of 2026-08-19 the following are **built and tested**: JSONL and SQLite
+loading with discovery fallback, Phase-1 and Phase-2 metrics with honest status
+reporting, the actionable set, execution plan, unblocks and blocker chains,
+triage recommendations, the List / Board / Graph / Tree / Insights / Plan /
+Labels views with an Inspector, filters and fuzzy search, bv's single-key
+bindings, live reload via FSEvents, Markdown export, and `bvx-cli`.
+
+**Not built:** git correlation and the history view, time travel, recipes, the
+sprint dashboard, the flow matrix and attention views, static-site export,
+multi-repo workspaces, semantic search, and the tutorial.
+
+The Phase numbers in the tables below are the original delivery plan and have
+not been re-sequenced; treat them as intent, not as a claim about what exists.
 
 **Mechanism legend**
 
@@ -247,7 +269,7 @@ decision, not an omission.
 |---|---|
 | No instance lock file | Document-based apps handle single-workspace-per-window natively; the lock exists to arbitrate terminal instances |
 | No background-mode toggle | `bvx` is always asynchronous; the flag exists in `bv` because Bubble Tea is single-threaded |
-| Terminal single-key shortcuts are opt-out, not the only binding | macOS users expect menu-driven `⌘` shortcuts; both are provided ([design doc §10.3](bvx-design.md#103-keyboard-model)) |
+| Terminal single-key shortcuts are opt-out, not the only binding | macOS users expect menu-driven `⌘` shortcuts; both are provided ([design doc §10.3](BVX_DESIGN.md#103-keyboard-model)) |
 | Correlation reads the git object store directly in the sandboxed app | The App Sandbox cannot spawn `git`; the CLI keeps the subprocess path |
 | Optional Core ML embedder for semantic search | Better on-device quality, but off by default because it changes ranking relative to the CLI |
 | Shell hooks restricted under the sandbox | Sandbox policy; `bvx-cli` retains full behaviour |

@@ -5,11 +5,11 @@
 | Field | Value |
 |---|---|
 | **Document** | Architecture & design specification |
-| **Status** | Draft for review |
-| **Date** | 2026-08-19 |
+| **Status** | Partially implemented — engine bridge, core views, live reload, exports and triage are built; history, time travel, recipes, sprint and multi-repo are not. See [FEATURE_PARITY.md](FEATURE_PARITY.md) and the root `README.md` for the current line. |
+| **Date** | 2026-08-19 (status refreshed 2026-08-19) |
 | **Upstream reference** | [`Dicklesworthstone/beads_viewer`](https://github.com/Dicklesworthstone/beads_viewer) (`bv`) |
 | **Target platform** | macOS 14 Sonoma and later, Apple silicon + Intel (universal 2) |
-| **Companion document** | [Feature Parity Matrix](feature-parity.md) |
+| **Companion document** | [Feature Parity Matrix](FEATURE_PARITY.md) |
 
 ---
 
@@ -37,7 +37,7 @@ submodule instead of re-deriving algorithms. See [§4](#4-architecture-decision-
 
 ## 2. What `bv` Does — Functional Inventory
 
-Everything below is inherited scope. The [Feature Parity Matrix](feature-parity.md) tracks
+Everything below is inherited scope. The [Feature Parity Matrix](FEATURE_PARITY.md) tracks
 each item to a concrete `bvx` surface.
 
 ### 2.1 Data layer
@@ -623,37 +623,27 @@ sequenceDiagram
 
 ### 10.1 Window anatomy
 
-```text
-┌───────────────────────────────────────────────────────────────────────────────────┐
-│  ● ● ●   bvx — acme-platform                                        [workspace ▾]  │  window
-├───────────────────────────────────────────────────────────────────────────────────┤
-│  ⟳ source ▾ │ filter ▾ │ sort ▾ │  🔍 search…        │ ⏱ time-travel │ ⚠ 3 │ ⇪ ▾  │  toolbar
-├──────────────────┬──────────────────────────────────────────┬─────────────────────┤
-│ VIEWS            │                                          │  INSPECTOR          │
-│  ▸ List          │                                          │  ─────────────      │
-│  ▸ Board         │                                          │  bd-142             │
-│  ▸ Graph         │                                          │  Split loader by    │
-│  ▸ Tree          │                                          │  source type        │
-│  ▸ Insights      │                                          │                     │
-│  ▸ Plan          │            C O N T E N T                 │  Status   in_progress
-│  ▸ Flow          │                                          │  Priority 1         │
-│  ▸ Attention     │   the active view surface —              │  PageRank 0.084 (#3)│
-│                  │   table · board · canvas ·               │  Betweenness  approx│
-│ FILTERS          │   outline · dashboard                    │           (sample 120)
-│  ○ Open          │                                          │  Unblocks 6         │
-│  ● Ready         │                                          │  ─────────────      │
-│  ○ Closed        │                                          │  Dependencies  ▸    │
-│  ○ All           │                                          │  Comments      ▸    │
-│                  │                                          │  History       ▸    │
-│ LABELS  ▸        │                                          │  Related work  ▸    │
-│ SPRINTS ▸        │                                          │  Proof of score▸    │
-│ RECIPES ▸        │                                          │                     │
-│ REPOS   ▸        │                                          │                     │
-├──────────────────┴──────────────────────────────────────────┴─────────────────────┤
-│ 1 284 issues · 412 ready · phase 2 ▓▓▓▓▓▓▓░░ 78 %  · watching · hash a91f…  │       status bar
-└───────────────────────────────────────────────────────────────────────────────────┘
-     sidebar                      content                        inspector
-  (NavigationSplitView column 1)  (column 2)                      (column 3)
+```mermaid
+flowchart TB
+    classDef chrome fill:#eef2ff,stroke:#a5b4fc,stroke-width:2px,color:#3730a3,rx:6
+    classDef pane fill:#f8fafc,stroke:#cbd5e1,stroke-width:2px,color:#0f172a,rx:6
+
+    TB["Toolbar<br/>source · filter · sort · search<br/>time-travel · alerts · share"]:::chrome
+
+    SB["Sidebar (column 1)<br/>Views: List · Board · Graph · Tree<br/>Insights · Plan · Flow · Attention<br/>Filters: Open · Ready · Closed · All<br/>Labels · Sprints · Recipes · Repos"]:::pane
+    CT["Content (column 2)<br/>the active view surface:<br/>table · board · canvas<br/>outline · dashboard"]:::pane
+    IN["Inspector (column 3)<br/>bead detail · metrics with status<br/>dependencies · comments<br/>history · related work · proof"]:::pane
+
+    ST["Status bar<br/>1 284 issues · 412 ready · phase 2 at 78 %<br/>watching · hash a91f…"]:::chrome
+
+    TB --> SB
+    TB --> CT
+    TB --> IN
+    SB -->|"selects a view"| CT
+    CT -->|"selects a bead"| IN
+    SB --- ST
+    CT --- ST
+    IN --- ST
 ```
 
 Native affordances that replace TUI mechanics:

@@ -11,8 +11,8 @@ same functionality, the same metrics, and the same agent-facing JSON protocol.
 
 | Document | What it covers |
 |---|---|
-| [**bvx Design Document**](bvx-design.md) | The full architecture: engine reuse decision, C ABI bridge, data model, analysis pipeline, UI design, graph rendering, robot protocol, build and distribution, delivery plan, risks |
-| [**Feature Parity Matrix**](feature-parity.md) | Every `bv` capability mapped to its `bvx` surface, mechanism, and delivery phase — plus the deliberate divergences |
+| [**bvx Design Document**](BVX_DESIGN.md) | The full architecture: engine reuse decision, C ABI bridge, data model, analysis pipeline, UI design, graph rendering, robot protocol, build and distribution, delivery plan, risks |
+| [**Feature Parity Matrix**](FEATURE_PARITY.md) | Every `bv` capability mapped to its `bvx` surface, mechanism, and delivery phase — plus the deliberate divergences |
 
 ## The one-paragraph version
 
@@ -42,12 +42,12 @@ flowchart LR
 
 ## Reading order
 
-1. [Design doc §1–4](bvx-design.md#1-summary) — what `bv` is and why the engine is reused
-2. [§5–9](bvx-design.md#5-system-architecture) — architecture, bridge, model, data flow
-3. [§10–12](bvx-design.md#10-user-interface-design) — the UI, graph rendering, search
-4. [§13–17](bvx-design.md#13-robot-protocol-cli-and-automation) — agents, exports, performance, testing, distribution
-5. [§18–20](bvx-design.md#18-delivery-plan) — plan, risks, open questions
-6. [Parity matrix](feature-parity.md) — the checklist
+1. [Design doc §1–4](BVX_DESIGN.md#1-summary) — what `bv` is and why the engine is reused
+2. [§5–9](BVX_DESIGN.md#5-system-architecture) — architecture, bridge, model, data flow
+3. [§10–12](BVX_DESIGN.md#10-user-interface-design) — the UI, graph rendering, search
+4. [§13–17](BVX_DESIGN.md#13-robot-protocol-cli-and-automation) — agents, exports, performance, testing, distribution
+5. [§18–20](BVX_DESIGN.md#18-delivery-plan) — plan, risks, open questions
+6. [Parity matrix](FEATURE_PARITY.md) — the checklist
 
 ## Static HTML
 
