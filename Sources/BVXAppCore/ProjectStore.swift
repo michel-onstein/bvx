@@ -7,7 +7,7 @@ import SwiftUI
 
 /// The view surfaces in the sidebar.
 public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
-    case list, board, graph, tree, insights, plan, labels, flow, attention, history
+    case list, board, graph, tree, insights, plan, labels, flow, attention, history, alerts
 
     public var id: String { rawValue }
 
@@ -23,6 +23,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .flow: "Flow"
         case .attention: "Attention"
         case .history: "History"
+        case .alerts: "Alerts"
         }
     }
 
@@ -38,6 +39,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .flow: "square.grid.3x3"
         case .attention: "exclamationmark.bubble"
         case .history: "clock.arrow.circlepath"
+        case .alerts: "bell.badge"
         }
     }
 
@@ -55,6 +57,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .flow: "8"
         case .attention: "9"
         case .history: "0"
+        case .alerts: "-"
         }
     }
 
@@ -71,6 +74,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .flow: "F"
         case .attention: "A"
         case .history: "t"
+        case .alerts: "!"
         }
     }
 }
@@ -127,8 +131,18 @@ public final class ProjectStore: ObservableObject {
     @Published public private(set) var pastIssues: [String: Issue] = [:]
     @Published public private(set) var timeTravelLoading = false
 
+    // MARK: Alerts
+    @Published public private(set) var alerts: AlertReport = .empty
+    @Published public private(set) var baseline: BaselineInfo = .empty
+    @Published public var alertSeverityFilter: AlertSeverity?
+    @Published public var alertTypeFilter: String?
+    @Published public var alertLabelFilter: String?
+    /// Deliver critical alerts as notifications while watching.
+    @Published public var notifyOnCriticalAlerts = false
+
     private let engine = BeadsEngine()
     private let watcher = FileWatchService()
+    private let notifier = AlertNotifier()
     private var triageNeedsRefresh = false
     /// Unblocks lists already reported by the plan and triage, so the inspector
     /// can show the count immediately instead of flashing 0 while an async
@@ -278,6 +292,9 @@ public final class ProjectStore: ObservableObject {
         labelAnalysis = (try? await engine.labelHealth()) ?? .empty
         labelFlow = (try? await engine.labelFlow()) ?? .empty
         labelAttention = (try? await engine.labelAttention()) ?? .empty
+        // Alerts are cheap once the analysis exists, and they are the one
+        // thing a user wants to see without asking.
+        await refreshAlerts()
         // Triage depends on Phase-2 scores; it is refreshed again once they land.
         triage = (try? await engine.triage()) ?? .empty
         rebuildUnblocksCache()
@@ -316,6 +333,42 @@ public final class ProjectStore: ObservableObject {
     public func close() async {
         stopWatching()
         await engine.close()
+    }
+
+    // MARK: - Alerts
+
+    /// Re-runs the drift check with the current filters.
+    public func refreshAlerts() async {
+        guard isLoaded else { return }
+        let previous = Set(alerts.alerts.filter { $0.severity == .critical }.map(\.id))
+
+        alerts =
+            (try? await engine.alerts(
+                severity: alertSeverityFilter,
+                type: alertTypeFilter,
+                label: alertLabelFilter)) ?? .empty
+        baseline = (try? await engine.baselineInfo()) ?? .empty
+
+        // Only alerts that were not there a moment ago are announced. Without
+        // this every reload would re-notify about the same standing problem,
+        // and the notifications would quickly be ignored.
+        let fresh = alerts.alerts.filter { $0.severity == .critical && !previous.contains($0.id) }
+        if notifyOnCriticalAlerts, !fresh.isEmpty {
+            await notifier.deliver(fresh)
+        }
+    }
+
+    /// Records the current graph as the point drift is measured from.
+    public func saveBaseline(description: String) async {
+        guard isLoaded else { return }
+        do {
+            baseline = try await engine.saveBaseline(description: description)
+            // A new baseline changes every delta, so the alerts are recomputed
+            // rather than left describing the previous one.
+            await refreshAlerts()
+        } catch {
+            loadError = error.localizedDescription
+        }
     }
 
     // MARK: - Time travel

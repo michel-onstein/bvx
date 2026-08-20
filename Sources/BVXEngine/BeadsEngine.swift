@@ -233,6 +233,34 @@ public actor BeadsEngine {
         try call("orphans", request: request(limit: limit, refresh: false), as: OrphanReport.self)
     }
 
+    // MARK: - Alerts and drift
+
+    /// Health alerts, optionally narrowed.
+    ///
+    /// Works with or without a saved baseline: without one the delta checks
+    /// have nothing to compare, but the checks that read the issue list —
+    /// staleness, blocking cascades — still run.
+    public func alerts(
+        severity: AlertSeverity? = nil, type: String? = nil, label: String? = nil
+    ) throws -> AlertReport {
+        var req: [String: Any] = [:]
+        if let severity { req["severity"] = severity.rawValue }
+        if let type, !type.isEmpty { req["type"] = type }
+        if let label, !label.isEmpty { req["label"] = label }
+        return try call("alerts", request: req.isEmpty ? nil : req, as: AlertReport.self)
+    }
+
+    /// The saved baseline, if there is one.
+    public func baselineInfo() throws -> BaselineInfo {
+        try call("baseline_info", as: BaselineInfo.self)
+    }
+
+    /// Records the current graph as the point drift is measured from.
+    @discardableResult
+    public func saveBaseline(description: String) throws -> BaselineInfo {
+        try call("baseline_save", request: ["description": description], as: BaselineInfo.self)
+    }
+
     // MARK: - Time travel
 
     /// Commits that changed the beads file, newest first.

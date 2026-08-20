@@ -262,6 +262,14 @@ func (s *Session) Call(method string, req []byte) ([]byte, error) {
 		return s.fileRelations(req)
 	case "orphans":
 		return s.orphans(req)
+	case "alerts":
+		return s.alerts(req)
+	case "drift":
+		return s.driftPayload()
+	case "baseline_save":
+		return s.saveBaseline(req)
+	case "baseline_info":
+		return s.baselineInfo()
 	case "revisions":
 		return s.revisions(req)
 	case "snapshot_at":

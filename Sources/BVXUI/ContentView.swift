@@ -72,6 +72,7 @@ public struct ContentView: View {
         case .flow: FlowMatrixView()
         case .attention: AttentionView()
         case .history: HistoryView()
+        case .alerts: AlertsView()
         }
     }
 
