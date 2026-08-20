@@ -210,7 +210,7 @@ struct MetricPanel: View {
                 VStack(spacing: 3) {
                     ForEach(top, id: \.id) { row in
                         Button {
-                            store.selection = row.id
+                            store.select(id: row.id)
                         } label: {
                             HStack(spacing: 8) {
                                 Text(row.id).font(.caption.monospaced())

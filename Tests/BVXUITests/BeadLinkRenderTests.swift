@@ -98,7 +98,7 @@ struct BeadLinkRenderTests {
     @Test("The inspector renders a description containing a bead link")
     func inspectorRendersLinks() async throws {
         let store = await Fixture.loadedStore()
-        store.selection = "bvx-3"
+        store.select(id: "bvx-3")
         // The store must be able to answer "does this id exist" for linking.
         #expect(!store.beadTitles.isEmpty)
 

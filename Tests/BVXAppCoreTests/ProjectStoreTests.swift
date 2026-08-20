@@ -29,7 +29,7 @@ func storeLoads() async {
     #expect(!store.plan.tracks.isEmpty)
     #expect(!store.edges.isEmpty)
     // Opening selects something so the inspector is never blank on launch.
-    #expect(store.selection != nil)
+    #expect(store.focusedID != nil)
 
     await store.close()
 }
@@ -167,12 +167,12 @@ func storeSelectGuardsStaleIDs() async {
     await store.open(path: fixturePath)
 
     #expect(store.select(id: "bvx-3"))
-    #expect(store.selection == "bvx-3")
+    #expect(store.focusedID == "bvx-3")
 
     // A description can outlive the bead it cites. Following a stale
     // reference must leave the current selection alone rather than clear it.
     #expect(!store.select(id: "bvx-does-not-exist"))
-    #expect(store.selection == "bvx-3")
+    #expect(store.focusedID == "bvx-3")
 
     await store.close()
 }

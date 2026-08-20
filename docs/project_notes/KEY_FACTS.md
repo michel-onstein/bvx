@@ -55,7 +55,7 @@ view snapshots for inspection.
 | Path | Contents |
 |---|---|
 | `Engine/bridge/engine` | Go session wrapper over bv's `pkg/*`, plus a SQLite reader |
-| `Engine/bridge/cbridge` | C ABI (`bvx_open` / `bvx_call` / `bvx_close` / `bvx_free`) |
+| `Engine/bridge/cbridge` | C ABI (`bvx_open` / `bvx_call` / `bvx_close` / `bvx_free` / `bvx_probe`) |
 | `Engine/smoke` | C ABI smoke test |
 | `Engine/build` | Generated archive — **gitignored**, rebuild with the script |
 | `Sources/BVXCore` | Value types, filtering, fuzzy search, graph layout |
@@ -104,6 +104,12 @@ view snapshots for inspection.
   gitignored (a rebuildable cache and a local reference point); `recipes.yaml`
   is deliberately not, because it is shared configuration that `bv --recipe`
   reads too.
+- **Discovery does not walk upwards.** bv's `GetBeadsDir` checks `<path>/.beads`
+  and, for a linked checkout, the main repository's — nothing else. A folder
+  *below* a project root is therefore not openable, which is why the Open
+  panel's guard asks `bvx_probe` rather than testing for `.beads` itself: the
+  set of openable paths is wider in one direction (a workspace root holds
+  `.bv/workspace.yaml` and no `.beads`) and narrower in another.
 - **Tests that write into a workspace must use `Fixture.writableStore()`**,
   which copies the fixture to a temporary directory. Swift Testing runs tests
   in parallel, and two of them writing to the shared fixture interfered — see

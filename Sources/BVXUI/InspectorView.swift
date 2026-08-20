@@ -189,7 +189,7 @@ struct InspectorView: View {
         -> some View
     {
         Button {
-            if store.issuesByID[id] != nil { store.selection = id }
+            store.select(id: id)
         } label: {
             HStack(spacing: 6) {
                 if let status {

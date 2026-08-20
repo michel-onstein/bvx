@@ -56,7 +56,7 @@ struct RecommendationRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Button {
-                store.selection = recommendation.id
+                store.select(id: recommendation.id)
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: recommendation.status.symbolName)
@@ -125,7 +125,7 @@ struct QuickWinsPanel: View {
                 VStack(spacing: 4) {
                     ForEach(wins.prefix(6)) { win in
                         Button {
-                            store.selection = win.id
+                            store.select(id: win.id)
                         } label: {
                             HStack(spacing: 8) {
                                 Text(win.id).font(.caption.monospaced())
@@ -163,7 +163,7 @@ struct BlockersPanel: View {
                 VStack(spacing: 4) {
                     ForEach(blockers.prefix(6)) { blocker in
                         Button {
-                            store.selection = blocker.id
+                            store.select(id: blocker.id)
                         } label: {
                             HStack(spacing: 8) {
                                 Image(

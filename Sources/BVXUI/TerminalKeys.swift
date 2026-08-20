@@ -81,24 +81,32 @@ struct TerminalKeyCatcher: NSViewRepresentable {
             switch key {
             case "j": move(by: 1, in: store); return true
             case "k": move(by: -1, in: store); return true
-            case "G": store.selection = store.visibleIssues.last?.id; return true
+            case "G":
+                if let last = store.visibleIssues.last { store.select(id: last.id) }
+                return true
             case "s": cycleSort(store); return true
             default: return false
             }
         }
 
+        /// bv's `j`/`k`: move one cursor.
+        ///
+        /// Deliberately a single cursor even though the list supports
+        /// multi-selection. `j` moving one end of a range would be a different
+        /// gesture from what bv's binding means, and there is no modifier to
+        /// distinguish "move" from "extend" in a single keypress.
         @MainActor
         private func move(by delta: Int, in store: ProjectStore) {
             let visible = store.visibleIssues
             guard !visible.isEmpty else { return }
-            guard let current = store.selection,
+            guard let current = store.focusedID,
                 let index = visible.firstIndex(where: { $0.id == current })
             else {
-                store.selection = visible.first?.id
+                if let first = visible.first { store.select(id: first.id) }
                 return
             }
             let next = min(max(index + delta, 0), visible.count - 1)
-            store.selection = visible[next].id
+            store.select(id: visible[next].id)
         }
 
         /// bv's `s`: step through the named orderings.

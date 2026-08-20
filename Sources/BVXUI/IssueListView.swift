@@ -135,6 +135,15 @@ struct IssueListView: View {
             }
             .width(min: 80, ideal: 100, max: 140)
         }
+        // `forSelectionType:` is what makes "the selected beads, or the one
+        // right-clicked when it is not selected" fall out of the framework:
+        // SwiftUI passes the current selection when the clicked row is part of
+        // it, and just that row otherwise. Reconstructing that from mouse
+        // position would be a second, worse implementation of a rule AppKit
+        // already applies consistently across the system.
+        .contextMenu(forSelectionType: Issue.ID.self) { ids in
+            rowMenu(for: ids)
+        }
         .tableStyle(.inset(alternatesRowBackgrounds: true))
         .overlay {
             if store.visibleIssues.isEmpty {
@@ -145,6 +154,40 @@ struct IssueListView: View {
                         ? "No beads match the \(store.query.filter.displayName.lowercased()) filter."
                         : "No beads match “\(store.query.searchText)”."
                 )
+            }
+        }
+    }
+
+    /// The row context menu.
+    ///
+    /// Structured around the three cases from the start — none, one, several —
+    /// because items added later will differ between them, and retrofitting
+    /// that distinction is how a menu ends up offering "Copy ID" for a
+    /// right-click on empty space.
+    @ViewBuilder
+    private func rowMenu(for ids: Set<Issue.ID>) -> some View {
+        if ids.isEmpty {
+            // Right-clicking the background. macOS shows no menu here rather
+            // than a menu of actions with nothing to act on, and a Copy ID in
+            // this state would replace the clipboard with an empty string.
+            EmptyView()
+        } else {
+            Button {
+                store.copyIDs(ids)
+            } label: {
+                Label(
+                    ids.count == 1 ? "Copy ID" : "Copy \(ids.count) IDs",
+                    systemImage: "doc.on.doc")
+            }
+
+            if ids.count == 1, let id = ids.first {
+                Divider()
+                Button {
+                    store.select(id: id)
+                    store.surface = .history
+                } label: {
+                    Label("Show History", systemImage: "clock.arrow.circlepath")
+                }
             }
         }
     }

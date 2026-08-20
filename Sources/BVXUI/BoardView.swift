@@ -59,7 +59,7 @@ struct BoardColumn: View {
                 LazyVStack(spacing: 8) {
                     ForEach(issues) { issue in
                         BoardCard(issue: issue)
-                            .onTapGesture { store.selection = issue.id }
+                            .onTapGesture { store.select(id: issue.id) }
                     }
                 }
                 .padding(.bottom, 8)
@@ -87,7 +87,7 @@ struct BoardCard: View {
     @EnvironmentObject var store: ProjectStore
     let issue: Issue
 
-    private var isSelected: Bool { store.selection == issue.id }
+    private var isSelected: Bool { store.isSelected(issue.id) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
