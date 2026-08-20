@@ -154,3 +154,37 @@ the numbers — it is the same code, fed different input.
 - The walk computes a patch per commit for line counts, so it is capped at
   bv's own `DefaultHistoryLimit` of 500 and cached until the bead set changes.
   An unchanged reload deliberately keeps the cache; only a changed one drops it.
+
+---
+
+## ADR-007 — TOON is encoded in Go, not delegated to `tru`
+
+**Date:** 2026-08-20 · **Status:** Accepted, implemented
+
+**Context.** bv contains no TOON encoder. It imports a Go wrapper that shells
+out to the Rust `tru` binary, and when that binary is absent it prints a
+warning to stderr and emits JSON instead. bv's own TOON tests skip when `tru`
+is missing, and beads_viewer ships no TOON goldens — the only normative data is
+toon_rust's fixture corpus.
+
+That is a poor contract to inherit. `--format toon` would produce a different
+format depending on what happened to be installed, the App Sandbox forbids
+spawning the binary anyway, and a format that silently degrades is worse than
+one that is unavailable.
+
+**Decision.** A pure-Go implementation of TOON spec v3.0 in the engine. No
+subprocess, no external dependency, identical output on every machine.
+
+**Consequences.**
+
+- `bvx-cli --format toon` always emits TOON, and works under the sandbox.
+- Key order had to be preserved through the JSON parse. Go randomises map
+  iteration, and TOON's whole point is a stable compact rendering, so the
+  decoder builds an ordered value rather than a `map[string]any`.
+- The spec's twelve encode fixtures are the test suite, copied verbatim. The
+  quoting rules are where a naive implementation goes wrong in both
+  directions: `05` and `-dash` must be quoted, `café` and `你好` must not.
+- **Version drift is a live risk.** toon_rust implements v3.0, where an empty
+  array is `key[0]:`. The published spec is now v4.1, which mandates `key: []`
+  and only accepts the older form as legacy. v3.0 is implemented here because
+  that is what today's `tru` — and therefore bv — produces.

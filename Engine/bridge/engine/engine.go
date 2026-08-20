@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -214,6 +215,33 @@ func (s *Session) analyse(issues []model.Issue) (*analysis.Analyzer, *analysis.G
 // timeNow exists so the workspace path reads the same as the ordinary one.
 func timeNow() time.Time { return time.Now() }
 
+// robotNow is the clock *triage* reads.
+//
+// Deliberately not used by label health or attention: bv reads the real clock
+// there, and honouring the pin in one place but not the other would make bvx
+// disagree with bv rather than agree with it. Matching bv means matching where
+// it pins as well as that it pins.
+//
+// It honours SOURCE_DATE_EPOCH, which is bv's own mechanism and exists for a
+// specific reason: staleness is measured from "now", so two runs a second
+// apart produce slightly different scores. That is not a disagreement about
+// the data, but it makes exact comparison impossible — and the parity harness
+// needs exact comparison, because a tolerance wide enough to absorb the clock
+// is wide enough to hide a real difference.
+func robotNow() time.Time {
+	raw := os.Getenv("SOURCE_DATE_EPOCH")
+	if raw == "" {
+		return time.Now()
+	}
+	seconds, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil {
+		// An unparseable value is ignored rather than treated as the epoch,
+		// which would make everything look infinitely stale.
+		return time.Now()
+	}
+	return time.Unix(seconds, 0).UTC()
+}
+
 // Close releases session state.
 func (s *Session) Close() {
 	s.mu.Lock()
@@ -284,6 +312,20 @@ func (s *Session) Call(method string, req []byte) ([]byte, error) {
 		return s.fileRelations(req)
 	case "orphans":
 		return s.orphans(req)
+	case "suggest":
+		return s.suggest(req)
+	case "priority":
+		return s.priority(req)
+	case "next":
+		return s.next(req)
+	case "insights":
+		return s.insights(req)
+	case "graph_export":
+		return s.graphExport(req)
+	case "file_impact":
+		return s.fileImpact(req)
+	case "toon":
+		return s.toonPayload(req)
 	case "export_site":
 		return s.exportSite(req)
 	case "export_preview":
@@ -575,9 +617,89 @@ func (s *Session) computePhase2() ([]byte, error) {
 	return s.metrics()
 }
 
+// triageHistoryLimit is how far back triage looks for staleness signal.
+//
+// bv's own value: its `--history-limit` defaults to 500, but the triage path
+// silently rewrites 500 to 200. Matching that matters because the number of
+// commits considered changes the staleness factor, and therefore the scores.
+const triageHistoryLimit = 200
+
+// triageHistoryTimeout bounds the walk. bv's default is the same.
+//
+// Triage must answer even when history cannot: a repository that is huge, or
+// absent, degrades the ranking rather than failing it.
+const triageHistoryTimeout = 10 * time.Second
+
+// triage ranks what to work on next.
+//
+// The git-history enrichment is not optional garnish: bv feeds a correlation
+// report into the scorer, and it moves the numbers. Skipping it would make
+// bvx's ranking quietly disagree with `bv --robot-triage` on the same data,
+// which is exactly the drift ADR-001 exists to prevent — and which the parity
+// harness caught.
 func (s *Session) triage() ([]byte, error) {
-	issues, _, _ := s.snapshot()
-	return json.Marshal(analysis.ComputeTriage(issues))
+	issues, analyzer, _ := s.snapshot()
+
+	opts := analysis.TriageOptions{
+		WaitForPhase2: true,
+		UseFastConfig: true,
+	}
+	if analyzer != nil {
+		opts.SeedDataHash = analyzer.DataHash()
+	}
+
+	historyStatus := "skipped"
+	if hasOpenIssues(issues) {
+		report, status := s.triageHistory()
+		opts.History = report
+		historyStatus = status
+	}
+
+	result := analysis.ComputeTriageWithOptionsAndTime(issues, opts, robotNow())
+	result.Meta.HistoryStatus = historyStatus
+	return json.Marshal(result)
+}
+
+// hasOpenIssues reports whether there is anything left to triage.
+//
+// bv skips the history walk entirely when nothing is open, and so does this:
+// paying for a commit walk to rank an empty queue is pure cost.
+func hasOpenIssues(issues []model.Issue) bool {
+	for _, issue := range issues {
+		if issue.Status != model.StatusClosed && issue.Status != model.StatusTombstone {
+			return true
+		}
+	}
+	return false
+}
+
+// triageHistory fetches the correlation report within a bounded time.
+//
+// Returns bv's own vocabulary for what happened — "ok", "timeout" or "error" —
+// which travels in the payload so a caller can tell a low staleness signal
+// from an absent one.
+func (s *Session) triageHistory() (*correlation.HistoryReport, string) {
+	type outcome struct {
+		report *historyResult
+		err    error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		report, err := s.correlationHistory(triageHistoryLimit, false)
+		done <- outcome{report, err}
+	}()
+
+	select {
+	case result := <-done:
+		if result.err != nil {
+			// Not being in a git repository is the commonest reason, and it
+			// is not a failure of triage.
+			return nil, "error"
+		}
+		return result.report.report, "ok"
+	case <-time.After(triageHistoryTimeout):
+		return nil, "timeout"
+	}
 }
 
 func (s *Session) plan() ([]byte, error) {

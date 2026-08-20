@@ -77,3 +77,37 @@ implementation.
 
 `docs/BVX_DESIGN.md` and `docs/FEATURE_PARITY.md`, derived from a study of
 upstream bv, plus a static HTML build with vendored Mermaid.
+
+## 2026-08-20 — The remainder of bvx
+
+Closed all sixteen open beads. Highlights, in the order they landed:
+
+- **bvx-ee7** Markdown tables — parsed and rendered; the bug was that
+  `joinSoftWrapped` collapsed rows onto one line.
+- **bvx-8y4** Bead ids in prose link to their bead, membership-driven so no id
+  format is hardcoded and a stale id stays plain text.
+- **bvx-6qy** Column-header sorting, sharing one sort value with the toolbar
+  and bv's `s` cycle so they cannot disagree.
+- **bvx-8ou** Git correlation without a `git` subprocess (ADR-006), reading the
+  object store with go-git and feeding bv's own pure analyses.
+- **bvx-dpz** Flow matrix and attention views.
+- **bvx-v49** History view: commits, timeline, causality, files, hotspots,
+  orphans, and confirm/reject feedback.
+- **bvx-hai** Time travel with per-bead diff badges.
+- **bvx-k1s** Alerts, baselines and drift.
+- **bvx-k51** Recipes, written to bv's own `.bv/recipes.yaml`.
+- **bvx-k06** Sprint dashboard with burndown and capacity.
+- **bvx-6w3** Hybrid search with live weights and score breakdowns.
+- **bvx-e3y** Multi-repository workspaces.
+- **bvx-1gn** App Intents, `bvx://`, Spotlight, CLI installer.
+- **bvx-pk8** Static site export with in-process GitHub Pages deployment.
+- **bvx-erx** Interactive tutorial.
+- **bvx-fl1** Robot-protocol parity: a pure-Go TOON encoder (ADR-007) and a
+  parity harness diffing `bvx-cli` against `bv`.
+
+The parity harness earned its place immediately: it caught that bvx's triage
+scores disagreed with bv's, because bv feeds a bounded git-history report into
+the scorer and bvx did not. That is now fixed, and nine commands compare byte
+for byte.
+
+Tests: 104 → 304 Swift, plus a substantially expanded Go suite.
