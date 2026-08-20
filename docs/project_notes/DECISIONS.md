@@ -216,6 +216,11 @@ beaded chain from `br`'s illustration.
   module; the icon is 436 KB and needs `rsvg-convert`, which is not part of the
   toolchain. Committing it is the same call as committing the generated C
   header — `build-app.sh` must be able to bundle an icon on a bare clone.
+- **The README image comes off the same pass.** Markdown cannot display an
+  `.icns`, and a hand-exported PNG is exactly the kind of asset that gets left
+  behind when the artwork changes. `build-icon.sh` emits
+  `docs/images/bvx-icon.png` from the same SVG, and a test asserts it is
+  pixel-identical to the icon's 512px representation.
 - **`--check` verifies shape, not bytes.** Two librsvg versions produce
   different antialiasing, so a byte comparison would report an intact icon as
   stale. The check expands the committed `.icns` and measures each

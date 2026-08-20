@@ -40,10 +40,12 @@ them.
   because the Swift C target needs it to compile.
 - **The app icon *is* committed, and never hand-edited.**
   `Resources/bvx-icon.svg` is output from `scripts/make-icon.py` — edit the
-  script's control points, not the SVG. `Resources/bvx.icns` is committed too
-  (unlike the engine archive) because rasterising it needs `rsvg-convert`,
-  which is not part of the toolchain, and `build-app.sh` has to be able to
-  bundle an icon on a bare clone. See ADR-008.
+  script's control points, not the SVG. `Resources/bvx.icns` and the README's
+  `docs/images/bvx-icon.png` are committed too (unlike the engine archive)
+  because rasterising them needs `rsvg-convert`, which is not part of the
+  toolchain, and `build-app.sh` has to be able to bundle an icon on a bare
+  clone. `./scripts/build-icon.sh` rebuilds both from the SVG, so the README
+  image cannot drift from the icon. See ADR-008.
 - **Snapshot tests must not use `ImageRenderer`** — it does not lay out
   `ScrollView` content, so scrolling views render blank and pass a naive
   file-exists check. Use `NSHostingView`, and assert on ink coverage.
@@ -63,7 +65,7 @@ them.
 
 ```bash
 ./scripts/build-engine.sh --check   # Go archive + C ABI smoke test
-./scripts/build-icon.sh --check     # committed .icns has all 10 representations
+./scripts/build-icon.sh --check     # committed .icns + README PNG are intact
 swift test                          # Swift suite
 cd Engine/bridge && go test ./...   # Go suite
 gofmt -l Engine/bridge              # must print nothing

@@ -14,6 +14,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SVG="$ROOT/Resources/bvx-icon.svg"
 ICNS="$ROOT/Resources/bvx.icns"
+# The README cannot display an .icns, so the same artwork is also emitted as a
+# PNG. It is generated here rather than exported by hand so it cannot drift.
+PNG="$ROOT/docs/images/bvx-icon.png"
+PNG_PX=512
 CHECK=0
 
 for arg in "$@"; do
@@ -53,8 +57,18 @@ if [[ $CHECK -eq 1 ]]; then
       echo "  $name is ${got_w}x${got_h}, expected ${px}x${px}" >&2; fail=1
     fi
   done
+  if [[ ! -f "$PNG" ]]; then
+    echo "  missing $PNG — run ./scripts/build-icon.sh" >&2
+    fail=1
+  else
+    got="$(sips -g pixelWidth "$PNG" | awk '/pixelWidth/{print $2}')"
+    [[ "$got" == "$PNG_PX" ]] || {
+      echo "  docs/images/bvx-icon.png is ${got}px, expected ${PNG_PX}px" >&2
+      fail=1
+    }
+  fi
   [[ $fail -eq 0 ]] || { echo "==> icon check FAILED" >&2; exit 1; }
-  echo "==> icon check ok (10 representations, 16px through 1024px)"
+  echo "==> icon check ok (10 representations, 16px through 1024px, plus the README PNG)"
   exit 0
 fi
 
@@ -78,3 +92,7 @@ done
 
 iconutil --convert icns --output "$ICNS" "$ICONSET"
 echo "==> Built $ICNS ($(du -h "$ICNS" | cut -f1))"
+
+mkdir -p "$(dirname "$PNG")"
+rsvg-convert -w "$PNG_PX" -h "$PNG_PX" "$SVG" -o "$PNG"
+echo "==> Built $PNG (${PNG_PX}px, for the README)"

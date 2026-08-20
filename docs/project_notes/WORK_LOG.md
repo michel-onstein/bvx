@@ -22,6 +22,10 @@ quadratic Bézier, so spacing stays even as the curve flattens — and
 graphite was chosen; `--variants` regenerates them. ADR-008 records why the
 `.icns` is committed when the engine archive is not.
 
+The same run also emits `docs/images/bvx-icon.png`, the README's hero image, so
+it cannot be left behind when the artwork changes — a test asserts it is
+pixel-identical to the icon's 512px representation.
+
 `AppIconTests.swift` measures edge density inside the icon body per
 representation. Both failure modes were confirmed to fail the suite before the
 thresholds were fixed: a gradient tile with no artwork on it, and artwork
@@ -29,7 +33,7 @@ bleeding into the transparent squircle margin that macOS clips. The first pass
 missed the flat tile entirely — colour-diversity ink coverage counted the
 transparent margin as ink — which is why the measure is local contrast instead.
 
-Tests: 304 → 308 Swift.
+Tests: 304 → 309 Swift.
 
 ---
 

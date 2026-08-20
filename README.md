@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/bvx-icon.png" alt="" width="128" height="128">
+</p>
+
 # bvx
 
 A native macOS app for [beads](https://github.com/steveyegge/beads) issue graphs — a

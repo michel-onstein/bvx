@@ -161,6 +161,29 @@ func iconSurvivesDownscaling() throws {
     }
 }
 
+@Test("The README image is the same artwork as the icon")
+func readmeImageMatchesTheIcon() throws {
+    // Both come from one rsvg-convert pass over the same SVG at 512px, so they
+    // are pixel-identical — only the PNG container metadata differs, which is
+    // why this compares pixels rather than bytes. The rot it locks out is a
+    // README image left behind when the icon changes, or replaced by hand.
+    let url =
+        URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("docs/images/bvx-icon.png")
+    let image = try #require(
+        NSImage(contentsOf: url),
+        "docs/images/bvx-icon.png is missing — run ./scripts/build-icon.sh")
+    let rep = try #require(image.representations.first, "PNG carries no representation")
+    let readme = try #require(Raster(rep), "README image did not rasterise")
+    let icon = try raster(512)
+
+    #expect(readme.width == 512 && readme.height == 512)
+    #expect(readme.pixels == icon.pixels, "README image no longer matches the icon")
+}
+
 @Test("The icon leaves Apple's squircle margin transparent")
 func iconRespectsTheIconGrid() throws {
     // macOS masks app icons to a squircle inset from the canvas. Artwork that
