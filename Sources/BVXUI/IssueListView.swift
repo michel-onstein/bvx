@@ -61,6 +61,11 @@ struct IssueListView: View {
 
             TableColumn("Title", value: \.titleKey) { row in
                 HStack(spacing: 6) {
+                    // The badge leads the title while time travelling: it is
+                    // the reason the row is interesting.
+                    if let badge = store.badge(for: row.id) {
+                        DiffBadgeView(badge: badge)
+                    }
                     Text(row.issue.title).lineLimit(1)
                     if store.actionable.contains(row.id) {
                         Image(systemName: "bolt.fill")

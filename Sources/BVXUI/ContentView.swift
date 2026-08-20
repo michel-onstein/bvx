@@ -40,6 +40,7 @@ public struct ContentView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaInset(edge: .top, spacing: 0) { TimeTravelBanner() }
             .toolbar { toolbarContent }
             .inspector(isPresented: $showInspector) {
                 InspectorView()
@@ -116,6 +117,10 @@ public struct ContentView: View {
                 Label("Sort", systemImage: "arrow.up.arrow.down")
             }
             .help("Sort order")
+        }
+
+        ToolbarItem {
+            RevisionScrubber()
         }
 
         ToolbarItem {

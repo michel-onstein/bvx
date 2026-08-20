@@ -233,6 +233,23 @@ public actor BeadsEngine {
         try call("orphans", request: request(limit: limit, refresh: false), as: OrphanReport.self)
     }
 
+    // MARK: - Time travel
+
+    /// Commits that changed the beads file, newest first.
+    public func revisions(limit: Int = 50) throws -> RevisionList {
+        try call("revisions", request: ["limit": limit], as: RevisionList.self)
+    }
+
+    /// The bead set as of `revision` — any expression git accepts.
+    public func snapshot(at revision: String) throws -> WorkspaceSnapshot {
+        try call("snapshot_at", request: ["revision": revision], as: WorkspaceSnapshot.self)
+    }
+
+    /// The current bead set compared against `revision`.
+    public func diff(since revision: String) throws -> TimeTravelDiff {
+        try call("diff", request: ["revision": revision], as: TimeTravelDiff.self)
+    }
+
     /// One commit's unified diff, optionally narrowed to a single file.
     ///
     /// Rendered from the object store, so it works where `git diff` cannot.

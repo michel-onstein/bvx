@@ -115,6 +115,18 @@ public final class ProjectStore: ObservableObject {
     /// Why history is unavailable — most often "not a git repository".
     @Published public private(set) var historyError: String?
 
+    // MARK: Time travel
+    //
+    // Time travel is an overlay rather than a mode switch: the workspace's own
+    // analysis stays on the current bead set, and the chosen revision supplies
+    // a comparison. Swapping the loaded set wholesale would leave every metric
+    // describing a graph that is no longer on screen.
+    @Published public private(set) var revisions: RevisionList = .empty
+    @Published public private(set) var timeTravel: TimeTravelDiff = .empty
+    /// The historical bead set, for showing a bead as it was.
+    @Published public private(set) var pastIssues: [String: Issue] = [:]
+    @Published public private(set) var timeTravelLoading = false
+
     private let engine = BeadsEngine()
     private let watcher = FileWatchService()
     private var triageNeedsRefresh = false
@@ -304,6 +316,53 @@ public final class ProjectStore: ObservableObject {
     public func close() async {
         stopWatching()
         await engine.close()
+    }
+
+    // MARK: - Time travel
+
+    /// True when a revision is selected and the list is showing diff badges.
+    public var isTimeTravelling: Bool { !timeTravel.resolvedRevision.isEmpty }
+
+    /// Loads the revisions the scrubber can jump to.
+    public func loadRevisions() async {
+        guard isLoaded, revisions.revisions.isEmpty else { return }
+        revisions = (try? await engine.revisions()) ?? .empty
+    }
+
+    /// Compares the current bead set against `revision`.
+    ///
+    /// Any expression git accepts works; what gets displayed afterwards is the
+    /// *resolved* commit, because `HEAD~3` names a different commit tomorrow.
+    public func travel(to revision: String) async {
+        guard isLoaded, !timeTravelLoading else { return }
+        timeTravelLoading = true
+        defer { timeTravelLoading = false }
+
+        do {
+            timeTravel = try await engine.diff(since: revision)
+            let snapshot = try await engine.snapshot(at: revision)
+            pastIssues = Dictionary(
+                snapshot.issues.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        } catch {
+            historyError = error.localizedDescription
+            returnToNow()
+        }
+    }
+
+    /// Leaves time travel.
+    public func returnToNow() {
+        timeTravel = .empty
+        pastIssues = [:]
+    }
+
+    /// The badge a bead earned between the chosen revision and now.
+    public func badge(for id: Issue.ID) -> DiffBadge? {
+        timeTravel.badges[id]
+    }
+
+    /// The bead as it was at the chosen revision, if it existed then.
+    public func pastIssue(_ id: Issue.ID) -> Issue? {
+        pastIssues[id]
     }
 
     // MARK: - Correlation

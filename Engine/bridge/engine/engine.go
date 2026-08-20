@@ -262,6 +262,12 @@ func (s *Session) Call(method string, req []byte) ([]byte, error) {
 		return s.fileRelations(req)
 	case "orphans":
 		return s.orphans(req)
+	case "revisions":
+		return s.revisions(req)
+	case "snapshot_at":
+		return s.snapshotAt(req)
+	case "diff":
+		return s.diffSince(req)
 	case "commit_patch":
 		return s.commitPatch(req)
 	case "correlation_feedback":

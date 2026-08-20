@@ -205,6 +205,112 @@ func (e *objectStoreExtractor) extract(
 	return &historyResult{report: report, commits: records}, nil
 }
 
+// revisionInfo is one point the time-travel scrubber can jump to.
+type revisionInfo struct {
+	SHA      string    `json:"sha"`
+	ShortSHA string    `json:"short_sha"`
+	Subject  string    `json:"subject"`
+	Author   string    `json:"author"`
+	When     time.Time `json:"when"`
+}
+
+// resolve turns a revision expression into a commit hash.
+//
+// go-git's resolver understands the same vocabulary git does — `HEAD~3`, a
+// branch or tag name, a short SHA — so the scrubber accepts whatever the user
+// would type, and the *resolved* hash is what gets reported back.
+func (e *objectStoreExtractor) resolve(revision string) (plumbing.Hash, error) {
+	if strings.TrimSpace(revision) == "" {
+		revision = "HEAD"
+	}
+	hash, err := e.repo.ResolveRevision(plumbing.Revision(revision))
+	if err != nil {
+		return plumbing.ZeroHash, fmt.Errorf("cannot resolve %q: %w", revision, err)
+	}
+	return *hash, nil
+}
+
+// issuesAt reads the bead set as of one commit.
+func (e *objectStoreExtractor) issuesAt(hash plumbing.Hash) ([]model.Issue, time.Time, error) {
+	commit, err := e.repo.CommitObject(hash)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("reading commit %s: %w", shortHash(hash.String()), err)
+	}
+	tree, err := commit.Tree()
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+
+	entry, err := tree.File(e.beadsPath)
+	if err != nil {
+		// The beads file not existing yet is a real answer — the workspace had
+		// no beads at that revision — not a failure.
+		return []model.Issue{}, commit.Author.When, nil
+	}
+	reader, err := entry.Reader()
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	defer reader.Close()
+
+	issues, err := loader.ParseIssues(reader)
+	if err != nil {
+		return nil, time.Time{}, fmt.Errorf("parsing beads at %s: %w",
+			shortHash(hash.String()), err)
+	}
+	return issues, commit.Author.When, nil
+}
+
+// revisions lists recent commits that changed the beads file.
+//
+// Only those, because a commit that did not touch it leaves the bead set
+// identical — a scrubber over every commit would be mostly no-op steps.
+func (e *objectStoreExtractor) revisions(ctx context.Context, limit int) ([]revisionInfo, error) {
+	head, err := e.repo.Head()
+	if err != nil {
+		return nil, fmt.Errorf("resolving HEAD: %w", err)
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+
+	iter, err := e.repo.Log(&git.LogOptions{
+		From:     head.Hash(),
+		Order:    git.LogOrderCommitterTime,
+		FileName: &e.beadsPath,
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer iter.Close()
+
+	out := []revisionInfo{}
+	err = iter.ForEach(func(commit *object.Commit) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		subject := strings.TrimSpace(commit.Message)
+		if index := strings.Index(subject, "\n"); index >= 0 {
+			subject = subject[:index]
+		}
+		out = append(out, revisionInfo{
+			SHA:      commit.Hash.String(),
+			ShortSHA: shortHash(commit.Hash.String()),
+			Subject:  subject,
+			Author:   commit.Author.Name,
+			When:     commit.Author.When,
+		})
+		if len(out) >= limit {
+			return storer.ErrStop
+		}
+		return nil
+	})
+	if err != nil && err != storer.ErrStop {
+		return nil, err
+	}
+	return out, nil
+}
+
 // patch renders one commit's unified diff, optionally narrowed to one path.
 //
 // The app cannot shell out to `git diff`, and a file list with line counts
