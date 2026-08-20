@@ -34,6 +34,14 @@ struct BVXApp: App {
         .windowToolbarStyle(.unified)
         .commands { BVXCommands(store: store, showingExportWizard: $showingExportWizard) }
 
+        // Its own window rather than a sheet: the tutorial is meant to be read
+        // beside the app, not instead of it.
+        WindowGroup(id: "tutorial", for: String.self) { $section in
+            TutorialView(initialSection: section)
+                .environmentObject(store)
+        }
+        .defaultSize(width: 860, height: 600)
+
         Settings {
             SettingsView().environmentObject(store)
         }
@@ -46,6 +54,7 @@ struct BVXApp: App {
 struct BVXCommands: Commands {
     @ObservedObject var store: ProjectStore
     @Binding var showingExportWizard: Bool
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -79,6 +88,11 @@ struct BVXCommands: Commands {
             Button("Compute Full Metrics") { Task { await store.computePhase2() } }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
                 .disabled(store.metrics.hasPhase2Values || !store.isLoaded)
+        }
+
+        CommandGroup(replacing: .help) {
+            Button("bvx Tutorial") { openWindow(id: "tutorial", value: "welcome") }
+                .keyboardShortcut("/", modifiers: [.command, .shift])
         }
     }
 }

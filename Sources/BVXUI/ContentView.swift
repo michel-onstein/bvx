@@ -142,6 +142,10 @@ public struct ContentView: View {
         }
 
         ToolbarItem {
+            TutorialLink()
+        }
+
+        ToolbarItem {
             Button {
                 showInspector.toggle()
             } label: {
