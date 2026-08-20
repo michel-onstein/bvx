@@ -72,7 +72,8 @@ view snapshots for inspection.
   `Fixtures/demo` for anything with a real dependency graph.
 - **Swift Testing exports its own `Issue` type**, which collides with the model.
   Test files alias it: `private typealias Bead = BVXCore.Issue`.
-- **No git remote is configured**; all commits are local.
+- **The remote is `origin` (github.com/michel-onstein/bvx)**; work lands on a
+  branch and is integrated by PR, never pushed to `main` directly.
 - **GUI rendering of the live window is unverified** — `screencapture`, the
   accessibility API and `CGWindowList` are permission-gated for background
   sessions. Offscreen view snapshots are the substitute.
