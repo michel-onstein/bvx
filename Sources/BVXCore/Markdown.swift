@@ -14,6 +14,17 @@ public enum MarkdownBlock: Equatable, Sendable {
     case codeBlock(language: String?, code: String)
     case quote(String)
     case rule
+    case table(headers: [String], rows: [[String]], alignments: [MarkdownTableAlignment])
+}
+
+/// Column alignment declared by a table's delimiter row.
+///
+/// `---` and `:---` both mean leading; the colon only changes the outcome on
+/// the right-hand side, which is what separates centre from trailing.
+public enum MarkdownTableAlignment: Equatable, Sendable {
+    case leading
+    case center
+    case trailing
 }
 
 public enum MarkdownParser {
@@ -65,6 +76,28 @@ public enum MarkdownParser {
             if trimmed.isEmpty {
                 flushParagraph()
                 index += 1
+                continue
+            }
+
+            // Table: a header row followed by a delimiter row.
+            //
+            // This has to be tested before the paragraph fallback, because
+            // `joinSoftWrapped` would otherwise collapse every row onto one
+            // line — correct for prose, destructive for a table.
+            if trimmed.contains("|"), index + 1 < lines.count,
+                let alignments = tableHead(header: line, delimiter: lines[index + 1])
+            {
+                flushParagraph()
+                let headers = normaliseRow(splitTableRow(line), to: alignments.count)
+                index += 2
+                var rows: [[String]] = []
+                while index < lines.count {
+                    let candidate = lines[index].trimmingCharacters(in: .whitespaces)
+                    guard !candidate.isEmpty, candidate.contains("|") else { break }
+                    rows.append(normaliseRow(splitTableRow(candidate), to: alignments.count))
+                    index += 1
+                }
+                blocks.append(.table(headers: headers, rows: rows, alignments: alignments))
                 continue
             }
 
@@ -185,6 +218,95 @@ public enum MarkdownParser {
         return String(rest.dropFirst(2)).trimmingCharacters(in: .whitespaces)
     }
 
+    // MARK: - Tables
+
+    /// Splits one table row into trimmed cells.
+    ///
+    /// The optional leading and trailing pipes are dropped first, so `| a | b |`
+    /// and `a | b` both yield two cells. A pipe written `\|` is literal content
+    /// and does not split the row.
+    static func splitTableRow(_ line: String) -> [String] {
+        var text = line.trimmingCharacters(in: .whitespaces)
+        if text.hasPrefix("|") { text = String(text.dropFirst()) }
+        if text.hasSuffix("|"), !text.hasSuffix("\\|") { text = String(text.dropLast()) }
+
+        var cells: [String] = []
+        var current = ""
+        var escaped = false
+
+        for character in text {
+            if escaped {
+                // Only the pipe is meaningfully escapable here. Anything else
+                // keeps its backslash, so code-ish cell content survives.
+                if character != "|" { current.append("\\") }
+                current.append(character)
+                escaped = false
+                continue
+            }
+            switch character {
+            case "\\":
+                escaped = true
+            case "|":
+                cells.append(current.trimmingCharacters(in: .whitespaces))
+                current = ""
+            default:
+                current.append(character)
+            }
+        }
+        if escaped { current.append("\\") }
+        cells.append(current.trimmingCharacters(in: .whitespaces))
+        return cells
+    }
+
+    /// Reads a delimiter row (`|---|:--:|---:|`) into per-column alignments.
+    ///
+    /// Returns nil unless every cell is a run of dashes carrying optional
+    /// alignment colons.
+    static func tableDelimiter(_ line: String) -> [MarkdownTableAlignment]? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+
+        var alignments: [MarkdownTableAlignment] = []
+        for cell in splitTableRow(trimmed) {
+            var body = Substring(cell)
+            let leading = body.hasPrefix(":")
+            if leading { body = body.dropFirst() }
+            let trailing = body.hasSuffix(":")
+            if trailing { body = body.dropLast() }
+            guard !body.isEmpty, body.allSatisfy({ $0 == "-" }) else { return nil }
+
+            switch (leading, trailing) {
+            case (true, true): alignments.append(.center)
+            case (false, true): alignments.append(.trailing)
+            default: alignments.append(.leading)
+            }
+        }
+        return alignments.isEmpty ? nil : alignments
+    }
+
+    /// The alignments of the table `header` opens, or nil if it opens none.
+    ///
+    /// The delimiter row must carry exactly as many cells as the header — GFM's
+    /// own rule, and the one that stops prose like `use a | b to pipe` followed
+    /// by a `---` rule from being misread as a one-column table.
+    static func tableHead(header: String, delimiter: String) -> [MarkdownTableAlignment]? {
+        guard !header.trimmingCharacters(in: .whitespaces).isEmpty,
+            let alignments = tableDelimiter(delimiter),
+            splitTableRow(header).count == alignments.count
+        else { return nil }
+        return alignments
+    }
+
+    /// Pads or truncates a row to the table's column count.
+    ///
+    /// A ragged row otherwise shifts every cell after it into the wrong
+    /// column, which misreports the data rather than merely looking untidy.
+    static func normaliseRow(_ cells: [String], to count: Int) -> [String] {
+        if cells.count == count { return cells }
+        if cells.count > count { return Array(cells.prefix(count)) }
+        return cells + Array(repeating: "", count: count - cells.count)
+    }
+
     static func isRule(_ line: String) -> Bool {
         guard line.count >= 3 else { return false }
         return line.allSatisfy { $0 == "-" } || line.allSatisfy { $0 == "*" }
@@ -216,6 +338,13 @@ public enum MarkdownParser {
 
         if source.contains("**") { return true }
         if containsLink(source) { return true }
+
+        // A pipe only signals a table when a delimiter row follows it, so
+        // prose containing a stray pipe stays plain text.
+        let lines = source.components(separatedBy: .newlines)
+        for index in lines.indices.dropLast() where lines[index].contains("|") {
+            if tableHead(header: lines[index], delimiter: lines[index + 1]) != nil { return true }
+        }
         return false
     }
 

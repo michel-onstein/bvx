@@ -10,6 +10,13 @@ import SwiftUI
 struct MarkdownText: View {
     let source: String
     var font: Font = .callout
+    /// Titles of the beads this workspace holds, keyed by id.
+    ///
+    /// An id in the prose becomes a link only when it appears here, and the
+    /// title is what the link carries as its tooltip. Empty means no
+    /// linkification at all, which is what keeps the component usable from
+    /// contexts that have no workspace.
+    var beadTitles: [String: String] = [:]
 
     private var blocks: [MarkdownBlock] {
         MarkdownParser.parse(source)
@@ -17,7 +24,10 @@ struct MarkdownText: View {
 
     var body: some View {
         if !MarkdownParser.looksLikeMarkdown(source) {
-            Text(source)
+            // Plain prose still gets bead links: "work on bvx-8ou first" is
+            // the commonest way one bead cites another, and it contains no
+            // Markdown at all.
+            plain(source)
                 .font(font)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
@@ -96,8 +106,49 @@ struct MarkdownText: View {
                         .frame(width: 2)
                 }
 
+        case .table(let headers, let rows, let alignments):
+            // A table does not reflow: narrowing a column would change which
+            // cell a value sits under. It scrolls horizontally instead — the
+            // same choice the code block makes, for the same reason.
+            ScrollView(.horizontal, showsIndicators: false) {
+                Grid(alignment: .topLeading, horizontalSpacing: 14, verticalSpacing: 4) {
+                    GridRow {
+                        ForEach(Array(headers.enumerated()), id: \.offset) { column, cell in
+                            inline(cell)
+                                .font(font.weight(.semibold))
+                                // Column alignment belongs on the first row's
+                                // cells; Grid then applies it down the column.
+                                .gridColumnAlignment(columnAlignment(alignments, column))
+                        }
+                    }
+                    Divider()
+                        .gridCellUnsizedAxes(.horizontal)
+                        .gridCellColumns(max(1, headers.count))
+                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                        GridRow {
+                            ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
+                                inline(cell).font(font)
+                            }
+                        }
+                    }
+                }
+                .fixedSize(horizontal: true, vertical: true)
+                .padding(.vertical, 2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
         case .rule:
             Divider().padding(.vertical, 1)
+        }
+    }
+
+    private func columnAlignment(
+        _ alignments: [MarkdownTableAlignment], _ column: Int
+    ) -> HorizontalAlignment {
+        switch column < alignments.count ? alignments[column] : .leading {
+        case .leading: .leading
+        case .center: .center
+        case .trailing: .trailing
         }
     }
 
@@ -118,13 +169,72 @@ struct MarkdownText: View {
     /// to the parser above. Falls back to the raw string if the span markup is
     /// malformed, so bad input still renders rather than vanishing.
     private func inline(_ text: String) -> Text {
-        if let attributed = try? AttributedString(
-            markdown: text,
-            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))
-        {
-            return Text(attributed)
+        Text(inlineAttributed(text))
+    }
+
+    /// The attributed form of one inline span: Markdown spans resolved, bead
+    /// ids linked. Split out from ``inline(_:)`` so tests can assert on the
+    /// attributes rather than on a `Text` they cannot inspect.
+    func inlineAttributed(_ text: String) -> AttributedString {
+        guard
+            var attributed = try? AttributedString(
+                markdown: text,
+                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))
+        else {
+            return plainAttributed(text)
         }
-        return Text(text)
+        linkBeadReferences(in: &attributed)
+        return attributed
+    }
+
+    /// Renders text with no Markdown interpretation, but still linked.
+    private func plain(_ text: String) -> Text {
+        Text(plainAttributed(text))
+    }
+
+    func plainAttributed(_ text: String) -> AttributedString {
+        var attributed = AttributedString(text)
+        linkBeadReferences(in: &attributed)
+        return attributed
+    }
+
+    /// Turns bead ids in `attributed` into links that select the bead.
+    ///
+    /// This runs on the *parsed* spans rather than the raw source, and that
+    /// ordering is the whole point: after parsing, an id written inside `code`
+    /// carries `.code` and is skipped, so it stays literal instead of becoming
+    /// a link in the middle of a snippet. Runs that already carry a link — an
+    /// explicit `[label](target)` — are left alone too.
+    func linkBeadReferences(in attributed: inout AttributedString) {
+        guard !beadTitles.isEmpty else { return }
+        let known = Set(beadTitles.keys)
+
+        // Collected first, applied after: setting an attribute splits the run
+        // being iterated, and mutating mid-iteration would skip matches.
+        var edits: [(range: Range<AttributedString.Index>, id: String)] = []
+
+        for run in attributed.runs {
+            if run.inlinePresentationIntent?.contains(.code) == true { continue }
+            if run.link != nil { continue }
+
+            let text = String(attributed[run.range].characters)
+            for match in BeadReferences.ranges(in: text, known: known) {
+                let lower = text.distance(from: text.startIndex, to: match.lowerBound)
+                let upper = text.distance(from: text.startIndex, to: match.upperBound)
+                // Both offsets come from this run's own characters, so they
+                // are in bounds by construction.
+                let start = attributed.index(run.range.lowerBound, offsetByCharacters: lower)
+                let end = attributed.index(run.range.lowerBound, offsetByCharacters: upper)
+                edits.append((start..<end, String(text[match])))
+            }
+        }
+
+        for edit in edits {
+            attributed[edit.range].link = BeadURL.open(bead: edit.id)
+            // The title rides along as a tooltip so hovering answers "which
+            // bead is that?" without a round trip through the list.
+            attributed[edit.range].appKit.toolTip = beadTitles[edit.id]
+        }
     }
 
     private func headingFont(_ level: Int) -> Font {

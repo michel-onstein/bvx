@@ -40,6 +40,13 @@ public struct ContentView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    SearchScopeBar()
+                    RecipeBanner()
+                    TimeTravelBanner()
+                }
+            }
             .toolbar { toolbarContent }
             .inspector(isPresented: $showInspector) {
                 InspectorView()
@@ -68,6 +75,11 @@ public struct ContentView: View {
         case .insights: InsightsView()
         case .plan: PlanView()
         case .labels: LabelsView()
+        case .flow: FlowMatrixView()
+        case .attention: AttentionView()
+        case .history: HistoryView()
+        case .alerts: AlertsView()
+        case .sprint: SprintView()
         }
     }
 
@@ -96,12 +108,16 @@ public struct ContentView: View {
 
         ToolbarItem {
             Menu {
+                // The named orderings only. Every column ordering is reachable
+                // from its header, and listing all of them here would bury
+                // these.
                 Picker("Sort", selection: $store.query.sort) {
-                    ForEach(SortMode.allCases) { mode in
+                    ForEach(SortMode.cycleCases) { mode in
                         Text(mode.displayName)
                             // Sorting by a metric that has not been computed
                             // would silently order by zeros, so it stays
                             // disabled until Phase 2 lands.
+                            .disabled(mode.requiresPhase2 && !store.metrics.hasPhase2Values)
                             .tag(mode)
                     }
                 }
@@ -112,6 +128,10 @@ public struct ContentView: View {
         }
 
         ToolbarItem {
+            RevisionScrubber()
+        }
+
+        ToolbarItem {
             Button {
                 Task { await store.reload() }
             } label: {
@@ -119,6 +139,10 @@ public struct ContentView: View {
             }
             .disabled(!store.isLoaded || store.isLoading)
             .help("Reload from disk")
+        }
+
+        ToolbarItem {
+            TutorialLink()
         }
 
         ToolbarItem {

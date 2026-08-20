@@ -162,6 +162,16 @@ public actor BeadsEngine {
         try call("label_health", as: LabelAnalysis.self)
     }
 
+    /// Cross-label dependency flow: which label blocks which, and how hard.
+    public func labelFlow() throws -> LabelFlow {
+        try call("label_flow", as: LabelFlow.self)
+    }
+
+    /// Labels ranked by attention needed, each with its score decomposition.
+    public func labelAttention() throws -> LabelAttention {
+        try call("label_attention", as: LabelAttention.self)
+    }
+
     /// Renders bv's Markdown report, Mermaid diagrams included.
     ///
     /// The content is always returned; `path` additionally writes it, which the
@@ -171,6 +181,279 @@ public actor BeadsEngine {
         var request: [String: Any] = ["title": title]
         if let path { request["path"] = path }
         return try call("export_markdown", request: request, as: MarkdownExport.self)
+    }
+
+    // MARK: - Git correlation
+    //
+    // The report is built by reading the object store directly, so these work
+    // under the App Sandbox where a `git` subprocess would not. The first call
+    // walks the history and is slow; the engine caches it until the bead set
+    // changes.
+
+    /// The whole bead-to-commit correlation report.
+    public func history(limit: Int = 0, refresh: Bool = false) throws -> HistoryReport {
+        try call("history", request: request(limit: limit, refresh: refresh), as: HistoryReport.self)
+    }
+
+    /// One bead's causal chain and the insights drawn from it.
+    public func causality(_ id: String) throws -> CausalityResult {
+        try call("causality", request: ["id": id], as: CausalityResult.self)
+    }
+
+    /// Beads that touched the same files, commits or window as `id`.
+    public func relatedWork(_ id: String, limit: Int = 0) throws -> RelatedWork {
+        var req: [String: Any] = ["id": id]
+        if limit > 0 { req["limit"] = limit }
+        return try call("related", request: req, as: RelatedWork.self)
+    }
+
+    /// Which beads have touched a file. A path containing `*`, `?` or `[` is
+    /// treated as a glob.
+    public func beads(touching path: String) throws -> FileBeadLookup {
+        try call("file_beads", request: ["path": path], as: FileBeadLookup.self)
+    }
+
+    /// Files ranked by how many beads have touched them.
+    public func fileHotspots(limit: Int = 25) throws -> FileHotspots {
+        try call("file_hotspots", request: ["limit": limit], as: FileHotspots.self)
+    }
+
+    /// Files that change alongside `path`.
+    public func fileRelations(
+        _ path: String, threshold: Double = 0.3, limit: Int = 20
+    ) throws -> CoChangeResult {
+        try call(
+            "file_relations",
+            request: ["path": path, "threshold": threshold, "limit": limit],
+            as: CoChangeResult.self)
+    }
+
+    /// Commits no bead accounts for.
+    public func orphanCommits(limit: Int = 0) throws -> OrphanReport {
+        try call("orphans", request: request(limit: limit, refresh: false), as: OrphanReport.self)
+    }
+
+    // MARK: - Static site export
+
+    /// Builds a deployable static bundle.
+    public func exportSite(
+        outputDir: String, title: String,
+        includeRobotOutputs: Bool = true, interactiveGraph: Bool = true,
+        githubWorkflow: Bool = false
+    ) throws -> SiteBundle {
+        try call(
+            "export_site",
+            request: [
+                "output_dir": outputDir, "title": title,
+                "include_robot_outputs": includeRobotOutputs,
+                "interactive_graph": interactiveGraph,
+                "github_workflow": githubWorkflow,
+            ],
+            as: SiteBundle.self)
+    }
+
+    /// Serves a built bundle locally. The server runs in-process.
+    public func previewSite(bundlePath: String, port: Int = 0) throws -> SitePreview {
+        try call(
+            "export_preview",
+            request: ["bundle_path": bundlePath, "port": port],
+            as: SitePreview.self)
+    }
+
+    /// Publishes a bundle to GitHub Pages.
+    ///
+    /// The token comes from the caller — the Keychain — rather than the
+    /// environment, and the whole flow runs in-process: the repository is
+    /// created through the API, the bundle pushed with go-git, Pages enabled
+    /// through the API again.
+    public func deployToGitHub(
+        bundlePath: String, repo: String, token: String,
+        isPrivate: Bool = false, branch: String = "gh-pages"
+    ) throws -> SiteDeployment {
+        try call(
+            "export_deploy_github",
+            request: [
+                "bundle_path": bundlePath, "repo": repo, "token": token,
+                "private": isPrivate, "branch": branch,
+            ],
+            as: SiteDeployment.self)
+    }
+
+    /// What to run for a Cloudflare deployment, which needs `wrangler`.
+    public func cloudflareInstructions(
+        bundlePath: String, project: String
+    ) throws -> DeployInstructions {
+        try call(
+            "export_cloudflare_hint",
+            request: ["bundle_path": bundlePath, "project": project],
+            as: DeployInstructions.self)
+    }
+
+    // MARK: - Repositories
+
+    /// The repositories this workspace aggregates, and the dependencies that
+    /// cross between them.
+    public func repos() throws -> RepoList {
+        try call("repos", as: RepoList.self)
+    }
+
+    // MARK: - Search
+
+    /// Runs one query.
+    ///
+    /// The default embedder is bv's deterministic `hash` one. A better
+    /// embedder gives better results and *different* ones, so choosing it is
+    /// the caller's decision — the default keeps bvx's ranking identical to
+    /// the CLI's.
+    public func search(
+        _ query: String, mode: SearchMode = .text, limit: Int = 20,
+        preset: String? = nil, weights: SearchWeights? = nil
+    ) throws -> SearchResults {
+        var req: [String: Any] = ["query": query, "mode": mode.rawValue, "limit": limit]
+        if let weights {
+            req["weights"] = weights.asDictionary
+        } else if let preset, !preset.isEmpty {
+            req["preset"] = preset
+        }
+        return try call("search", request: req, as: SearchResults.self)
+    }
+
+    /// The weight presets and the modes available.
+    public func searchPresets() throws -> SearchPresetList {
+        try call("search_presets", as: SearchPresetList.self)
+    }
+
+    // MARK: - Sprints
+
+    public func sprints() throws -> SprintList {
+        try call("sprint_list", as: SprintList.self)
+    }
+
+    /// One sprint's burndown. Pass `current` for the active sprint.
+    public func burndown(sprintID: String = "current") throws -> Burndown {
+        try call("burndown", request: ["id": sprintID], as: Burndown.self)
+    }
+
+    /// How long the open work takes with `agents` working in parallel.
+    public func capacity(agents: Int, label: String? = nil) throws -> Capacity {
+        var req: [String: Any] = ["agents": agents]
+        if let label, !label.isEmpty { req["label"] = label }
+        return try call("capacity", request: req, as: Capacity.self)
+    }
+
+    // MARK: - Recipes
+
+    /// Every recipe, built-in and project-defined.
+    public func recipes() throws -> RecipeList {
+        try call("recipes", as: RecipeList.self)
+    }
+
+    /// The beads a recipe selects, in the order it sorts them.
+    ///
+    /// Applied in the engine so one implementation decides what a recipe
+    /// means — the same one `bv --recipe` uses.
+    public func applyRecipe(named name: String) throws -> AppliedRecipe {
+        try call("recipe_apply", request: ["name": name], as: AppliedRecipe.self)
+    }
+
+    /// Writes a project recipe into `<project>/.bv/recipes.yaml`.
+    public func saveRecipe(_ recipe: Recipe) throws {
+        let encoded = try JSONEncoder().encode(recipe)
+        let object = try JSONSerialization.jsonObject(with: encoded)
+        _ = try invoke("recipe_save", request: ["recipe": object])
+    }
+
+    public func deleteRecipe(named name: String) throws {
+        _ = try invoke("recipe_delete", request: ["name": name])
+    }
+
+    // MARK: - Alerts and drift
+
+    /// Health alerts, optionally narrowed.
+    ///
+    /// Works with or without a saved baseline: without one the delta checks
+    /// have nothing to compare, but the checks that read the issue list —
+    /// staleness, blocking cascades — still run.
+    public func alerts(
+        severity: AlertSeverity? = nil, type: String? = nil, label: String? = nil
+    ) throws -> AlertReport {
+        var req: [String: Any] = [:]
+        if let severity { req["severity"] = severity.rawValue }
+        if let type, !type.isEmpty { req["type"] = type }
+        if let label, !label.isEmpty { req["label"] = label }
+        return try call("alerts", request: req.isEmpty ? nil : req, as: AlertReport.self)
+    }
+
+    /// The saved baseline, if there is one.
+    public func baselineInfo() throws -> BaselineInfo {
+        try call("baseline_info", as: BaselineInfo.self)
+    }
+
+    /// Records the current graph as the point drift is measured from.
+    @discardableResult
+    public func saveBaseline(description: String) throws -> BaselineInfo {
+        try call("baseline_save", request: ["description": description], as: BaselineInfo.self)
+    }
+
+    // MARK: - Time travel
+
+    /// Commits that changed the beads file, newest first.
+    public func revisions(limit: Int = 50) throws -> RevisionList {
+        try call("revisions", request: ["limit": limit], as: RevisionList.self)
+    }
+
+    /// The bead set as of `revision` — any expression git accepts.
+    public func snapshot(at revision: String) throws -> WorkspaceSnapshot {
+        try call("snapshot_at", request: ["revision": revision], as: WorkspaceSnapshot.self)
+    }
+
+    /// The current bead set compared against `revision`.
+    public func diff(since revision: String) throws -> TimeTravelDiff {
+        try call("diff", request: ["revision": revision], as: TimeTravelDiff.self)
+    }
+
+    /// One commit's unified diff, optionally narrowed to a single file.
+    ///
+    /// Rendered from the object store, so it works where `git diff` cannot.
+    public func commitPatch(sha: String, path: String? = nil) throws -> CommitPatch {
+        var req: [String: Any] = ["sha": sha]
+        if let path, !path.isEmpty { req["path"] = path }
+        return try call("commit_patch", request: req, as: CommitPatch.self)
+    }
+
+    /// Every recorded verdict on a commit-to-bead link, and the accuracy stats.
+    public func correlationFeedback() throws -> CorrelationFeedbackReport {
+        try call("correlation_feedback", as: CorrelationFeedbackReport.self)
+    }
+
+    /// Confirms a link. The link is raised to the top of its method's
+    /// confidence band and the verdict is recorded for future reports.
+    @discardableResult
+    public func confirmCorrelation(
+        sha: String, beadID: String, reason: String = ""
+    ) throws -> CorrelationVerdict {
+        try call(
+            "correlation_confirm",
+            request: ["sha": sha, "bead_id": beadID, "reason": reason],
+            as: CorrelationVerdict.self)
+    }
+
+    /// Rejects a link, removing it from the report entirely.
+    @discardableResult
+    public func rejectCorrelation(
+        sha: String, beadID: String, reason: String = ""
+    ) throws -> CorrelationVerdict {
+        try call(
+            "correlation_reject",
+            request: ["sha": sha, "bead_id": beadID, "reason": reason],
+            as: CorrelationVerdict.self)
+    }
+
+    private func request(limit: Int, refresh: Bool) -> [String: Any] {
+        var req: [String: Any] = [:]
+        if limit > 0 { req["limit"] = limit }
+        if refresh { req["refresh"] = true }
+        return req
     }
 
     /// Raw JSON for methods bvx surfaces but does not yet model, such as

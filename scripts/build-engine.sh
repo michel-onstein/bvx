@@ -56,6 +56,13 @@ cp "$BUILD/libbvxengine.h" "$HEADER_DEST"
 echo "==> Built $(du -h "$OUT" | cut -f1) archive"
 lipo -info "$OUT" 2>/dev/null || true
 
+# SwiftPM does not treat the archive as a build input, so a rebuilt engine on
+# its own does NOT trigger a relink — `swift test` happily keeps running the
+# previous archive. That failure mode is genuinely confusing: the Go tests pass,
+# the Swift ones fail, and the fix appears not to have taken. Touching a source
+# file in the target that links it forces the relink.
+touch "$ROOT/Sources/BVXEngine/BeadsEngine.swift"
+
 if [[ $CHECK -eq 1 ]]; then
   echo "==> Running C ABI smoke test"
   cc -o "$BUILD/smoke" "$ROOT/Engine/smoke/smoke.c" "$OUT" \

@@ -65,6 +65,28 @@ public enum IssueStatus: RawRepresentable, Codable, Sendable, Hashable {
     /// Work still on the table, for the "all but archived" filter.
     public var isActive: Bool { !isClosed && !isTombstone }
 
+    /// Position in the workflow, for ordering the Status column.
+    ///
+    /// Alphabetical would put Blocked before Open and Closed before
+    /// In Progress, which is not what anyone sorting a work queue means.
+    /// Unrecognised statuses sort together, just before deleted ones, so an
+    /// unknown value stays visible instead of being scattered.
+    public var workflowRank: Int {
+        switch self {
+        case .draft: 0
+        case .open: 1
+        case .pinned: 2
+        case .hooked: 3
+        case .inProgress: 4
+        case .review: 5
+        case .blocked: 6
+        case .deferred: 7
+        case .closed: 8
+        case .unknown: 9
+        case .tombstone: 10
+        }
+    }
+
     public var displayName: String {
         switch self {
         case .open: "Open"

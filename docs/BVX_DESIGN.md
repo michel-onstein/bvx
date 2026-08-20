@@ -5,8 +5,8 @@
 | Field | Value |
 |---|---|
 | **Document** | Architecture & design specification |
-| **Status** | Partially implemented — engine bridge, core views, live reload, exports and triage are built; history, time travel, recipes, sprint and multi-repo are not. See [FEATURE_PARITY.md](FEATURE_PARITY.md) and the root `README.md` for the current line. |
-| **Date** | 2026-08-19 (status refreshed 2026-08-19) |
+| **Status** | Implemented — every capability in this document is built and tested, including git correlation, time travel, recipes, sprints, multi-repository workspaces, static-site export and full robot-protocol parity. Agreement with `bv` is checked by `scripts/parity-check.py` rather than asserted. See [FEATURE_PARITY.md](FEATURE_PARITY.md). |
+| **Date** | 2026-08-19 (status refreshed 2026-08-20) |
 | **Upstream reference** | [`Dicklesworthstone/beads_viewer`](https://github.com/Dicklesworthstone/beads_viewer) (`bv`) |
 | **Target platform** | macOS 14 Sonoma and later, Apple silicon + Intel (universal 2) |
 | **Companion document** | [Feature Parity Matrix](FEATURE_PARITY.md) |

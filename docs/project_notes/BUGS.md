@@ -137,3 +137,83 @@ render "—", never 0.
 **Prevention:** `UnblocksCacheTests`, including that nil and `[]` stay
 distinguishable, and that unblocks (6) is not conflated with blocks (7) —
 `bvx-6` also waits on `bvx-12`, so closing `bvx-3` alone would not free it.
+
+---
+
+## 2026-08-20 — Markdown tables were collapsed onto a single line
+
+**Symptom:** a pipe table in a bead description rendered two different wrong
+ways depending on what surrounded it. Alone, `looksLikeMarkdown` returned
+`false` and the rows showed as literal pipes in body font. Beside any other
+Markdown, detection fired, the rows fell through to the paragraph branch, and
+every row was joined into one line.
+
+**Cause:** `MarkdownParser` had no table block. The second symptom was a side
+effect of the soft-break fix: `joinSoftWrapped` is correct for prose and
+destructive for a table, and nothing stopped table rows reaching it.
+
+**Fix:** `MarkdownBlock.table(headers:rows:alignments:)`, parsed from a header
+row followed by a delimiter row and rendered with SwiftUI `Grid` inside a
+horizontal `ScrollView`. Detection treats `|` as a signal only when a delimiter
+row follows.
+
+**Prevention:** parser tests for alignment, ragged rows, escaped pipes in cells
+and table termination, a false-positive suite covering prose like
+`use a | b to pipe`, and a render snapshot. The false-positive guard is the load
+bearing one — the delimiter row must have exactly as many cells as the header,
+which is what stops a `---` rule under a pipe-containing sentence from reading
+as a one-column table.
+
+---
+
+## 2026-08-20 — History was empty in a git worktree
+
+**Symptom:** the History view reported "no history available" and the engine
+returned `resolving HEAD: reference not found`, in a checkout that plainly had
+commits.
+
+**Cause:** the checkout was a *linked worktree*. There `.git` is a file
+pointing at `<main>/.git/worktrees/<name>`, and the refs — HEAD included — live
+in the common directory rather than beside the worktree. go-git opens such a
+repository happily with `DetectDotGit` alone and only fails later, at HEAD
+resolution, which reads like an empty repository rather than a misconfigured
+one.
+
+**Fix:** `PlainOpenOptions.EnableDotGitCommonDir`, which is exactly the option
+for this layout.
+
+**Prevention:** `EngineTests.historyReachable` walks the fixture workspace,
+which lives inside this repository — so it exercises whatever checkout layout
+the tests are run from, worktree or not.
+
+**A second bug hid the first.** The fix appeared not to work: the Go tests
+passed and the Swift ones kept failing with the old message. SwiftPM does not
+treat `libbvxengine.a` as a build input, so rebuilding the engine alone does
+*not* trigger a relink — `swift test` kept running the previous archive.
+`build-engine.sh` now touches `Sources/BVXEngine/BeadsEngine.swift` after a
+successful build to force it. Worth remembering whenever a Go-side change seems
+to have no effect on the Swift side.
+
+---
+
+## 2026-08-20 — Two tests fought over the fixture's `.bv` directory
+
+**Symptom:** the recipe save/delete test failed with `no project recipe named
+"bvx-test-recipe"` — but only sometimes, and only when the whole suite ran. The
+recipe was demonstrably saved a moment earlier, and the listing still showed it.
+
+**Cause:** Swift Testing runs tests in parallel. The alerts test wrote a
+baseline to `<fixture>/.bv/baseline.json` and cleaned up by removing the file
+*and its parent directory*. `removeItem` on a directory is recursive, so it took
+`<fixture>/.bv/recipes.yaml` with it — a file a different test, running at the
+same moment, had just written. Whichever test lost the race reported the
+failure, which is why it looked like a bug in the recipe code.
+
+**Fix:** `Fixture.writableStore()` copies the fixture to a private temporary
+directory. Any test that writes into the workspace uses it, so no two tests
+share a filesystem.
+
+**Prevention:** the two tests that write — the baseline round trip and the
+recipe round trip — both go through the helper, and both assert against a
+directory they own. As a side effect the checkout is no longer mutated by a
+test run at all, which is worth having on its own.

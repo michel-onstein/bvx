@@ -72,7 +72,27 @@ view snapshots for inspection.
   `Fixtures/demo` for anything with a real dependency graph.
 - **Swift Testing exports its own `Issue` type**, which collides with the model.
   Test files alias it: `private typealias Bead = BVXCore.Issue`.
-- **No git remote is configured**; all commits are local.
+- **The remote is `origin` (github.com/michel-onstein/bvx)**; work lands on a
+  branch and is integrated by PR, never pushed to `main` directly.
 - **GUI rendering of the live window is unverified** — `screencapture`, the
   accessibility API and `CGWindowList` are permission-gated for background
   sessions. Offscreen view snapshots are the substitute.
+- **App Intents are not discoverable from a `swift build`.** Shortcuts finds
+  intents through a metadata bundle produced by Xcode's
+  `appintentsmetadataprocessor`. SwiftPM does not run it, so the intents in
+  `Sources/bvx/Intents.swift` compile and execute correctly but are only *listed*
+  in Shortcuts when the app is built through Xcode, or when that step is added
+  to `scripts/build-app.sh`.
+- **`CSSearchableIndex.default()` and `UNUserNotificationCenter.current()` both
+  raise in a process with no bundle identifier** — which is how the test suite
+  and the CLI run. Availability is checked before the call, never around it,
+  and both subsystems degrade to doing nothing.
+- **The engine writes into `<project>/.bv/`**: the semantic search index, a
+  saved baseline, drift configuration and project recipes. The first two are
+  gitignored (a rebuildable cache and a local reference point); `recipes.yaml`
+  is deliberately not, because it is shared configuration that `bv --recipe`
+  reads too.
+- **Tests that write into a workspace must use `Fixture.writableStore()`**,
+  which copies the fixture to a temporary directory. Swift Testing runs tests
+  in parallel, and two of them writing to the shared fixture interfered — see
+  BUGS.md.

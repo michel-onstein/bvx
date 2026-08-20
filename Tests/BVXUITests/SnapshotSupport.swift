@@ -186,4 +186,26 @@ enum Fixture {
         await store.computePhase2()
         return store
     }
+
+    /// A store over a private copy of the fixture.
+    ///
+    /// For anything that writes into the workspace — a baseline, a recipe.
+    /// Swift Testing runs tests in parallel, so two of them writing to the
+    /// shared fixture interfere: one test removing `<project>/.bv` takes
+    /// another's file with it, and the failure surfaces in whichever test
+    /// happened to lose the race. A private copy makes that impossible, and
+    /// leaves the checkout untouched besides.
+    ///
+    /// Returns the store and the directory, which the caller removes when done.
+    static func writableStore() async throws -> (store: ProjectStore, directory: URL) {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("bvx-fixture-\(UUID().uuidString)")
+        try FileManager.default.copyItem(
+            at: URL(fileURLWithPath: path), to: directory)
+
+        let store = ProjectStore()
+        await store.open(path: directory.path)
+        await store.computePhase2()
+        return (store, directory)
+    }
 }

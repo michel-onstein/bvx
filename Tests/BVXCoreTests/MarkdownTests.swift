@@ -206,6 +206,9 @@ func parsingIsLossless() {
         case .codeBlock(_, let code): rendered += code + "\n"
         case .quote(let t): rendered += t + "\n"
         case .rule: rendered += "\n"
+        case .table(let headers, let rows, _):
+            rendered += headers.joined(separator: " ") + "\n"
+            for row in rows { rendered += row.joined(separator: " ") + "\n" }
         }
     }
 
@@ -230,4 +233,121 @@ func parsingIsLossless() {
 func emptySources() {
     #expect(MarkdownParser.parse("").isEmpty)
     #expect(MarkdownParser.parse("\n\n  \n").isEmpty)
+}
+
+// MARK: - Tables
+//
+// The regression these lock in: before table support, a pipe table beside any
+// other Markdown fell through to the paragraph branch and `joinSoftWrapped`
+// collapsed every row onto a single line.
+
+@Test("A pipe table parses into headers and rows rather than a paragraph")
+func parsesTable() {
+    let source = """
+        | Metric | Value |
+        |---|---|
+        | PageRank | 0.20 |
+        | Betweenness | 0.35 |
+        """
+    #expect(MarkdownParser.looksLikeMarkdown(source))
+
+    let blocks = MarkdownParser.parse(source)
+    #expect(blocks.count == 1)
+    guard case .table(let headers, let rows, let alignments) = blocks.first else {
+        Issue.record("expected a table, got \(blocks)")
+        return
+    }
+    #expect(headers == ["Metric", "Value"])
+    #expect(rows == [["PageRank", "0.20"], ["Betweenness", "0.35"]])
+    #expect(alignments == [.leading, .leading])
+}
+
+@Test("A table beside other Markdown still parses as a table")
+func tableAmongProse() {
+    // The bad case from the bug report: detection fired on the heading, and
+    // the rows were then collapsed onto one line by the paragraph branch.
+    let source = """
+        ## Metrics
+
+        | Metric | Value |
+        |---|---|
+        | PageRank | 0.20 |
+
+        See **ADR-001**.
+        """
+    let blocks = MarkdownParser.parse(source)
+    let tables = blocks.compactMap { block -> [[String]]? in
+        if case .table(_, let rows, _) = block { return rows }
+        return nil
+    }
+    #expect(tables.count == 1)
+    #expect(tables.first == [["PageRank", "0.20"]])
+    // And the prose around it survived as its own blocks.
+    #expect(blocks.contains(.heading(level: 2, text: "Metrics")))
+    #expect(blocks.contains(.paragraph("See **ADR-001**.")))
+}
+
+@Test("Leading and trailing pipes are optional")
+func pipelessTable() {
+    let blocks = MarkdownParser.parse("Metric | Value\n--- | ---\nPageRank | 0.20")
+    guard case .table(let headers, let rows, _) = blocks.first else {
+        Issue.record("expected a table, got \(blocks)")
+        return
+    }
+    #expect(headers == ["Metric", "Value"])
+    #expect(rows == [["PageRank", "0.20"]])
+}
+
+@Test("Alignment colons are read per column")
+func tableAlignments() {
+    let blocks = MarkdownParser.parse("| a | b | c | d |\n|:---|:--:|---:|---|\n| 1 | 2 | 3 | 4 |")
+    guard case .table(_, _, let alignments) = blocks.first else {
+        Issue.record("expected a table, got \(blocks)")
+        return
+    }
+    #expect(alignments == [.leading, .center, .trailing, .leading])
+}
+
+@Test("A ragged row is padded or truncated to the column count")
+func raggedRows() {
+    let blocks = MarkdownParser.parse("| a | b | c |\n|---|---|---|\n| 1 |\n| 1 | 2 | 3 | 4 |")
+    guard case .table(_, let rows, _) = blocks.first else {
+        Issue.record("expected a table, got \(blocks)")
+        return
+    }
+    // Padding matters more than it looks: an unpadded short row would shift
+    // every later cell into the wrong column.
+    #expect(rows == [["1", "", ""], ["1", "2", "3"]])
+}
+
+@Test("Inline code survives inside a cell, pipes and all")
+func tableCellContent() {
+    let blocks = MarkdownParser.parse("| field | note |\n|---|---|\n| `a \\| b` | use it |")
+    guard case .table(_, let rows, _) = blocks.first else {
+        Issue.record("expected a table, got \(blocks)")
+        return
+    }
+    // The escaped pipe is content, not a cell boundary.
+    #expect(rows == [["`a | b`", "use it"]])
+}
+
+@Test(
+    "Prose containing a pipe is not mistaken for a table",
+    arguments: [
+        "use a | b to pipe",
+        "use a | b to pipe\n---",
+        "a | b\nnot a delimiter",
+        "| just one line |",
+    ])
+func pipeFalsePositives(source: String) {
+    let blocks = MarkdownParser.parse(source)
+    let isTable = blocks.contains { if case .table = $0 { return true } else { return false } }
+    #expect(!isTable, "should not be a table: \(source)")
+}
+
+@Test("A table ends at the first line that is not a row")
+func tableTermination() {
+    let blocks = MarkdownParser.parse("| a |\n|---|\n| 1 |\nBack to prose.")
+    #expect(blocks.count == 2)
+    #expect(blocks.last == .paragraph("Back to prose."))
 }

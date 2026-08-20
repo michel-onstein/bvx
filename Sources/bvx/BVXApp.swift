@@ -1,11 +1,14 @@
+import AppKit
 import BVXAppCore
 import BVXUI
 import BVXCore
+import CoreSpotlight
 import SwiftUI
 
 @main
 struct BVXApp: App {
     @StateObject private var store = ProjectStore()
+    @State private var showingExportWizard = false
 
     var body: some Scene {
         WindowGroup {
@@ -13,9 +16,31 @@ struct BVXApp: App {
                 .environmentObject(store)
                 .frame(minWidth: 1000, minHeight: 620)
                 .task { await store.openInitialWorkspace() }
+                // bvx://open?workspace=...&bead=... - the same shape the
+                // inspector's inline bead links use, so one handler serves
+                // links from inside and outside the app.
+                .onOpenURL { url in
+                    Task { await store.open(url: url) }
+                }
+                // A bead opened from Spotlight.
+                .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                    guard let info = activity.userInfo else { return }
+                    _ = store.openSpotlightItem(info)
+                }
+                .sheet(isPresented: $showingExportWizard) {
+                    ExportWizard().environmentObject(store)
+                }
         }
         .windowToolbarStyle(.unified)
-        .commands { BVXCommands(store: store) }
+        .commands { BVXCommands(store: store, showingExportWizard: $showingExportWizard) }
+
+        // Its own window rather than a sheet: the tutorial is meant to be read
+        // beside the app, not instead of it.
+        WindowGroup(id: "tutorial", for: String.self) { $section in
+            TutorialView(initialSection: section)
+                .environmentObject(store)
+        }
+        .defaultSize(width: 860, height: 600)
 
         Settings {
             SettingsView().environmentObject(store)
@@ -28,6 +53,8 @@ struct BVXApp: App {
 /// bindings in `TerminalKeys` are an additive layer on top.
 struct BVXCommands: Commands {
     @ObservedObject var store: ProjectStore
+    @Binding var showingExportWizard: Bool
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -40,6 +67,12 @@ struct BVXCommands: Commands {
             Button("Export Markdown Report…") { Task { await store.exportMarkdown() } }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
                 .disabled(!store.isLoaded)
+            Button("Export Static Site…") { showingExportWizard = true }
+                .keyboardShortcut("e", modifiers: [.command, .option])
+                .disabled(!store.isLoaded)
+            Divider()
+            Button("Install Command Line Tool…") { installCommandLineTool() }
+                .disabled(!CommandLineTool.isAvailable)
         }
 
         CommandMenu("View") {
@@ -56,6 +89,34 @@ struct BVXCommands: Commands {
                 .keyboardShortcut("m", modifiers: [.command, .shift])
                 .disabled(store.metrics.hasPhase2Values || !store.isLoaded)
         }
+
+        CommandGroup(replacing: .help) {
+            Button("bvx Tutorial") { openWindow(id: "tutorial", value: "welcome") }
+                .keyboardShortcut("/", modifiers: [.command, .shift])
+        }
+    }
+}
+
+extension BVXCommands {
+    /// Links the bundled `bvx-cli` somewhere on the user's PATH.
+    ///
+    /// The destination comes from a save panel because, under the App Sandbox,
+    /// that grant is the only thing authorising the write — a hardcoded
+    /// `/usr/local/bin` would simply fail.
+    fileprivate func installCommandLineTool() {
+        let alert = NSAlert()
+        switch CommandLineTool.install() {
+        case .installed(let path):
+            alert.messageText = "Command line tool installed"
+            alert.informativeText = "bvx-cli is linked at \(path)."
+        case .failed(let message):
+            alert.alertStyle = .warning
+            alert.messageText = "Could not install the command line tool"
+            alert.informativeText = message
+        case .cancelled:
+            return
+        }
+        alert.runModal()
     }
 }
 
@@ -73,6 +134,7 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
+            DeployCredentialsSettings()
             Section("Analysis") {
                 Toggle("Skip expensive metrics on open", isOn: $store.skipPhase2)
                 Text(

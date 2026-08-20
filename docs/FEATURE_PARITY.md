@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | **Status** | Living document — the Phase column is the *plan*, not the build state |
-| **Date** | 2026-08-19 |
+| **Date** | 2026-08-20 |
 | **Build state** | See "Implementation status" below, and the root `README.md` |
 
 Companion to the [bvx Design Document](BVX_DESIGN.md). Every capability of `bv` is listed
@@ -12,16 +12,29 @@ here with the `bvx` surface that delivers it, the mechanism, and the delivery ph
 
 ## Implementation status
 
-As of 2026-08-19 the following are **built and tested**: JSONL and SQLite
-loading with discovery fallback, Phase-1 and Phase-2 metrics with honest status
-reporting, the actionable set, execution plan, unblocks and blocker chains,
-triage recommendations, the List / Board / Graph / Tree / Insights / Plan /
-Labels views with an Inspector, filters and fuzzy search, bv's single-key
-bindings, live reload via FSEvents, Markdown export, and `bvx-cli`.
+As of 2026-08-20 every capability tracked in this matrix is **built and
+tested**: JSONL and SQLite loading with discovery fallback, Phase-1 and Phase-2
+metrics with honest status reporting, the actionable set, execution plan,
+unblocks and blocker chains, triage, the List / Board / Graph / Tree / Insights
+/ Plan / Labels / Flow / Attention / History / Alerts / Sprint views with an
+Inspector, filters, fuzzy and hybrid search, bv's single-key bindings, live
+reload via FSEvents, Markdown and static-site export, git correlation with a
+History view, time travel with diff badges, recipes, alerts and drift with
+baselines, the sprint dashboard, multi-repository workspaces, App Intents, the
+`bvx://` URL scheme, Spotlight indexing, the tutorial, and `bvx-cli` speaking
+the robot protocol with TOON output.
 
-**Not built:** git correlation and the history view, time travel, recipes, the
-sprint dashboard, the flow matrix and attention views, static-site export,
-multi-repo workspaces, semantic search, and the tutorial.
+**Verified rather than asserted.** `scripts/parity-check.py` runs `bvx-cli` and
+`bv` over the same workspace and diffs them command by command, stripping only
+an enumerated list of volatile fields — timestamps, wall-clock durations,
+absolute paths and build identity. It reports commands bv does not have and
+commands bvx has not implemented as coverage gaps rather than skipping them
+silently, and exits non-zero when any comparable command differs.
+
+Two known non-comparisons are declared in the harness rather than hidden:
+`--robot-insights`, because bv inlines `analysis.Insights`' untagged PascalCase
+fields at the top level, and `--robot-label-attention`, because bv projects a
+ranked subset where bvx returns the full result.
 
 The Phase numbers in the tables below are the original delivery plan and have
 not been re-sequenced; treat them as intent, not as a claim about what exists.

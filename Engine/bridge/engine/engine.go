@@ -14,11 +14,13 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Dicklesworthstone/beads_viewer/pkg/analysis"
+	"github.com/Dicklesworthstone/beads_viewer/pkg/correlation"
 	"github.com/Dicklesworthstone/beads_viewer/pkg/export"
 	"github.com/Dicklesworthstone/beads_viewer/pkg/loader"
 	"github.com/Dicklesworthstone/beads_viewer/pkg/model"
@@ -47,6 +49,18 @@ type Session struct {
 	stats    *analysis.GraphStats
 
 	loadedAt time.Time
+
+	// Multi-repository state. Empty workspacePath means the ordinary
+	// single-repository case.
+	workspacePath string
+	repoLoads     []repoLoad
+
+	// Correlation state, guarded separately: walking the object store is slow
+	// enough that it must not hold the analysis lock, and it is only built on
+	// demand because most sessions never ask for history at all.
+	historyMu    sync.Mutex
+	history      *historyResult
+	historyLimit int
 }
 
 // Open resolves a data source, loads it, and starts analysis.
@@ -144,6 +158,13 @@ func phase1OnlyConfig() analysis.AnalysisConfig {
 }
 
 func (s *Session) load() error {
+	// A workspace configuration wins over single-repository discovery: if one
+	// exists, the graph the user means is the aggregate, and loading a single
+	// repo out of it would silently hide every cross-repo dependency.
+	if configPath := findWorkspaceConfig(s.config.Path); configPath != "" {
+		return s.loadWorkspaceSession(configPath)
+	}
+
 	src, kind, warnings, err := resolveSource(s.config.Path)
 	if err != nil {
 		return err
@@ -163,25 +184,62 @@ func (s *Session) load() error {
 		return fmt.Errorf("loading %s: %w", src, err)
 	}
 
+	an, stats := s.analyse(issues)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.source, s.kind, s.warnings = src, kind, warnings
+	s.workspacePath, s.repoLoads = "", nil
+	s.issues, s.analyzer, s.stats = issues, an, stats
+	s.loadedAt = time.Now()
+	return nil
+}
+
+// analyse builds the analyzer and starts the metrics for one issue set.
+//
+// Shared by the single-repository and workspace paths so the two cannot drift
+// apart on which metrics run.
+func (s *Session) analyse(issues []model.Issue) (*analysis.Analyzer, *analysis.GraphStats) {
 	an := analysis.NewAnalyzer(issues)
-	var stats *analysis.GraphStats
 	if s.config.SkipPhase2 {
 		// Every Phase-2 metric off. Analyze() runs them synchronously, so
 		// skipping has to be expressed through the config rather than by
 		// choosing the sync entry point. The resulting status entries read
 		// "skipped", which is what the UI renders instead of a fake zero.
 		st := an.AnalyzeWithConfig(phase1OnlyConfig())
-		stats = &st
-	} else {
-		stats = an.AnalyzeAsync(context.Background())
+		return an, &st
 	}
+	return an, an.AnalyzeAsync(context.Background())
+}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.source, s.kind, s.warnings = src, kind, warnings
-	s.issues, s.analyzer, s.stats = issues, an, stats
-	s.loadedAt = time.Now()
-	return nil
+// timeNow exists so the workspace path reads the same as the ordinary one.
+func timeNow() time.Time { return time.Now() }
+
+// robotNow is the clock *triage* reads.
+//
+// Deliberately not used by label health or attention: bv reads the real clock
+// there, and honouring the pin in one place but not the other would make bvx
+// disagree with bv rather than agree with it. Matching bv means matching where
+// it pins as well as that it pins.
+//
+// It honours SOURCE_DATE_EPOCH, which is bv's own mechanism and exists for a
+// specific reason: staleness is measured from "now", so two runs a second
+// apart produce slightly different scores. That is not a disagreement about
+// the data, but it makes exact comparison impossible — and the parity harness
+// needs exact comparison, because a tolerance wide enough to absorb the clock
+// is wide enough to hide a real difference.
+func robotNow() time.Time {
+	raw := os.Getenv("SOURCE_DATE_EPOCH")
+	if raw == "" {
+		return time.Now()
+	}
+	seconds, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil {
+		// An unparseable value is ignored rather than treated as the epoch,
+		// which would make everything look infinitely stale.
+		return time.Now()
+	}
+	return time.Unix(seconds, 0).UTC()
 }
 
 // Close releases session state.
@@ -230,12 +288,96 @@ func (s *Session) Call(method string, req []byte) ([]byte, error) {
 		return s.labelHealth()
 	case "label_flow":
 		return s.labelFlow()
+	case "label_attention":
+		return s.labelAttention()
 	case "eta":
 		return s.eta(req)
 	case "graph":
 		return s.graph()
 	case "export_markdown":
 		return s.exportMarkdown(req)
+	case "history":
+		return s.historyPayload(req)
+	case "causality":
+		return s.causality(req)
+	case "related":
+		return s.relatedWork(req)
+	case "impact_network":
+		return s.impactNetwork(req)
+	case "file_beads":
+		return s.fileBeads(req)
+	case "file_hotspots":
+		return s.fileHotspots(req)
+	case "file_relations":
+		return s.fileRelations(req)
+	case "orphans":
+		return s.orphans(req)
+	case "suggest":
+		return s.suggest(req)
+	case "priority":
+		return s.priority(req)
+	case "next":
+		return s.next(req)
+	case "insights":
+		return s.insights(req)
+	case "graph_export":
+		return s.graphExport(req)
+	case "file_impact":
+		return s.fileImpact(req)
+	case "toon":
+		return s.toonPayload(req)
+	case "export_site":
+		return s.exportSite(req)
+	case "export_preview":
+		return s.previewSite(req)
+	case "export_deploy_github":
+		return s.deployGitHub(req)
+	case "export_cloudflare_hint":
+		return s.cloudflareInstructions(req)
+	case "repos":
+		return s.repos()
+	case "search":
+		return s.searchIssues(req)
+	case "search_presets":
+		return s.searchPresets()
+	case "sprint_list":
+		return s.sprintList()
+	case "sprint_show":
+		return s.sprintShow(req)
+	case "burndown":
+		return s.burndown(req)
+	case "capacity":
+		return s.capacity(req)
+	case "recipes":
+		return s.recipes()
+	case "recipe_apply":
+		return s.applyRecipe(req)
+	case "recipe_save":
+		return s.saveRecipe(req)
+	case "recipe_delete":
+		return s.deleteRecipe(req)
+	case "alerts":
+		return s.alerts(req)
+	case "drift":
+		return s.driftPayload()
+	case "baseline_save":
+		return s.saveBaseline(req)
+	case "baseline_info":
+		return s.baselineInfo()
+	case "revisions":
+		return s.revisions(req)
+	case "snapshot_at":
+		return s.snapshotAt(req)
+	case "diff":
+		return s.diffSince(req)
+	case "commit_patch":
+		return s.commitPatch(req)
+	case "correlation_feedback":
+		return s.correlationFeedback()
+	case "correlation_confirm":
+		return s.recordFeedback(req, correlation.FeedbackConfirm)
+	case "correlation_reject":
+		return s.recordFeedback(req, correlation.FeedbackReject)
 	default:
 		return nil, fmt.Errorf("unknown method %q", method)
 	}
@@ -370,6 +512,13 @@ func (s *Session) metrics() ([]byte, error) {
 // file in the same directory — costs one parse and no analysis at all. The
 // response carries `changed` so the UI can skip republishing too.
 func (s *Session) reload() ([]byte, error) {
+	s.mu.RLock()
+	workspacePath := s.workspacePath
+	s.mu.RUnlock()
+	if workspacePath != "" {
+		return s.reloadWorkspace(workspacePath)
+	}
+
 	src, kind, warnings, err := resolveSource(s.config.Path)
 	if err != nil {
 		return nil, err
@@ -422,6 +571,10 @@ func (s *Session) reload() ([]byte, error) {
 	s.loadedAt = time.Now()
 	s.mu.Unlock()
 
+	// Every correlation attribution is computed against the bead set, so a
+	// changed set invalidates the whole report rather than part of it.
+	s.invalidateHistory()
+
 	payload, err := s.info()
 	if err != nil {
 		return nil, err
@@ -464,9 +617,89 @@ func (s *Session) computePhase2() ([]byte, error) {
 	return s.metrics()
 }
 
+// triageHistoryLimit is how far back triage looks for staleness signal.
+//
+// bv's own value: its `--history-limit` defaults to 500, but the triage path
+// silently rewrites 500 to 200. Matching that matters because the number of
+// commits considered changes the staleness factor, and therefore the scores.
+const triageHistoryLimit = 200
+
+// triageHistoryTimeout bounds the walk. bv's default is the same.
+//
+// Triage must answer even when history cannot: a repository that is huge, or
+// absent, degrades the ranking rather than failing it.
+const triageHistoryTimeout = 10 * time.Second
+
+// triage ranks what to work on next.
+//
+// The git-history enrichment is not optional garnish: bv feeds a correlation
+// report into the scorer, and it moves the numbers. Skipping it would make
+// bvx's ranking quietly disagree with `bv --robot-triage` on the same data,
+// which is exactly the drift ADR-001 exists to prevent — and which the parity
+// harness caught.
 func (s *Session) triage() ([]byte, error) {
-	issues, _, _ := s.snapshot()
-	return json.Marshal(analysis.ComputeTriage(issues))
+	issues, analyzer, _ := s.snapshot()
+
+	opts := analysis.TriageOptions{
+		WaitForPhase2: true,
+		UseFastConfig: true,
+	}
+	if analyzer != nil {
+		opts.SeedDataHash = analyzer.DataHash()
+	}
+
+	historyStatus := "skipped"
+	if hasOpenIssues(issues) {
+		report, status := s.triageHistory()
+		opts.History = report
+		historyStatus = status
+	}
+
+	result := analysis.ComputeTriageWithOptionsAndTime(issues, opts, robotNow())
+	result.Meta.HistoryStatus = historyStatus
+	return json.Marshal(result)
+}
+
+// hasOpenIssues reports whether there is anything left to triage.
+//
+// bv skips the history walk entirely when nothing is open, and so does this:
+// paying for a commit walk to rank an empty queue is pure cost.
+func hasOpenIssues(issues []model.Issue) bool {
+	for _, issue := range issues {
+		if issue.Status != model.StatusClosed && issue.Status != model.StatusTombstone {
+			return true
+		}
+	}
+	return false
+}
+
+// triageHistory fetches the correlation report within a bounded time.
+//
+// Returns bv's own vocabulary for what happened — "ok", "timeout" or "error" —
+// which travels in the payload so a caller can tell a low staleness signal
+// from an absent one.
+func (s *Session) triageHistory() (*correlation.HistoryReport, string) {
+	type outcome struct {
+		report *historyResult
+		err    error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		report, err := s.correlationHistory(triageHistoryLimit, false)
+		done <- outcome{report, err}
+	}()
+
+	select {
+	case result := <-done:
+		if result.err != nil {
+			// Not being in a git repository is the commonest reason, and it
+			// is not a failure of triage.
+			return nil, "error"
+		}
+		return result.report.report, "ok"
+	case <-time.After(triageHistoryTimeout):
+		return nil, "timeout"
+	}
 }
 
 func (s *Session) plan() ([]byte, error) {
@@ -564,6 +797,18 @@ func (s *Session) labelFlow() ([]byte, error) {
 	issues, _, _ := s.snapshot()
 	cfg := analysis.DefaultLabelHealthConfig()
 	return json.Marshal(analysis.ComputeCrossLabelFlow(issues, cfg))
+}
+
+// labelAttention ranks labels by how much attention they need.
+//
+// The score is a product of centrality, staleness and blocking impact divided
+// by velocity, and bv returns each factor alongside the total. All four are
+// passed through: a ranking without its decomposition says a label is in
+// trouble without saying why, which is the part that tells you what to do.
+func (s *Session) labelAttention() ([]byte, error) {
+	issues, _, _ := s.snapshot()
+	cfg := analysis.DefaultLabelHealthConfig()
+	return json.Marshal(analysis.ComputeLabelAttentionScores(issues, cfg, time.Now()))
 }
 
 func (s *Session) eta(req []byte) ([]byte, error) {
