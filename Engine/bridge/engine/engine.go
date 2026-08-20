@@ -47,6 +47,13 @@ type Session struct {
 	stats    *analysis.GraphStats
 
 	loadedAt time.Time
+
+	// Correlation state, guarded separately: walking the object store is slow
+	// enough that it must not hold the analysis lock, and it is only built on
+	// demand because most sessions never ask for history at all.
+	historyMu    sync.Mutex
+	history      *historyResult
+	historyLimit int
 }
 
 // Open resolves a data source, loads it, and starts analysis.
@@ -230,12 +237,30 @@ func (s *Session) Call(method string, req []byte) ([]byte, error) {
 		return s.labelHealth()
 	case "label_flow":
 		return s.labelFlow()
+	case "label_attention":
+		return s.labelAttention()
 	case "eta":
 		return s.eta(req)
 	case "graph":
 		return s.graph()
 	case "export_markdown":
 		return s.exportMarkdown(req)
+	case "history":
+		return s.historyPayload(req)
+	case "causality":
+		return s.causality(req)
+	case "related":
+		return s.relatedWork(req)
+	case "impact_network":
+		return s.impactNetwork(req)
+	case "file_beads":
+		return s.fileBeads(req)
+	case "file_hotspots":
+		return s.fileHotspots(req)
+	case "file_relations":
+		return s.fileRelations(req)
+	case "orphans":
+		return s.orphans(req)
 	default:
 		return nil, fmt.Errorf("unknown method %q", method)
 	}
@@ -422,6 +447,10 @@ func (s *Session) reload() ([]byte, error) {
 	s.loadedAt = time.Now()
 	s.mu.Unlock()
 
+	// Every correlation attribution is computed against the bead set, so a
+	// changed set invalidates the whole report rather than part of it.
+	s.invalidateHistory()
+
 	payload, err := s.info()
 	if err != nil {
 		return nil, err
@@ -564,6 +593,18 @@ func (s *Session) labelFlow() ([]byte, error) {
 	issues, _, _ := s.snapshot()
 	cfg := analysis.DefaultLabelHealthConfig()
 	return json.Marshal(analysis.ComputeCrossLabelFlow(issues, cfg))
+}
+
+// labelAttention ranks labels by how much attention they need.
+//
+// The score is a product of centrality, staleness and blocking impact divided
+// by velocity, and bv returns each factor alongside the total. All four are
+// passed through: a ranking without its decomposition says a label is in
+// trouble without saying why, which is the part that tells you what to do.
+func (s *Session) labelAttention() ([]byte, error) {
+	issues, _, _ := s.snapshot()
+	cfg := analysis.DefaultLabelHealthConfig()
+	return json.Marshal(analysis.ComputeLabelAttentionScores(issues, cfg, time.Now()))
 }
 
 func (s *Session) eta(req []byte) ([]byte, error) {

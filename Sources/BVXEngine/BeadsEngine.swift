@@ -162,6 +162,16 @@ public actor BeadsEngine {
         try call("label_health", as: LabelAnalysis.self)
     }
 
+    /// Cross-label dependency flow: which label blocks which, and how hard.
+    public func labelFlow() throws -> LabelFlow {
+        try call("label_flow", as: LabelFlow.self)
+    }
+
+    /// Labels ranked by attention needed, each with its score decomposition.
+    public func labelAttention() throws -> LabelAttention {
+        try call("label_attention", as: LabelAttention.self)
+    }
+
     /// Renders bv's Markdown report, Mermaid diagrams included.
     ///
     /// The content is always returned; `path` additionally writes it, which the
@@ -171,6 +181,63 @@ public actor BeadsEngine {
         var request: [String: Any] = ["title": title]
         if let path { request["path"] = path }
         return try call("export_markdown", request: request, as: MarkdownExport.self)
+    }
+
+    // MARK: - Git correlation
+    //
+    // The report is built by reading the object store directly, so these work
+    // under the App Sandbox where a `git` subprocess would not. The first call
+    // walks the history and is slow; the engine caches it until the bead set
+    // changes.
+
+    /// The whole bead-to-commit correlation report.
+    public func history(limit: Int = 0, refresh: Bool = false) throws -> HistoryReport {
+        try call("history", request: request(limit: limit, refresh: refresh), as: HistoryReport.self)
+    }
+
+    /// One bead's causal chain and the insights drawn from it.
+    public func causality(_ id: String) throws -> CausalityResult {
+        try call("causality", request: ["id": id], as: CausalityResult.self)
+    }
+
+    /// Beads that touched the same files, commits or window as `id`.
+    public func relatedWork(_ id: String, limit: Int = 0) throws -> RelatedWork {
+        var req: [String: Any] = ["id": id]
+        if limit > 0 { req["limit"] = limit }
+        return try call("related", request: req, as: RelatedWork.self)
+    }
+
+    /// Which beads have touched a file. A path containing `*`, `?` or `[` is
+    /// treated as a glob.
+    public func beads(touching path: String) throws -> FileBeadLookup {
+        try call("file_beads", request: ["path": path], as: FileBeadLookup.self)
+    }
+
+    /// Files ranked by how many beads have touched them.
+    public func fileHotspots(limit: Int = 25) throws -> FileHotspots {
+        try call("file_hotspots", request: ["limit": limit], as: FileHotspots.self)
+    }
+
+    /// Files that change alongside `path`.
+    public func fileRelations(
+        _ path: String, threshold: Double = 0.3, limit: Int = 20
+    ) throws -> CoChangeResult {
+        try call(
+            "file_relations",
+            request: ["path": path, "threshold": threshold, "limit": limit],
+            as: CoChangeResult.self)
+    }
+
+    /// Commits no bead accounts for.
+    public func orphanCommits(limit: Int = 0) throws -> OrphanReport {
+        try call("orphans", request: request(limit: limit, refresh: false), as: OrphanReport.self)
+    }
+
+    private func request(limit: Int, refresh: Bool) -> [String: Any] {
+        var req: [String: Any] = [:]
+        if limit > 0 { req["limit"] = limit }
+        if refresh { req["refresh"] = true }
+        return req
     }
 
     /// Raw JSON for methods bvx surfaces but does not yet model, such as

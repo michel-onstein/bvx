@@ -68,6 +68,8 @@ public struct ContentView: View {
         case .insights: InsightsView()
         case .plan: PlanView()
         case .labels: LabelsView()
+        case .flow: FlowMatrixView()
+        case .attention: AttentionView()
         }
     }
 

@@ -7,7 +7,7 @@ import SwiftUI
 
 /// The view surfaces in the sidebar.
 public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
-    case list, board, graph, tree, insights, plan, labels
+    case list, board, graph, tree, insights, plan, labels, flow, attention
 
     public var id: String { rawValue }
 
@@ -20,6 +20,8 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .insights: "Insights"
         case .plan: "Plan"
         case .labels: "Labels"
+        case .flow: "Flow"
+        case .attention: "Attention"
         }
     }
 
@@ -32,6 +34,8 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .insights: "chart.bar.xaxis"
         case .plan: "flowchart"
         case .labels: "tag"
+        case .flow: "square.grid.3x3"
+        case .attention: "exclamationmark.bubble"
         }
     }
 
@@ -46,6 +50,8 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .insights: "5"
         case .plan: "6"
         case .labels: "7"
+        case .flow: "8"
+        case .attention: "9"
         }
     }
 
@@ -59,6 +65,8 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .insights: "i"
         case .plan: "p"
         case .labels: "]"
+        case .flow: "F"
+        case .attention: "A"
         }
     }
 }
@@ -72,6 +80,8 @@ public final class ProjectStore: ObservableObject {
     @Published public private(set) var plan: ExecutionPlan = .empty
     @Published public private(set) var edges: [GraphEdge] = []
     @Published public private(set) var labelAnalysis: LabelAnalysis = .empty
+    @Published public private(set) var labelFlow: LabelFlow = .empty
+    @Published public private(set) var labelAttention: LabelAttention = .empty
     @Published public private(set) var triage: Triage = .empty
     @Published public private(set) var info: WorkspaceInfo?
     @Published public private(set) var loadError: String?
@@ -228,8 +238,11 @@ public final class ProjectStore: ObservableObject {
         actionable = try await engine.actionableIDs()
         plan = try await engine.executionPlan()
         edges = try await engine.graphEdges()
-        // Label health is advisory, so a failure here must not block the load.
+        // Label analytics are advisory, so a failure here must not block the
+        // load — a workspace with no labels at all is perfectly valid.
         labelAnalysis = (try? await engine.labelHealth()) ?? .empty
+        labelFlow = (try? await engine.labelFlow()) ?? .empty
+        labelAttention = (try? await engine.labelAttention()) ?? .empty
         // Triage depends on Phase-2 scores; it is refreshed again once they land.
         triage = (try? await engine.triage()) ?? .empty
         rebuildUnblocksCache()
