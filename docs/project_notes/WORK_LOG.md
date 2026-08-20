@@ -5,6 +5,22 @@ described. Newest first.
 
 ---
 
+## 2026-08-19 — Markdown in the bead detail view
+
+The inspector renders a bead's description as Markdown when it contains any:
+headings, paragraphs, bullet and numbered lists, fenced code with a language
+label, blockquotes, rules, and inline emphasis / code / links.
+
+Detection is deliberately conservative — bead prose is full of identifiers like
+`data_hash`, so single underscores are not treated as emphasis and plain prose
+renders verbatim. Parsing lives in `BVXCore` (pure, 24 tests); rendering is
+`MarkdownText` in `BVXUI`.
+
+Two bugs found by looking at the snapshots: a greedy blockquote rule, and
+soft line breaks rendered as hard ones. Both logged in BUGS.md.
+
+---
+
 ## 2026-08-19 — Conventions compliance pass
 
 Brought the repo in line with the global conventions after re-reading them.

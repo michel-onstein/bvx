@@ -4,6 +4,40 @@ Found-and-fixed issues, with the regression test that locks each fix in.
 
 ---
 
+## 2026-08-19 — Blockquote rule stretched down the whole pane
+
+**Symptom:** a one-line quote in a bead description drew a grey vertical bar
+hundreds of points tall, down the rest of the description.
+
+**Cause:** the rule was a `RoundedRectangle` sibling in an `HStack`. A bare
+shape is greedy and expanded to whatever vertical space the container had left.
+
+**Fix:** the rule is an `.overlay(alignment: .leading)` on the quote text, so it
+inherits the text's height.
+
+**Prevention:** covered by the `markdown-blocks` snapshot — this was invisible
+to every non-visual test and was found by looking at the rendered PNG.
+
+---
+
+## 2026-08-19 — Wrapped sentences broke mid-clause in rendered Markdown
+
+**Symptom:** a description wrapped in the source rendered with a hard line
+break where the author had simply wrapped, e.g. "…while the real" / newline /
+"concurrency stays inside Go."
+
+**Cause:** the parser joined paragraph lines with a literal newline, and the
+renderer preserves whitespace. In Markdown a lone newline inside a paragraph is
+a *soft* break and means a space.
+
+**Fix:** `MarkdownParser.joinSoftWrapped` joins with a space, keeping genuine
+hard breaks (two trailing spaces, or a trailing backslash).
+
+**Prevention:** `MarkdownTests.lineBreaks` and `wrappedSentenceJoins`, the
+latter using the exact sentence that exhibited the bug.
+
+---
+
 ## 2026-08-19 — `parent-child` and `waits-for` wrongly treated as blocking
 
 **Symptom:** none visible; every graph metric would have been subtly wrong.

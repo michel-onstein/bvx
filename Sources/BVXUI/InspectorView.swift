@@ -21,10 +21,7 @@ struct InspectorView: View {
                         if !issue.description.isEmpty {
                             Divider()
                             section("Description") {
-                                Text(issue.description)
-                                    .font(.callout)
-                                    .textSelection(.enabled)
-                                    .fixedSize(horizontal: false, vertical: true)
+                                MarkdownText(source: issue.description)
                             }
                         }
                         if !issue.comments.isEmpty {

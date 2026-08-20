@@ -68,7 +68,7 @@ swift run bvx-cli unblocks --id bvx-3 --path Fixtures/demo
 ## Tests
 
 ```bash
-swift test                       # 78 tests: models, query, layout, engine, store, watch, export, triage, view snapshots
+swift test                       # 104 tests: models, query, layout, markdown, engine, store, watch, export, triage, view snapshots
 cd Engine/bridge && go test ./...  # 16 tests: loader, analysis dispatch, SQLite, reload gate
 ./scripts/build-engine.sh --check  # C ABI: lifecycle, error paths, bad handles
 ```
@@ -84,6 +84,7 @@ cd Engine/bridge && go test ./...  # 16 tests: loader, analysis dispatch, SQLite
 | Actionable set, execution plan with parallel tracks, unblocks, blocker chains | ✅ |
 | Triage: scored recommendations with reasoning, quick wins, blockers to clear | ✅ |
 | List, Board, Graph, Tree, Insights, Plan, Labels views + Inspector | ✅ |
+| Markdown rendering of bead descriptions in the inspector | ✅ |
 | Filters (open/ready/closed/all), labels, sorting, fuzzy search | ✅ |
 | bv's single-key bindings alongside native menu shortcuts | ✅ |
 | Offscreen view snapshot tests (no screen-recording permission needed) | ✅ |
