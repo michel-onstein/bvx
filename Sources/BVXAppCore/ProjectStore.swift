@@ -135,6 +135,19 @@ public final class ProjectStore: ObservableObject {
     @Published public private(set) var pastIssues: [String: Issue] = [:]
     @Published public private(set) var timeTravelLoading = false
 
+    // MARK: Search
+    //
+    // The scope bar's mode. `.text` is the default because it is what the
+    // fuzzy search in `IssueQuery` already approximates; hybrid is a
+    // deliberate choice, because it reorders by things other than the words
+    // you typed.
+    @Published public var searchMode: SearchMode = .text
+    @Published public var searchPreset: String = "default"
+    @Published public var searchWeights: SearchWeights?
+    @Published public private(set) var searchPresets: SearchPresetList = .empty
+    @Published public private(set) var searchResults: SearchResults = .empty
+    @Published public private(set) var searchInFlight = false
+
     // MARK: Sprints
     @Published public private(set) var sprints: SprintList = .empty
     @Published public private(set) var burndown: Burndown = .empty
@@ -181,6 +194,13 @@ public final class ProjectStore: ObservableObject {
     /// recipe's results is the obvious thing to want and losing the recipe on
     /// the first keystroke is not.
     public var visibleIssues: [Issue] {
+        // Hybrid search replaces the ordering entirely: its whole point is to
+        // rank by things other than the words typed, so re-sorting afterwards
+        // would discard the ranking that was asked for.
+        if isUsingEngineSearch {
+            let byID = issuesByID
+            return searchResults.rankedIDs.compactMap { byID[$0] }
+        }
         guard let recipeIDs else {
             return query.apply(to: issues, actionable: actionable, metrics: metrics)
         }
@@ -365,6 +385,42 @@ public final class ProjectStore: ObservableObject {
     public func close() async {
         stopWatching()
         await engine.close()
+    }
+
+    // MARK: - Search
+
+    public func loadSearchPresets() async {
+        guard isLoaded, searchPresets.presets.isEmpty else { return }
+        searchPresets = (try? await engine.searchPresets()) ?? .empty
+    }
+
+    /// Runs the engine-backed search for the current query text.
+    ///
+    /// Only used in hybrid mode. The plain path stays on `IssueQuery`'s fuzzy
+    /// ranking, which is synchronous and needs no index — searching should not
+    /// wait on a round trip while someone is still typing.
+    public func runEngineSearch() async {
+        let text = query.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isLoaded, searchMode == .hybrid, !text.isEmpty else {
+            searchResults = .empty
+            return
+        }
+        guard !searchInFlight else { return }
+
+        searchInFlight = true
+        defer { searchInFlight = false }
+        searchResults =
+            (try? await engine.search(
+                text, mode: searchMode, limit: 50,
+                preset: searchWeights == nil ? searchPreset : nil,
+                weights: searchWeights)) ?? .empty
+    }
+
+    /// True when the list should show engine-ranked results.
+    public var isUsingEngineSearch: Bool {
+        searchMode == .hybrid && !query.searchText.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).isEmpty && !searchResults.isEmpty
     }
 
     // MARK: - Sprints

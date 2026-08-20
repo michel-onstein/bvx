@@ -42,6 +42,7 @@ public struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 0) {
+                    SearchScopeBar()
                     RecipeBanner()
                     TimeTravelBanner()
                 }

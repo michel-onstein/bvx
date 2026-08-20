@@ -233,6 +233,32 @@ public actor BeadsEngine {
         try call("orphans", request: request(limit: limit, refresh: false), as: OrphanReport.self)
     }
 
+    // MARK: - Search
+
+    /// Runs one query.
+    ///
+    /// The default embedder is bv's deterministic `hash` one. A better
+    /// embedder gives better results and *different* ones, so choosing it is
+    /// the caller's decision — the default keeps bvx's ranking identical to
+    /// the CLI's.
+    public func search(
+        _ query: String, mode: SearchMode = .text, limit: Int = 20,
+        preset: String? = nil, weights: SearchWeights? = nil
+    ) throws -> SearchResults {
+        var req: [String: Any] = ["query": query, "mode": mode.rawValue, "limit": limit]
+        if let weights {
+            req["weights"] = weights.asDictionary
+        } else if let preset, !preset.isEmpty {
+            req["preset"] = preset
+        }
+        return try call("search", request: req, as: SearchResults.self)
+    }
+
+    /// The weight presets and the modes available.
+    public func searchPresets() throws -> SearchPresetList {
+        try call("search_presets", as: SearchPresetList.self)
+    }
+
     // MARK: - Sprints
 
     public func sprints() throws -> SprintList {
