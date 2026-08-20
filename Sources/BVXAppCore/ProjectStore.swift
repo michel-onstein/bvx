@@ -131,6 +131,14 @@ public final class ProjectStore: ObservableObject {
     @Published public private(set) var pastIssues: [String: Issue] = [:]
     @Published public private(set) var timeTravelLoading = false
 
+    // MARK: Recipes
+    @Published public private(set) var recipes: RecipeList = .empty
+    /// The recipe currently applied, if any.
+    @Published public private(set) var activeRecipe: Recipe?
+    /// The ids that recipe selected, in its order. Nil when none is applied.
+    @Published public private(set) var recipeIDs: [String]?
+    @Published public private(set) var recipeTruncated = false
+
     // MARK: Alerts
     @Published public private(set) var alerts: AlertReport = .empty
     @Published public private(set) var baseline: BaselineInfo = .empty
@@ -153,9 +161,20 @@ public final class ProjectStore: ObservableObject {
 
     public var isLoaded: Bool { info != nil }
 
-    /// Issues after the active filter, search and sort.
+    /// Issues after the active recipe or filter, search and sort.
+    ///
+    /// A recipe replaces the filter and the sort — that is what applying one
+    /// means — but the search box still narrows, because searching within a
+    /// recipe's results is the obvious thing to want and losing the recipe on
+    /// the first keystroke is not.
     public var visibleIssues: [Issue] {
-        query.apply(to: issues, actionable: actionable, metrics: metrics)
+        guard let recipeIDs else {
+            return query.apply(to: issues, actionable: actionable, metrics: metrics)
+        }
+        let byID = issuesByID
+        let selected = recipeIDs.compactMap { byID[$0] }
+        guard !query.searchText.isEmpty else { return selected }
+        return IssueQuery.rank(selected, query: query.searchText)
     }
 
     public var selectedIssue: Issue? {
@@ -333,6 +352,67 @@ public final class ProjectStore: ObservableObject {
     public func close() async {
         stopWatching()
         await engine.close()
+    }
+
+    // MARK: - Recipes
+
+    public func loadRecipes() async {
+        guard isLoaded else { return }
+        recipes = (try? await engine.recipes()) ?? .empty
+    }
+
+    /// Applies a recipe: filter, sort and view, together.
+    ///
+    /// The selection and its order come from the engine, so a recipe means the
+    /// same thing here as it does to `bv --recipe`.
+    public func applyRecipe(named name: String) async {
+        guard isLoaded else { return }
+        do {
+            let applied = try await engine.applyRecipe(named: name)
+            activeRecipe = applied.recipe
+            recipeIDs = applied.issueIDs
+            recipeTruncated = applied.truncated
+            // A recipe that asks for the graph gets it; the rest leave the
+            // current surface alone rather than yanking the user elsewhere.
+            if applied.recipe.view.impliedSurface == "graph" { surface = .graph }
+            if selection == nil || !applied.issueIDs.contains(selection ?? "") {
+                selection = applied.issueIDs.first
+            }
+        } catch {
+            loadError = error.localizedDescription
+            clearRecipe()
+        }
+    }
+
+    /// Returns to the ordinary filter and sort.
+    public func clearRecipe() {
+        activeRecipe = nil
+        recipeIDs = nil
+        recipeTruncated = false
+    }
+
+    public func saveRecipe(_ recipe: Recipe) async {
+        do {
+            try await engine.saveRecipe(recipe)
+            await loadRecipes()
+            // Re-apply so the edit is visible immediately rather than after
+            // the next click.
+            if activeRecipe?.name == recipe.name {
+                await applyRecipe(named: recipe.name)
+            }
+        } catch {
+            loadError = error.localizedDescription
+        }
+    }
+
+    public func deleteRecipe(named name: String) async {
+        do {
+            try await engine.deleteRecipe(named: name)
+            if activeRecipe?.name == name { clearRecipe() }
+            await loadRecipes()
+        } catch {
+            loadError = error.localizedDescription
+        }
     }
 
     // MARK: - Alerts

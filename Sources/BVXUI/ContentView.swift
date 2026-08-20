@@ -40,7 +40,12 @@ public struct ContentView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .safeAreaInset(edge: .top, spacing: 0) { TimeTravelBanner() }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    RecipeBanner()
+                    TimeTravelBanner()
+                }
+            }
             .toolbar { toolbarContent }
             .inspector(isPresented: $showInspector) {
                 InspectorView()

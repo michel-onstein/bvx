@@ -9,6 +9,7 @@ struct SidebarView: View {
         List {
             SidebarViewsSection()
             SidebarFiltersSection()
+            SidebarRecipesSection()
             SidebarLabelsSection()
         }
         .listStyle(.sidebar)

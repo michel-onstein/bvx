@@ -262,6 +262,14 @@ func (s *Session) Call(method string, req []byte) ([]byte, error) {
 		return s.fileRelations(req)
 	case "orphans":
 		return s.orphans(req)
+	case "recipes":
+		return s.recipes()
+	case "recipe_apply":
+		return s.applyRecipe(req)
+	case "recipe_save":
+		return s.saveRecipe(req)
+	case "recipe_delete":
+		return s.deleteRecipe(req)
 	case "alerts":
 		return s.alerts(req)
 	case "drift":

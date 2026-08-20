@@ -193,3 +193,27 @@ treat `libbvxengine.a` as a build input, so rebuilding the engine alone does
 `build-engine.sh` now touches `Sources/BVXEngine/BeadsEngine.swift` after a
 successful build to force it. Worth remembering whenever a Go-side change seems
 to have no effect on the Swift side.
+
+---
+
+## 2026-08-20 — Two tests fought over the fixture's `.bv` directory
+
+**Symptom:** the recipe save/delete test failed with `no project recipe named
+"bvx-test-recipe"` — but only sometimes, and only when the whole suite ran. The
+recipe was demonstrably saved a moment earlier, and the listing still showed it.
+
+**Cause:** Swift Testing runs tests in parallel. The alerts test wrote a
+baseline to `<fixture>/.bv/baseline.json` and cleaned up by removing the file
+*and its parent directory*. `removeItem` on a directory is recursive, so it took
+`<fixture>/.bv/recipes.yaml` with it — a file a different test, running at the
+same moment, had just written. Whichever test lost the race reported the
+failure, which is why it looked like a bug in the recipe code.
+
+**Fix:** `Fixture.writableStore()` copies the fixture to a private temporary
+directory. Any test that writes into the workspace uses it, so no two tests
+share a filesystem.
+
+**Prevention:** the two tests that write — the baseline round trip and the
+recipe round trip — both go through the helper, and both assert against a
+directory they own. As a side effect the checkout is no longer mutated by a
+test run at all, which is worth having on its own.

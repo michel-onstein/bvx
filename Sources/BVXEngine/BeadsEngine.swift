@@ -233,6 +233,32 @@ public actor BeadsEngine {
         try call("orphans", request: request(limit: limit, refresh: false), as: OrphanReport.self)
     }
 
+    // MARK: - Recipes
+
+    /// Every recipe, built-in and project-defined.
+    public func recipes() throws -> RecipeList {
+        try call("recipes", as: RecipeList.self)
+    }
+
+    /// The beads a recipe selects, in the order it sorts them.
+    ///
+    /// Applied in the engine so one implementation decides what a recipe
+    /// means — the same one `bv --recipe` uses.
+    public func applyRecipe(named name: String) throws -> AppliedRecipe {
+        try call("recipe_apply", request: ["name": name], as: AppliedRecipe.self)
+    }
+
+    /// Writes a project recipe into `<project>/.bv/recipes.yaml`.
+    public func saveRecipe(_ recipe: Recipe) throws {
+        let encoded = try JSONEncoder().encode(recipe)
+        let object = try JSONSerialization.jsonObject(with: encoded)
+        _ = try invoke("recipe_save", request: ["recipe": object])
+    }
+
+    public func deleteRecipe(named name: String) throws {
+        _ = try invoke("recipe_delete", request: ["name": name])
+    }
+
     // MARK: - Alerts and drift
 
     /// Health alerts, optionally narrowed.

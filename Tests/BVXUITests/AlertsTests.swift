@@ -125,26 +125,22 @@ struct AlertsTests {
     }
 
     @Test("Saving a baseline makes drift alerts available")
-    func savingBaseline() async {
-        let store = await Fixture.loadedStore()
+    func savingBaseline() async throws {
+        // Writes into the workspace, so it gets a private copy of the fixture
+        // rather than sharing one with every other test running in parallel.
+        let (store, directory) = try await Fixture.writableStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+
         #expect(!store.baseline.exists)
 
         await store.saveBaseline(description: "test baseline")
 
-        // The engine writes to <project>/.bv/baseline.json inside the fixture,
-        // so this really does round-trip through disk.
+        // The engine writes to <project>/.bv/baseline.json, so this really
+        // does round-trip through disk.
         #expect(store.baseline.exists)
         #expect(store.baseline.description == "test baseline")
         #expect(store.alerts.hasBaseline)
 
-        // Clean up so the fixture is not left carrying a baseline — for the
-        // other tests here, and for the checkout the tests ran in. The `.bv`
-        // directory goes too, or every test run leaves one behind.
-        if !store.baseline.path.isEmpty {
-            let file = URL(fileURLWithPath: store.baseline.path)
-            try? FileManager.default.removeItem(at: file)
-            try? FileManager.default.removeItem(at: file.deletingLastPathComponent())
-        }
         await store.close()
     }
 
