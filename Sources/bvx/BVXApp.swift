@@ -8,6 +8,7 @@ import SwiftUI
 @main
 struct BVXApp: App {
     @StateObject private var store = ProjectStore()
+    @State private var showingExportWizard = false
 
     var body: some Scene {
         WindowGroup {
@@ -26,9 +27,12 @@ struct BVXApp: App {
                     guard let info = activity.userInfo else { return }
                     _ = store.openSpotlightItem(info)
                 }
+                .sheet(isPresented: $showingExportWizard) {
+                    ExportWizard().environmentObject(store)
+                }
         }
         .windowToolbarStyle(.unified)
-        .commands { BVXCommands(store: store) }
+        .commands { BVXCommands(store: store, showingExportWizard: $showingExportWizard) }
 
         Settings {
             SettingsView().environmentObject(store)
@@ -41,6 +45,7 @@ struct BVXApp: App {
 /// bindings in `TerminalKeys` are an additive layer on top.
 struct BVXCommands: Commands {
     @ObservedObject var store: ProjectStore
+    @Binding var showingExportWizard: Bool
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -52,6 +57,9 @@ struct BVXCommands: Commands {
             Divider()
             Button("Export Markdown Report…") { Task { await store.exportMarkdown() } }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
+                .disabled(!store.isLoaded)
+            Button("Export Static Site…") { showingExportWizard = true }
+                .keyboardShortcut("e", modifiers: [.command, .option])
                 .disabled(!store.isLoaded)
             Divider()
             Button("Install Command Line Tool…") { installCommandLineTool() }
@@ -112,6 +120,7 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
+            DeployCredentialsSettings()
             Section("Analysis") {
                 Toggle("Skip expensive metrics on open", isOn: $store.skipPhase2)
                 Text(

@@ -256,9 +256,14 @@ func TestCrossRepoEdgesPreferTheLongestPrefix(t *testing.T) {
 		{Name: "api-v2", Prefix: "api-v2-"},
 		{Name: "web", Prefix: "web-"},
 	}
-	issues := parseIssuesForTest(t, `{"id":"api-v2-3","title":"v2","status":"open","dependencies":[{"issue_id":"api-v2-3","depends_on_id":"web-1","type":"blocks"}]}
-{"id":"web-1","title":"web","status":"open"}
+	// `issue_type` is required: bv's loader skips a record without one, with
+	// only a warning, and the edge would then vanish for the wrong reason.
+	issues := parseIssuesForTest(t, `{"id":"api-v2-3","title":"v2","status":"open","issue_type":"task","dependencies":[{"issue_id":"api-v2-3","depends_on_id":"web-1","type":"blocks"}]}
+{"id":"web-1","title":"web","status":"open","issue_type":"task"}
 `)
+	if len(issues) != 2 {
+		t.Fatalf("the fixture parsed to %d issues, want 2", len(issues))
+	}
 
 	edges := crossRepoEdges(issues, loads)
 	if len(edges) != 1 {

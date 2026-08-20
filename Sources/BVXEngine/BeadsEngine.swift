@@ -233,6 +233,62 @@ public actor BeadsEngine {
         try call("orphans", request: request(limit: limit, refresh: false), as: OrphanReport.self)
     }
 
+    // MARK: - Static site export
+
+    /// Builds a deployable static bundle.
+    public func exportSite(
+        outputDir: String, title: String,
+        includeRobotOutputs: Bool = true, interactiveGraph: Bool = true,
+        githubWorkflow: Bool = false
+    ) throws -> SiteBundle {
+        try call(
+            "export_site",
+            request: [
+                "output_dir": outputDir, "title": title,
+                "include_robot_outputs": includeRobotOutputs,
+                "interactive_graph": interactiveGraph,
+                "github_workflow": githubWorkflow,
+            ],
+            as: SiteBundle.self)
+    }
+
+    /// Serves a built bundle locally. The server runs in-process.
+    public func previewSite(bundlePath: String, port: Int = 0) throws -> SitePreview {
+        try call(
+            "export_preview",
+            request: ["bundle_path": bundlePath, "port": port],
+            as: SitePreview.self)
+    }
+
+    /// Publishes a bundle to GitHub Pages.
+    ///
+    /// The token comes from the caller — the Keychain — rather than the
+    /// environment, and the whole flow runs in-process: the repository is
+    /// created through the API, the bundle pushed with go-git, Pages enabled
+    /// through the API again.
+    public func deployToGitHub(
+        bundlePath: String, repo: String, token: String,
+        isPrivate: Bool = false, branch: String = "gh-pages"
+    ) throws -> SiteDeployment {
+        try call(
+            "export_deploy_github",
+            request: [
+                "bundle_path": bundlePath, "repo": repo, "token": token,
+                "private": isPrivate, "branch": branch,
+            ],
+            as: SiteDeployment.self)
+    }
+
+    /// What to run for a Cloudflare deployment, which needs `wrangler`.
+    public func cloudflareInstructions(
+        bundlePath: String, project: String
+    ) throws -> DeployInstructions {
+        try call(
+            "export_cloudflare_hint",
+            request: ["bundle_path": bundlePath, "project": project],
+            as: DeployInstructions.self)
+    }
+
     // MARK: - Repositories
 
     /// The repositories this workspace aggregates, and the dependencies that

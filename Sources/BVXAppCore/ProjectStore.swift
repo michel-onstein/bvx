@@ -135,6 +135,13 @@ public final class ProjectStore: ObservableObject {
     @Published public private(set) var pastIssues: [String: Issue] = [:]
     @Published public private(set) var timeTravelLoading = false
 
+    // MARK: Static site export
+    @Published public private(set) var siteBundle: SiteBundle = .empty
+    @Published public private(set) var sitePreview: SitePreview = .empty
+    @Published public private(set) var siteDeployment: SiteDeployment = .empty
+    @Published public private(set) var siteBusy = false
+    @Published public private(set) var siteError: String?
+
     // MARK: Repositories
     @Published public private(set) var repos: RepoList = .empty
     /// Repositories the list is narrowed to. Empty means all of them.
@@ -786,6 +793,94 @@ public final class ProjectStore: ObservableObject {
         } catch {
             loadError = error.localizedDescription
         }
+    }
+
+    // MARK: - Static site export
+
+    /// Asks where to put the bundle, then builds it.
+    ///
+    /// The directory comes from an open panel because that grant is what
+    /// authorises writing outside the app's container.
+    public func chooseBundleDirectory() -> URL? {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.message = "Choose a folder for the static site bundle."
+        panel.prompt = "Export Here"
+        guard panel.runModal() == .OK else { return nil }
+        return panel.url
+    }
+
+    public func buildSite(
+        into directory: URL, title: String,
+        interactiveGraph: Bool, githubWorkflow: Bool
+    ) async {
+        guard isLoaded, !siteBusy else { return }
+        siteBusy = true
+        siteError = nil
+        defer { siteBusy = false }
+
+        do {
+            siteBundle = try await engine.exportSite(
+                outputDir: directory.path, title: title,
+                interactiveGraph: interactiveGraph, githubWorkflow: githubWorkflow)
+            // A new bundle invalidates any previous deployment result.
+            siteDeployment = .empty
+        } catch {
+            siteError = error.localizedDescription
+            siteBundle = .empty
+        }
+    }
+
+    /// Starts the local preview server for the built bundle.
+    public func previewSite() async {
+        guard siteBundle.isBuilt, !siteBusy else { return }
+        siteBusy = true
+        defer { siteBusy = false }
+        do {
+            sitePreview = try await engine.previewSite(bundlePath: siteBundle.outputDir)
+        } catch {
+            siteError = error.localizedDescription
+            sitePreview = .empty
+        }
+    }
+
+    /// Publishes the bundle to GitHub Pages using the stored token.
+    public func deploySite(repo: String, isPrivate: Bool) async {
+        guard siteBundle.isBuilt, !siteBusy else { return }
+        guard let token = Keychain.read(.githubToken) else {
+            siteError = "No GitHub token is stored. Add one in Settings first."
+            return
+        }
+
+        siteBusy = true
+        siteError = nil
+        defer { siteBusy = false }
+
+        do {
+            siteDeployment = try await engine.deployToGitHub(
+                bundlePath: siteBundle.outputDir, repo: repo,
+                token: token, isPrivate: isPrivate)
+        } catch {
+            siteError = error.localizedDescription
+            siteDeployment = .empty
+        }
+    }
+
+    /// What to run for a Cloudflare deployment, which needs `wrangler`.
+    public func cloudflareInstructions(project: String) async -> DeployInstructions {
+        guard siteBundle.isBuilt else { return .empty }
+        return (try? await engine.cloudflareInstructions(
+            bundlePath: siteBundle.outputDir, project: project)) ?? .empty
+    }
+
+    /// Clears the wizard's state so a second run starts fresh.
+    public func resetSiteExport() {
+        siteBundle = .empty
+        sitePreview = .empty
+        siteDeployment = .empty
+        siteError = nil
     }
 
     // MARK: - Derived data

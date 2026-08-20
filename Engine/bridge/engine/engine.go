@@ -284,6 +284,14 @@ func (s *Session) Call(method string, req []byte) ([]byte, error) {
 		return s.fileRelations(req)
 	case "orphans":
 		return s.orphans(req)
+	case "export_site":
+		return s.exportSite(req)
+	case "export_preview":
+		return s.previewSite(req)
+	case "export_deploy_github":
+		return s.deployGitHub(req)
+	case "export_cloudflare_hint":
+		return s.cloudflareInstructions(req)
 	case "repos":
 		return s.repos()
 	case "search":
