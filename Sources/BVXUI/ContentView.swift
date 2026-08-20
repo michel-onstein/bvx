@@ -2,12 +2,14 @@ import BVXAppCore
 import BVXCore
 import SwiftUI
 
-struct ContentView: View {
+public struct ContentView: View {
     @EnvironmentObject var store: ProjectStore
     @State private var columnVisibility = NavigationSplitViewVisibility.all
     @State private var showInspector = true
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView()
                 .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 300)

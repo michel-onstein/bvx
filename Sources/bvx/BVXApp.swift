@@ -1,4 +1,5 @@
 import BVXAppCore
+import BVXUI
 import BVXCore
 import SwiftUI
 

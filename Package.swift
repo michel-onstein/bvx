@@ -25,6 +25,7 @@ let package = Package(
         .executable(name: "bvx-cli", targets: ["bvx-cli"]),
         .library(name: "BVXCore", targets: ["BVXCore"]),
         .library(name: "BVXEngine", targets: ["BVXEngine"]),
+        .library(name: "BVXUI", targets: ["BVXUI"]),
     ],
     targets: [
         // C module exposing the Go archive's generated header.
@@ -50,9 +51,16 @@ let package = Package(
             dependencies: ["BVXCore", "BVXEngine"]
         ),
 
+        // SwiftUI views, in a library rather than the executable so they can be
+        // hosted and snapshot-rendered by tests.
+        .target(
+            name: "BVXUI",
+            dependencies: ["BVXCore", "BVXEngine", "BVXAppCore"]
+        ),
+
         .executableTarget(
             name: "bvx",
-            dependencies: ["BVXCore", "BVXEngine", "BVXAppCore"]
+            dependencies: ["BVXCore", "BVXEngine", "BVXAppCore", "BVXUI"]
         ),
 
         .executableTarget(
@@ -63,6 +71,7 @@ let package = Package(
         .testTarget(name: "BVXCoreTests", dependencies: ["BVXCore"]),
         .testTarget(name: "BVXEngineTests", dependencies: ["BVXEngine", "BVXCore"]),
         .testTarget(name: "BVXAppCoreTests", dependencies: ["BVXAppCore", "BVXCore"]),
+        .testTarget(name: "BVXUITests", dependencies: ["BVXUI", "BVXAppCore", "BVXCore"]),
     ],
     swiftLanguageModes: [.v5]
 )

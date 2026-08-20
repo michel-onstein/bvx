@@ -56,7 +56,7 @@ swift run bvx-cli unblocks --id bvx-3 --path Fixtures/demo
 ## Tests
 
 ```bash
-swift test                       # 66 tests: models, query, layout, engine, store, watch, export, triage
+swift test                       # 78 tests: models, query, layout, engine, store, watch, export, triage, view snapshots
 cd Engine/bridge && go test ./...  # 16 tests: loader, analysis dispatch, SQLite, reload gate
 ./scripts/build-engine.sh --check  # C ABI: lifecycle, error paths, bad handles
 ```
@@ -74,6 +74,7 @@ cd Engine/bridge && go test ./...  # 16 tests: loader, analysis dispatch, SQLite
 | List, Board, Graph, Tree, Insights, Plan, Labels views + Inspector | ✅ |
 | Filters (open/ready/closed/all), labels, sorting, fuzzy search | ✅ |
 | bv's single-key bindings alongside native menu shortcuts | ✅ |
+| Offscreen view snapshot tests (no screen-recording permission needed) | ✅ |
 | `bvx-cli` with JSON output for agents | Partial — a subset of bv's robot commands |
 | Git correlation / history view | ❌ Not yet wired to the UI |
 | Markdown report export (Mermaid diagrams, bv-identical) | ✅ |
@@ -81,6 +82,28 @@ cd Engine/bridge && go test ./...  # 16 tests: loader, analysis dispatch, SQLite
 | Live reload via FSEvents, debounced and hash-gated | ✅ |
 | Label analytics dashboard (health, velocity, completion) | ✅ |
 | Multi-repo workspaces | ❌ Not yet |
+
+## View snapshots
+
+`swift test --filter BVXUITests` renders every view offscreen to PNG and asserts
+it actually drew something — ink coverage and colour variety, not just that a
+file appeared, since a view that lays out but paints nothing still produces a
+valid PNG. Set `BVX_SNAPSHOT_DIR` to keep the images somewhere you can look at
+them; they default to a temporary directory.
+
+```bash
+BVX_SNAPSHOT_DIR=/tmp/bvx-snaps swift test --filter BVXUITests
+open /tmp/bvx-snaps
+```
+
+Two things worth knowing if you extend these:
+
+- **Rendering goes through `NSHostingView` in an offscreen window, not
+  `ImageRenderer`.** `ImageRenderer` does not lay out `ScrollView` content, so
+  every scrolling view renders completely blank through it. Hosting performs a
+  real AppKit layout and draw.
+- **`.task` and `.onAppear` do not run.** Anything loaded asynchronously will be
+  missing from a snapshot, so views should prefer data the store already holds.
 
 ## Design rules this codebase follows
 

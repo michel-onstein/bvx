@@ -102,7 +102,11 @@ struct InspectorView: View {
                 }
                 GridRow {
                     Text("Unblocks").foregroundStyle(.secondary)
-                    Text("\(unblocks.count)").monospacedDigit()
+                    if let known = store.knownUnblocks(issue.id) ?? (unblocks.isEmpty ? nil : unblocks) {
+                        Text("\(known.count)").monospacedDigit()
+                    } else {
+                        Text("—").foregroundStyle(.tertiary)
+                    }
                 }
                 metricRow(
                     "PageRank", value: store.metrics.pageRank?[issue.id],
@@ -116,8 +120,9 @@ struct InspectorView: View {
             }
             .font(.callout)
 
-            if !unblocks.isEmpty {
-                Text("Closing this unblocks: \(unblocks.joined(separator: ", "))")
+            let resolved = store.knownUnblocks(issue.id) ?? unblocks
+            if !resolved.isEmpty {
+                Text("Closing this unblocks: \(resolved.joined(separator: ", "))")
                     .font(.caption)
                     .foregroundStyle(.blue)
                     .fixedSize(horizontal: false, vertical: true)

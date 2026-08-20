@@ -90,6 +90,10 @@ public final class ProjectStore: ObservableObject {
     private let engine = BeadsEngine()
     private let watcher = FileWatchService()
     private var triageNeedsRefresh = false
+    /// Unblocks lists already reported by the plan and triage, so the inspector
+    /// can show the count immediately instead of flashing 0 while an async
+    /// round-trip resolves.
+    private var unblocksCache: [String: [String]] = [:]
 
     public init() {}
 
@@ -209,6 +213,7 @@ public final class ProjectStore: ObservableObject {
         labelAnalysis = (try? await engine.labelHealth()) ?? .empty
         // Triage depends on Phase-2 scores; it is refreshed again once they land.
         triage = (try? await engine.triage()) ?? .empty
+        rebuildUnblocksCache()
         if selection == nil || !issues.contains(where: { $0.id == selection }) {
             selection = visibleIssues.first?.id
         }
@@ -274,8 +279,36 @@ public final class ProjectStore: ObservableObject {
     // MARK: - Derived data
 
     /// Ids that closing `id` would make actionable.
+    ///
+    /// Answers from the cache when the plan or triage already reported it,
+    /// falling back to the engine for beads neither covers.
     public func unblocks(_ id: String) async -> [String] {
-        (try? await engine.unblocks(id)) ?? []
+        if let cached = unblocksCache[id] { return cached }
+        let fetched = (try? await engine.unblocks(id)) ?? []
+        unblocksCache[id] = fetched
+        return fetched
+    }
+
+    /// Synchronous lookup for views that must render without awaiting.
+    /// Returns nil when the value is not yet known, which the UI shows as
+    /// "—" rather than as a misleading zero.
+    public func knownUnblocks(_ id: String) -> [String]? { unblocksCache[id] }
+
+    private func rebuildUnblocksCache() {
+        var cache: [String: [String]] = [:]
+        for track in plan.tracks {
+            for item in track.items { cache[item.id] = item.unblocks }
+        }
+        for rec in triage.recommendations where cache[rec.id] == nil {
+            cache[rec.id] = rec.unblocksIDs
+        }
+        for win in triage.quickWins where cache[win.id] == nil {
+            cache[win.id] = win.unblocksIDs
+        }
+        for blocker in triage.blockersToClear where cache[blocker.id] == nil {
+            cache[blocker.id] = blocker.unblocksIDs
+        }
+        unblocksCache = cache
     }
 
     public var labelCounts: [(label: String, count: Int)] { issues.labelCounts }

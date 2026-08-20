@@ -8,42 +8,81 @@ import SwiftUI
 struct InsightsView: View {
     @EnvironmentObject var store: ProjectStore
 
-    private let columns = [GridItem(.adaptive(minimum: 330), spacing: 14)]
+    /// Panels vary a lot in height, so they are laid out as balanced columns
+    /// rather than in a `LazyVGrid`. A grid aligns rows, which makes every row
+    /// as tall as its tallest card and leaves large dead gaps beside the long
+    /// recommendations panel.
+    private var panels: [(id: String, view: AnyView)] {
+        [
+            ("recommendations", AnyView(RecommendationsPanel())),
+            ("health", AnyView(HealthPanel())),
+            ("quick-wins", AnyView(QuickWinsPanel())),
+            ("blockers", AnyView(BlockersPanel())),
+            ("status", AnyView(StatusBreakdownPanel())),
+            (
+                "pagerank",
+                AnyView(
+                    MetricPanel(
+                        title: "Foundational blockers",
+                        subtitle: "PageRank — recursive dependency authority",
+                        values: store.metrics.pageRank,
+                        status: store.metrics.status?.pageRank,
+                        format: { String(format: "%.4f", $0) }
+                    ))
+            ),
+            (
+                "betweenness",
+                AnyView(
+                    MetricPanel(
+                        title: "Bottlenecks",
+                        subtitle: "Betweenness — traffic across shortest paths",
+                        values: store.metrics.betweenness,
+                        status: store.metrics.status?.betweenness,
+                        format: { String(format: "%.3f", $0) }
+                    ))
+            ),
+            (
+                "critical",
+                AnyView(
+                    MetricPanel(
+                        title: "Critical path",
+                        subtitle: "Longest downstream dependency chain",
+                        values: store.metrics.criticalPath,
+                        status: store.metrics.status?.critical,
+                        format: { String(format: "%.2f", $0) }
+                    ))
+            ),
+            ("structure", AnyView(StructurePanel())),
+        ]
+    }
 
     var body: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 14) {
-                RecommendationsPanel()
-                HealthPanel()
-                QuickWinsPanel()
-                BlockersPanel()
-                StatusBreakdownPanel()
-                MetricPanel(
-                    title: "Foundational blockers",
-                    subtitle: "PageRank — recursive dependency authority",
-                    values: store.metrics.pageRank,
-                    status: store.metrics.status?.pageRank,
-                    format: { String(format: "%.4f", $0) }
-                )
-                MetricPanel(
-                    title: "Bottlenecks",
-                    subtitle: "Betweenness — traffic across shortest paths",
-                    values: store.metrics.betweenness,
-                    status: store.metrics.status?.betweenness,
-                    format: { String(format: "%.3f", $0) }
-                )
-                MetricPanel(
-                    title: "Critical path",
-                    subtitle: "Longest downstream dependency chain",
-                    values: store.metrics.criticalPath,
-                    status: store.metrics.status?.critical,
-                    format: { String(format: "%.2f", $0) }
-                )
-                StructurePanel()
+        GeometryReader { geo in
+            let columnCount = max(1, min(3, Int(geo.size.width / 340)))
+            ScrollView {
+                HStack(alignment: .top, spacing: 14) {
+                    ForEach(0..<columnCount, id: \.self) { column in
+                        VStack(spacing: 14) {
+                            ForEach(panelsIn(column: column, of: columnCount), id: \.id) { panel in
+                                panel.view
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .top)
+                    }
+                }
+                .padding(14)
             }
-            .padding(14)
         }
         .background(.background.secondary)
+    }
+
+    /// Round-robin assignment keeps the columns close to equal length without
+    /// needing to measure rendered heights.
+    private func panelsIn(column: Int, of total: Int) -> [(id: String, view: AnyView)] {
+        panels.enumerated()
+            .filter { $0.offset % total == column }
+            .map(\.element)
     }
 }
 

@@ -2,7 +2,119 @@ import BVXAppCore
 import BVXCore
 import SwiftUI
 
-/// Interactive dependency graph on a Canvas, with pan, zoom and hit-testing.
+/// Pure drawing surface for a laid-out dependency graph.
+///
+/// Split out of `GraphView` so it takes everything it needs as plain values.
+/// That makes it synchronously renderable, which is what lets a snapshot test
+/// capture the real drawing instead of the "laying out…" placeholder.
+struct GraphCanvas: View {
+    let layout: GraphLayout
+    let issuesByID: [String: Issue]
+    let actionable: Set<String>
+    let pageRank: [String: Double]?
+    var selection: String?
+    var hovered: String?
+    var zoom: CGFloat = 1
+    var pan: CGSize = .zero
+
+    /// Node radius encodes PageRank when available, uniform otherwise — an
+    /// un-computed metric must not masquerade as "all equally important".
+    func radius(for id: String) -> CGFloat {
+        guard let pageRank, let value = pageRank[id], let maxPR = pageRank.values.max(), maxPR > 0
+        else { return 16 }
+        return 13 + 16 * CGFloat(value / maxPR)
+    }
+
+    var body: some View {
+        Canvas { context, _ in
+            context.translateBy(x: pan.width, y: pan.height)
+            context.scaleBy(x: zoom, y: zoom)
+            draw(in: &context)
+        }
+    }
+
+    func draw(in context: inout GraphicsContext) {
+        let highlighted = hovered ?? selection
+
+        // Edges first so nodes sit on top.
+        for edge in layout.edges {
+            var path = Path()
+            path.move(to: edge.start)
+            let mid = (edge.start.y + edge.end.y) / 2
+            path.addCurve(
+                to: edge.end,
+                control1: CGPoint(x: edge.start.x, y: mid),
+                control2: CGPoint(x: edge.end.x, y: mid))
+
+            let touches = highlighted == edge.from || highlighted == edge.to
+            let color: Color = edge.isBackEdge ? .red : (touches ? .accentColor : .secondary)
+            context.stroke(
+                path,
+                with: .color(color.opacity(touches ? 0.95 : (edge.isBackEdge ? 0.8 : 0.32))),
+                style: StrokeStyle(
+                    lineWidth: touches ? 2.4 : 1.3,
+                    dash: edge.isBackEdge ? [5, 3] : []
+                )
+            )
+        }
+
+        for node in layout.nodes {
+            let r = radius(for: node.id)
+            let rect = CGRect(
+                x: node.position.x - r, y: node.position.y - r, width: r * 2, height: r * 2)
+            let issue = issuesByID[node.id]
+            let isSelected = node.id == selection
+            let isHovered = node.id == hovered
+
+            context.fill(Circle().path(in: rect), with: .color(fill(for: issue)))
+
+            if node.inCycle {
+                // Cycle membership gets its own unmistakable ring.
+                context.stroke(
+                    Circle().path(in: rect.insetBy(dx: -3, dy: -3)),
+                    with: .color(.red), style: StrokeStyle(lineWidth: 2, dash: [4, 2]))
+            }
+            if isSelected || isHovered {
+                context.stroke(
+                    Circle().path(in: rect.insetBy(dx: -4, dy: -4)),
+                    with: .color(.accentColor), lineWidth: isSelected ? 3 : 2)
+            }
+            if actionable.contains(node.id) {
+                context.stroke(Circle().path(in: rect), with: .color(.yellow), lineWidth: 2)
+            }
+
+            let label = Text(node.id).font(.system(size: 9, weight: .medium))
+            context.draw(
+                context.resolve(label.foregroundStyle(.primary)),
+                at: CGPoint(x: node.position.x, y: node.position.y + r + 9))
+        }
+    }
+
+    private func fill(for issue: Issue?) -> Color {
+        guard let issue else { return .gray }
+        switch issue.status {
+        case .open: return .blue
+        case .inProgress: return .orange
+        case .blocked: return .red
+        case .review: return .purple
+        case .closed: return .green.opacity(0.55)
+        case .deferred, .draft: return .gray
+        default: return .secondary
+        }
+    }
+
+    /// Nearest node within its own radius, in canvas coordinates.
+    func node(at point: CGPoint) -> LayoutNode? {
+        let p = CGPoint(x: (point.x - pan.width) / zoom, y: (point.y - pan.height) / zoom)
+        return layout.nodes
+            .map { ($0, hypot($0.position.x - p.x, $0.position.y - p.y)) }
+            .filter { $0.1 <= radius(for: $0.0.id) + 4 }
+            .min { $0.1 < $1.1 }?.0
+    }
+}
+
+/// Interactive dependency graph: owns layout, camera and hit-testing, and
+/// delegates all drawing to `GraphCanvas`.
 struct GraphView: View {
     @EnvironmentObject var store: ProjectStore
     @State private var layout: GraphLayout = .empty
@@ -12,40 +124,43 @@ struct GraphView: View {
     @State private var hovered: String?
     @State private var isLaidOut = false
 
-    /// Node radius encodes PageRank when it is available.
-    private func radius(for id: String) -> CGFloat {
-        guard let pr = store.metrics.pageRank, let value = pr[id], let maxPR = pr.values.max(),
-            maxPR > 0
-        else { return 16 }
-        return 13 + 16 * CGFloat(value / maxPR)
+    private var canvas: GraphCanvas {
+        GraphCanvas(
+            layout: layout,
+            issuesByID: store.issuesByID,
+            actionable: store.actionable,
+            pageRank: store.metrics.pageRank,
+            selection: store.selection,
+            hovered: hovered,
+            zoom: zoom,
+            pan: pan
+        )
     }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             GeometryReader { geo in
-                Canvas { context, _ in
-                    context.translateBy(x: pan.width, y: pan.height)
-                    context.scaleBy(x: zoom, y: zoom)
-                    draw(in: &context)
-                }
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            pan = CGSize(
-                                width: dragStart.width + value.translation.width,
-                                height: dragStart.height + value.translation.height)
-                        }
-                        .onEnded { _ in dragStart = pan }
-                )
-                .onTapGesture { location in select(at: location) }
-                .onContinuousHover { phase in
-                    switch phase {
-                    case .active(let point): hovered = node(at: point)?.id
-                    case .ended: hovered = nil
+                canvas
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture()
+                            .onChanged { value in
+                                pan = CGSize(
+                                    width: dragStart.width + value.translation.width,
+                                    height: dragStart.height + value.translation.height)
+                            }
+                            .onEnded { _ in dragStart = pan }
+                    )
+                    .onTapGesture { location in
+                        if let hit = canvas.node(at: location) { store.selection = hit.id }
                     }
-                }
-                .onAppear { center(in: geo.size) }
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let point): hovered = canvas.node(at: point)?.id
+                        case .ended: hovered = nil
+                        }
+                    }
+                    .onAppear { center(in: geo.size) }
             }
 
             controls
@@ -88,95 +203,6 @@ struct GraphView: View {
             width: max(0, (size.width - layout.size.width * zoom) / 2),
             height: 20)
         dragStart = pan
-    }
-
-    // MARK: - Drawing
-
-    private func draw(in context: inout GraphicsContext) {
-        let selected = store.selection
-        let highlighted = hovered ?? selected
-
-        // Edges first so nodes sit on top.
-        for edge in layout.edges {
-            var path = Path()
-            path.move(to: edge.start)
-            // Gentle vertical bezier; ranks flow top to bottom.
-            let mid = (edge.start.y + edge.end.y) / 2
-            path.addCurve(
-                to: edge.end,
-                control1: CGPoint(x: edge.start.x, y: mid),
-                control2: CGPoint(x: edge.end.x, y: mid))
-
-            let touches = highlighted == edge.from || highlighted == edge.to
-            let color: Color = edge.isBackEdge ? .red : (touches ? .accentColor : .secondary)
-            context.stroke(
-                path,
-                with: .color(color.opacity(touches ? 0.95 : (edge.isBackEdge ? 0.8 : 0.32))),
-                style: StrokeStyle(
-                    lineWidth: touches ? 2.4 : 1.3,
-                    dash: edge.isBackEdge ? [5, 3] : []
-                )
-            )
-        }
-
-        for node in layout.nodes {
-            let r = radius(for: node.id)
-            let rect = CGRect(
-                x: node.position.x - r, y: node.position.y - r, width: r * 2, height: r * 2)
-            let issue = store.issuesByID[node.id]
-            let isSelected = node.id == selected
-            let isHovered = node.id == hovered
-
-            context.fill(Circle().path(in: rect), with: .color(fill(for: issue)))
-
-            if node.inCycle {
-                // Cycle membership gets its own unmistakable ring.
-                context.stroke(
-                    Circle().path(in: rect.insetBy(dx: -3, dy: -3)),
-                    with: .color(.red), style: StrokeStyle(lineWidth: 2, dash: [4, 2]))
-            }
-            if isSelected || isHovered {
-                context.stroke(
-                    Circle().path(in: rect.insetBy(dx: -4, dy: -4)),
-                    with: .color(.accentColor), lineWidth: isSelected ? 3 : 2)
-            }
-            if store.actionable.contains(node.id) {
-                context.stroke(Circle().path(in: rect), with: .color(.yellow), lineWidth: 2)
-            }
-
-            let label = Text(node.id).font(.system(size: 9, weight: .medium))
-            context.draw(
-                context.resolve(label.foregroundStyle(.primary)),
-                at: CGPoint(x: node.position.x, y: node.position.y + r + 9))
-        }
-    }
-
-    private func fill(for issue: Issue?) -> Color {
-        guard let issue else { return .gray }
-        switch issue.status {
-        case .open: return .blue
-        case .inProgress: return .orange
-        case .blocked: return .red
-        case .review: return .purple
-        case .closed: return .green.opacity(0.55)
-        case .deferred, .draft: return .gray
-        default: return .secondary
-        }
-    }
-
-    // MARK: - Interaction
-
-    private func node(at point: CGPoint) -> LayoutNode? {
-        let p = CGPoint(x: (point.x - pan.width) / zoom, y: (point.y - pan.height) / zoom)
-        // Nearest node within its own radius wins.
-        return layout.nodes
-            .map { ($0, hypot($0.position.x - p.x, $0.position.y - p.y)) }
-            .filter { $0.1 <= radius(for: $0.0.id) + 4 }
-            .min { $0.1 < $1.1 }?.0
-    }
-
-    private func select(at point: CGPoint) {
-        if let hit = node(at: point) { store.selection = hit.id }
     }
 
     private var controls: some View {
