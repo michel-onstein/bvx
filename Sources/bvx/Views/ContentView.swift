@@ -1,0 +1,221 @@
+import BVXAppCore
+import BVXCore
+import SwiftUI
+
+struct ContentView: View {
+    @EnvironmentObject var store: ProjectStore
+    @State private var columnVisibility = NavigationSplitViewVisibility.all
+    @State private var showInspector = true
+
+    var body: some View {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            SidebarView()
+                .navigationSplitViewColumnWidth(min: 190, ideal: 220, max: 300)
+        } detail: {
+            Group {
+                if let error = store.loadError {
+                    EmptyStateView(
+                        symbol: "exclamationmark.triangle",
+                        title: "Could not open workspace",
+                        message: error,
+                        actionTitle: "Choose Workspace…",
+                        action: store.presentOpenPanel
+                    )
+                } else if !store.isLoaded {
+                    if store.isLoading {
+                        ProgressView("Loading…").controlSize(.large)
+                    } else {
+                        EmptyStateView(
+                            symbol: "shippingbox",
+                            title: "No workspace open",
+                            message: "Open a folder containing a .beads directory.",
+                            actionTitle: "Choose Workspace…",
+                            action: store.presentOpenPanel
+                        )
+                    }
+                } else {
+                    surfaceView
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .toolbar { toolbarContent }
+            .inspector(isPresented: $showInspector) {
+                InspectorView()
+                    .inspectorColumnWidth(min: 260, ideal: 320, max: 460)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) { StatusBar() }
+        }
+        .searchable(text: $store.query.searchText, placement: .toolbar, prompt: "Search beads")
+        .navigationTitle(store.info?.displayName ?? "bvx")
+        .navigationSubtitle(subtitle)
+        .background(TerminalKeyCatcher())
+    }
+
+    private var subtitle: String {
+        guard let info = store.info else { return "" }
+        return "\(info.issueCount) beads · \(store.actionable.count) ready"
+    }
+
+    @ViewBuilder
+    private var surfaceView: some View {
+        switch store.surface {
+        case .list: IssueListView()
+        case .board: BoardView()
+        case .graph: GraphView()
+        case .tree: TreeView()
+        case .insights: InsightsView()
+        case .plan: PlanView()
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            Picker("View", selection: $store.surface) {
+                ForEach(ViewSurface.allCases) { surface in
+                    Label(surface.displayName, systemImage: surface.symbolName).tag(surface)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelStyle(.iconOnly)
+            .help("Switch view")
+        }
+
+        ToolbarItem {
+            Picker("Filter", selection: $store.query.filter) {
+                ForEach(IssueFilter.allCases) { filter in
+                    Text(filter.displayName).tag(filter)
+                }
+            }
+            .pickerStyle(.menu)
+            .help("Filter beads")
+        }
+
+        ToolbarItem {
+            Menu {
+                Picker("Sort", selection: $store.query.sort) {
+                    ForEach(SortMode.allCases) { mode in
+                        Text(mode.displayName)
+                            // Sorting by a metric that has not been computed
+                            // would silently order by zeros, so it stays
+                            // disabled until Phase 2 lands.
+                            .tag(mode)
+                    }
+                }
+            } label: {
+                Label("Sort", systemImage: "arrow.up.arrow.down")
+            }
+            .help("Sort order")
+        }
+
+        ToolbarItem {
+            Button {
+                Task { await store.reload() }
+            } label: {
+                Label("Reload", systemImage: "arrow.clockwise")
+            }
+            .disabled(!store.isLoaded || store.isLoading)
+            .help("Reload from disk")
+        }
+
+        ToolbarItem {
+            Button {
+                showInspector.toggle()
+            } label: {
+                Label("Inspector", systemImage: "sidebar.trailing")
+            }
+            .help("Toggle inspector")
+        }
+    }
+}
+
+/// Reusable placeholder for the empty and error states.
+struct EmptyStateView: View {
+    let symbol: String
+    let title: String
+    let message: String
+    var actionTitle: String?
+    var action: (() -> Void)?
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.system(size: 40, weight: .light))
+                .foregroundStyle(.tertiary)
+            Text(title).font(.title3.weight(.medium))
+            Text(message)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 420)
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.borderedProminent)
+                    .padding(.top, 4)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+    }
+}
+
+/// Bottom status strip: counts, Phase-2 progress, source and data hash.
+struct StatusBar: View {
+    @EnvironmentObject var store: ProjectStore
+
+    var body: some View {
+        HStack(spacing: 14) {
+            if let info = store.info {
+                Label("\(info.issueCount)", systemImage: "circle.grid.2x2")
+                    .help("Beads loaded")
+                Label("\(store.actionable.count) ready", systemImage: "bolt.circle")
+                    .help("Actionable: no unresolved blocking dependency")
+                Label(
+                    "\(store.metrics.nodeCount) nodes · \(store.metrics.edgeCount) edges",
+                    systemImage: "point.3.connected.trianglepath.dotted"
+                )
+
+                phase2Indicator
+
+                Spacer()
+
+                Text(info.kind.displayName)
+                    .padding(.horizontal, 5).padding(.vertical, 1)
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
+                Text(info.shortHash)
+                    .monospaced()
+                    .help("Data hash — matches bv's for the same input")
+            } else {
+                Text("No workspace").foregroundStyle(.secondary)
+                Spacer()
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.bar)
+        .overlay(alignment: .top) { Divider() }
+    }
+
+    @ViewBuilder
+    private var phase2Indicator: some View {
+        if store.phase2InFlight {
+            HStack(spacing: 5) {
+                ProgressView().controlSize(.small).scaleEffect(0.7)
+                Text("computing metrics…")
+            }
+        } else if store.metrics.hasPhase2Values {
+            Label("metrics ready", systemImage: "checkmark.circle")
+                .foregroundStyle(.green)
+        } else if store.isLoaded {
+            Button {
+                Task { await store.computePhase2() }
+            } label: {
+                Label("compute metrics", systemImage: "play.circle")
+            }
+            .buttonStyle(.link)
+            .font(.caption)
+        }
+    }
+}

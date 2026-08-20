@@ -1,0 +1,13 @@
+# SwiftPM
+.build/
+.swiftpm/
+*.xcodeproj
+
+# Go engine build output. The archive is ~25 MB and fully reproducible from
+# the pinned beads_viewer version in Engine/bridge/go.mod, so it is rebuilt
+# rather than committed. The generated header IS committed, because the Swift
+# C target needs it to compile before the archive exists.
+Engine/build/
+
+# macOS
+.DS_Store
