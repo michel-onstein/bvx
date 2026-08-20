@@ -210,10 +210,7 @@ func (s *Session) Call(method string, req []byte) ([]byte, error) {
 	case "compute_phase2":
 		return s.computePhase2()
 	case "reload":
-		if err := s.load(); err != nil {
-			return nil, err
-		}
-		return s.info()
+		return s.reload()
 	case "triage":
 		return s.triage()
 	case "plan":
@@ -360,6 +357,83 @@ func (s *Session) metrics() ([]byte, error) {
 		p.BetweennessRank = st.BetweennessRank()
 	}
 	return json.Marshal(p)
+}
+
+// reload re-reads the source and re-analyses only when the data actually
+// changed.
+//
+// The gate is bv's own content hash over the sorted issue set, so an
+// incidental touch — a `git status`, an editor's atomic save of an unrelated
+// file in the same directory — costs one parse and no analysis at all. The
+// response carries `changed` so the UI can skip republishing too.
+func (s *Session) reload() ([]byte, error) {
+	src, kind, warnings, err := resolveSource(s.config.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	var issues []model.Issue
+	switch kind {
+	case "sqlite":
+		issues, err = LoadSQLite(src)
+	default:
+		opts := loader.ParseOptions{
+			WarningHandler: func(msg string) { warnings = append(warnings, msg) },
+		}
+		issues, err = loader.LoadIssuesFromFileWithOptions(src, opts)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reloading %s: %w", src, err)
+	}
+
+	newHash := analysis.ComputeDataHash(issues)
+
+	s.mu.RLock()
+	var oldHash string
+	if s.analyzer != nil {
+		oldHash = s.analyzer.DataHash()
+	}
+	s.mu.RUnlock()
+
+	if newHash == oldHash && oldHash != "" {
+		payload, err := s.info()
+		if err != nil {
+			return nil, err
+		}
+		return withChangedFlag(payload, false)
+	}
+
+	an := analysis.NewAnalyzer(issues)
+	an.SeedDataHash(newHash)
+	var stats *analysis.GraphStats
+	if s.config.SkipPhase2 {
+		st := an.AnalyzeWithConfig(phase1OnlyConfig())
+		stats = &st
+	} else {
+		stats = an.AnalyzeAsync(context.Background())
+	}
+
+	s.mu.Lock()
+	s.source, s.kind, s.warnings = src, kind, warnings
+	s.issues, s.analyzer, s.stats = issues, an, stats
+	s.loadedAt = time.Now()
+	s.mu.Unlock()
+
+	payload, err := s.info()
+	if err != nil {
+		return nil, err
+	}
+	return withChangedFlag(payload, true)
+}
+
+// withChangedFlag splices a "changed" boolean into an info payload.
+func withChangedFlag(payload []byte, changed bool) ([]byte, error) {
+	var obj map[string]any
+	if err := json.Unmarshal(payload, &obj); err != nil {
+		return nil, err
+	}
+	obj["changed"] = changed
+	return json.Marshal(obj)
 }
 
 // computePhase2 re-runs the full analysis with every metric enabled and

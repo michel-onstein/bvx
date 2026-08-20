@@ -6,7 +6,7 @@ import SwiftUI
 
 /// The view surfaces in the sidebar.
 public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
-    case list, board, graph, tree, insights, plan
+    case list, board, graph, tree, insights, plan, labels
 
     public var id: String { rawValue }
 
@@ -18,6 +18,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .tree: "Tree"
         case .insights: "Insights"
         case .plan: "Plan"
+        case .labels: "Labels"
         }
     }
 
@@ -29,6 +30,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .tree: "list.bullet.indent"
         case .insights: "chart.bar.xaxis"
         case .plan: "flowchart"
+        case .labels: "tag"
         }
     }
 
@@ -42,6 +44,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .tree: "4"
         case .insights: "5"
         case .plan: "6"
+        case .labels: "7"
         }
     }
 
@@ -54,6 +57,7 @@ public enum ViewSurface: String, CaseIterable, Identifiable, Sendable {
         case .tree: "E"
         case .insights: "i"
         case .plan: "p"
+        case .labels: "]"
         }
     }
 }
@@ -66,6 +70,7 @@ public final class ProjectStore: ObservableObject {
     @Published public private(set) var actionable: Set<String> = []
     @Published public private(set) var plan: ExecutionPlan = .empty
     @Published public private(set) var edges: [GraphEdge] = []
+    @Published public private(set) var labelAnalysis: LabelAnalysis = .empty
     @Published public private(set) var info: WorkspaceInfo?
     @Published public private(set) var loadError: String?
     @Published public private(set) var isLoading = false
@@ -76,8 +81,11 @@ public final class ProjectStore: ObservableObject {
     @Published public var selection: Issue.ID?
     @Published public var terminalKeysEnabled = true
     @Published public var skipPhase2 = false
+    @Published public private(set) var isWatching = false
+    @Published public private(set) var lastReloadAt: Date?
 
     private let engine = BeadsEngine()
+    private let watcher = FileWatchService()
 
     public init() {}
 
@@ -132,8 +140,10 @@ public final class ProjectStore: ObservableObject {
             let info = try await engine.open(path: path, skipPhase2: skipPhase2)
             self.info = info
             try await refreshAll()
+            startWatching()
             if !skipPhase2 { await computePhase2() }
         } catch {
+            stopWatching()
             self.loadError = error.localizedDescription
             self.info = nil
             self.issues = []
@@ -144,17 +154,45 @@ public final class ProjectStore: ObservableObject {
         }
     }
 
-    public func reload() async {
-        guard isLoaded else { return }
+    /// Re-reads the source. When the engine reports the data hash unchanged,
+    /// nothing is republished — this is what makes watching cheap enough to
+    /// leave on.
+    @discardableResult
+    public func reload(force: Bool = false) async -> Bool {
+        guard isLoaded else { return false }
         isLoading = true
         defer { isLoading = false }
         do {
-            info = try await engine.reload()
+            let fresh = try await engine.reload()
+            info = fresh
+            guard fresh.changed || force else { return false }
+
             try await refreshAll()
-            await computePhase2()
+            if !skipPhase2 { await computePhase2() }
+            lastReloadAt = Date()
+            return true
         } catch {
             loadError = error.localizedDescription
+            return false
         }
+    }
+
+    // MARK: - Watching
+
+    /// Starts live reload for the currently open workspace.
+    public func startWatching() {
+        guard let source = info?.source, !isWatching else { return }
+        watcher.start(watching: source) { [weak self] in
+            Task { @MainActor in
+                await self?.reload()
+            }
+        }
+        isWatching = watcher.isWatching
+    }
+
+    public func stopWatching() {
+        watcher.stop()
+        isWatching = false
     }
 
     private func refreshAll() async throws {
@@ -163,6 +201,8 @@ public final class ProjectStore: ObservableObject {
         actionable = try await engine.actionableIDs()
         plan = try await engine.executionPlan()
         edges = try await engine.graphEdges()
+        // Label health is advisory, so a failure here must not block the load.
+        labelAnalysis = (try? await engine.labelHealth()) ?? .empty
         if selection == nil || !issues.contains(where: { $0.id == selection }) {
             selection = visibleIssues.first?.id
         }
@@ -189,6 +229,7 @@ public final class ProjectStore: ObservableObject {
     }
 
     public func close() async {
+        stopWatching()
         await engine.close()
     }
 

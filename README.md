@@ -56,8 +56,8 @@ swift run bvx-cli unblocks --id bvx-3 --path Fixtures/demo
 ## Tests
 
 ```bash
-swift test                       # 51 tests: models, query, layout, engine, store
-cd Engine/bridge && go test ./...  # 13 tests: loader, analysis dispatch, SQLite
+swift test                       # 59 tests: models, query, layout, engine, store, watch
+cd Engine/bridge && go test ./...  # 16 tests: loader, analysis dispatch, SQLite, reload gate
 ./scripts/build-engine.sh --check  # C ABI: lifecycle, error paths, bad handles
 ```
 
@@ -70,13 +70,15 @@ cd Engine/bridge && go test ./...  # 13 tests: loader, analysis dispatch, SQLite
 | Phase-2 metrics (PageRank, betweenness, HITS, eigenvector, critical path, cycles, k-core, articulation) | ✅ |
 | Per-metric status (`computed` / `approx` / `timeout` / `skipped`) surfaced in the UI | ✅ |
 | Actionable set, execution plan with parallel tracks, unblocks, blocker chains | ✅ |
-| List, Board, Graph, Tree, Insights, Plan views + Inspector | ✅ |
+| List, Board, Graph, Tree, Insights, Plan, Labels views + Inspector | ✅ |
 | Filters (open/ready/closed/all), labels, sorting, fuzzy search | ✅ |
 | bv's single-key bindings alongside native menu shortcuts | ✅ |
 | `bvx-cli` with JSON output for agents | Partial — a subset of bv's robot commands |
 | Git correlation / history view | ❌ Not yet wired to the UI |
-| Time travel, recipes, sprint dashboard, label dashboard, exports | ❌ Not yet |
-| Live reload (FSEvents), multi-repo workspaces | ❌ Not yet |
+| Time travel, recipes, sprint dashboard, exports | ❌ Not yet |
+| Live reload via FSEvents, debounced and hash-gated | ✅ |
+| Label analytics dashboard (health, velocity, completion) | ✅ |
+| Multi-repo workspaces | ❌ Not yet |
 
 ## Design rules this codebase follows
 

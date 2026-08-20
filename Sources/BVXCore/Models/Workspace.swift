@@ -25,9 +25,12 @@ public struct WorkspaceInfo: Codable, Sendable, Hashable {
     /// Non-fatal loader complaints: malformed lines, empty files, and so on.
     public var warnings: [String]
     public var loadedAt: Date?
+    /// Set by `reload`: false means the data hash was unchanged and nothing was
+    /// re-analysed, so the UI can skip republishing.
+    public var changed: Bool
 
     private enum CodingKeys: String, CodingKey {
-        case source, kind, warnings
+        case source, kind, warnings, changed
         case issueCount = "issue_count"
         case dataHash = "data_hash"
         case loadedAt = "loaded_at"
@@ -40,6 +43,8 @@ public struct WorkspaceInfo: Codable, Sendable, Hashable {
         issueCount = try c.decodeIfPresent(Int.self, forKey: .issueCount) ?? 0
         dataHash = try c.decodeIfPresent(String.self, forKey: .dataHash) ?? ""
         warnings = try c.decodeIfPresent([String].self, forKey: .warnings) ?? []
+        // Absent on a plain open; only reload reports it.
+        changed = try c.decodeIfPresent(Bool.self, forKey: .changed) ?? true
         if let raw = try c.decodeIfPresent(String.self, forKey: .loadedAt) {
             loadedAt = ISO8601DateFormatter().date(from: raw)
         }
@@ -47,7 +52,8 @@ public struct WorkspaceInfo: Codable, Sendable, Hashable {
 
     public init(
         source: String, kind: SourceKind, issueCount: Int,
-        dataHash: String, warnings: [String] = [], loadedAt: Date? = nil
+        dataHash: String, warnings: [String] = [], loadedAt: Date? = nil,
+        changed: Bool = true
     ) {
         self.source = source
         self.kind = kind
@@ -55,6 +61,7 @@ public struct WorkspaceInfo: Codable, Sendable, Hashable {
         self.dataHash = dataHash
         self.warnings = warnings
         self.loadedAt = loadedAt
+        self.changed = changed
     }
 
     /// Directory shown in the window title.

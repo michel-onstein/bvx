@@ -154,6 +154,10 @@ public actor BeadsEngine {
         try call("unblocks", request: ["id": id], as: UnblocksResponse.self).unblocks
     }
 
+    public func labelHealth() throws -> LabelAnalysis {
+        try call("label_health", as: LabelAnalysis.self)
+    }
+
     /// Raw JSON for methods bvx surfaces but does not yet model, such as
     /// `triage`, `impact`, `label_health` and `eta`.
     public func rawJSON(_ method: String, request: [String: Any]? = nil) throws -> Data {

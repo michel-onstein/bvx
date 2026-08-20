@@ -65,6 +65,7 @@ struct ContentView: View {
         case .tree: TreeView()
         case .insights: InsightsView()
         case .plan: PlanView()
+        case .labels: LabelsView()
         }
     }
 
@@ -176,6 +177,11 @@ struct StatusBar: View {
                 )
 
                 phase2Indicator
+
+                if store.isWatching {
+                    Label("watching", systemImage: "dot.radiowaves.left.and.right")
+                        .help("Live reload is on; changes to \(info.source) reload automatically")
+                }
 
                 Spacer()
 
