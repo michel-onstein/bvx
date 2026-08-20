@@ -1,4 +1,5 @@
 import AppKit
+import UniformTypeIdentifiers
 import BVXCore
 import BVXEngine
 import Combine
@@ -83,6 +84,7 @@ public final class ProjectStore: ObservableObject {
     @Published public var skipPhase2 = false
     @Published public private(set) var isWatching = false
     @Published public private(set) var lastReloadAt: Date?
+    @Published public private(set) var lastExportPath: String?
 
     private let engine = BeadsEngine()
     private let watcher = FileWatchService()
@@ -231,6 +233,31 @@ public final class ProjectStore: ObservableObject {
     public func close() async {
         stopWatching()
         await engine.close()
+    }
+
+    // MARK: - Export
+
+    /// Renders the Markdown report and asks the user where to save it.
+    ///
+    /// The engine returns the content and this writes it, rather than letting
+    /// the engine write directly, so the save panel's grant is what authorises
+    /// the write — which is what keeps it working under the App Sandbox.
+    public func exportMarkdown() async {
+        guard let info else { return }
+        do {
+            let report = try await engine.exportMarkdown(title: "\(info.displayName) — Bead Report")
+
+            let panel = NSSavePanel()
+            panel.nameFieldStringValue = "\(info.displayName)-beads.md"
+            panel.allowedContentTypes = [.init(filenameExtension: "md") ?? .plainText]
+            panel.message = "Save the Markdown report"
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+
+            try report.markdown.write(to: url, atomically: true, encoding: .utf8)
+            lastExportPath = url.path
+        } catch {
+            loadError = error.localizedDescription
+        }
     }
 
     // MARK: - Derived data

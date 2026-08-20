@@ -158,6 +158,17 @@ public actor BeadsEngine {
         try call("label_health", as: LabelAnalysis.self)
     }
 
+    /// Renders bv's Markdown report, Mermaid diagrams included.
+    ///
+    /// The content is always returned; `path` additionally writes it, which the
+    /// CLI uses. The app writes it itself, through the save panel's URL, so it
+    /// keeps working under the App Sandbox.
+    public func exportMarkdown(title: String, path: String? = nil) throws -> MarkdownExport {
+        var request: [String: Any] = ["title": title]
+        if let path { request["path"] = path }
+        return try call("export_markdown", request: request, as: MarkdownExport.self)
+    }
+
     /// Raw JSON for methods bvx surfaces but does not yet model, such as
     /// `triage`, `impact`, `label_health` and `eta`.
     public func rawJSON(_ method: String, request: [String: Any]? = nil) throws -> Data {

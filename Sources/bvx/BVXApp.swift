@@ -32,8 +32,12 @@ struct BVXCommands: Commands {
         CommandGroup(replacing: .newItem) {
             Button("Open Workspace…") { store.presentOpenPanel() }
                 .keyboardShortcut("o", modifiers: .command)
-            Button("Reload") { Task { await store.reload() } }
+            Button("Reload") { Task { await store.reload(force: true) } }
                 .keyboardShortcut("r", modifiers: .command)
+                .disabled(!store.isLoaded)
+            Divider()
+            Button("Export Markdown Report…") { Task { await store.exportMarkdown() } }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
                 .disabled(!store.isLoaded)
         }
 

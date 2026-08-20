@@ -79,6 +79,29 @@ public struct WorkspaceInfo: Codable, Sendable, Hashable {
     public var shortHash: String { String(dataHash.prefix(8)) }
 }
 
+/// Result of rendering the Markdown report.
+public struct MarkdownExport: Codable, Sendable, Hashable {
+    public var markdown: String
+    public var bytes: Int
+    /// Non-empty when the engine also wrote the file itself.
+    public var path: String
+
+    private enum CodingKeys: String, CodingKey { case markdown, bytes, path }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        markdown = try c.decodeIfPresent(String.self, forKey: .markdown) ?? ""
+        bytes = try c.decodeIfPresent(Int.self, forKey: .bytes) ?? 0
+        path = try c.decodeIfPresent(String.self, forKey: .path) ?? ""
+    }
+
+    public init(markdown: String, bytes: Int, path: String = "") {
+        self.markdown = markdown
+        self.bytes = bytes
+        self.path = path
+    }
+}
+
 /// One actionable item within a track, as the engine reports it.
 public struct PlanItem: Codable, Sendable, Hashable, Identifiable {
     public var id: String

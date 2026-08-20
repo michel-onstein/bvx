@@ -27,11 +27,13 @@ COMMANDS:
   eta --id <ID> [--agents N]
   summary               Human-readable overview (default)
   doctor                End-to-end self check; exits non-zero on failure
+  export-md [--out F]   Markdown report with Mermaid diagrams (stdout if no --out)
 
 OPTIONS:
   --path <PATH>   Workspace, .beads directory, or data file (default: cwd)
   --wait          Wait for Phase-2 metrics before reporting
   --raw           Print raw JSON with no pretty-printing
+  --out <PATH>    Destination file for export-md
 
 EXAMPLES:
   bvx-cli summary --path ./Fixtures/demo
@@ -46,6 +48,7 @@ struct Options {
     var agents: Int = 1
     var wait = false
     var raw = false
+    var out: String?
 }
 
 func parseArguments() -> Options {
@@ -73,6 +76,9 @@ func parseArguments() -> Options {
             opts.wait = true
         case "--raw":
             opts.raw = true
+        case "--out":
+            i += 1
+            if i < args.count { opts.out = args[i] }
         case "-h", "--help":
             print(usage)
             exit(0)
@@ -216,6 +222,17 @@ Task {
             print(failures == 0 ? "\nAll checks passed." : "\n\(failures) check(s) FAILED.")
             await engine.close()
             exit(failures == 0 ? 0 : 1)
+
+        case "export-md":
+            let report = try await engine.exportMarkdown(
+                title: "\(info.displayName) — Bead Report",
+                path: options.out
+            )
+            if let out = options.out {
+                print("Wrote \(report.bytes) bytes to \(out)")
+            } else {
+                FileHandle.standardOutput.write(Data(report.markdown.utf8))
+            }
 
         case "info", "issues", "metrics", "actionable", "plan", "graph", "triage",
             "impact", "recommendations", "label-health", "label-flow":

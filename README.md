@@ -56,7 +56,7 @@ swift run bvx-cli unblocks --id bvx-3 --path Fixtures/demo
 ## Tests
 
 ```bash
-swift test                       # 59 tests: models, query, layout, engine, store, watch
+swift test                       # 62 tests: models, query, layout, engine, store, watch, export
 cd Engine/bridge && go test ./...  # 16 tests: loader, analysis dispatch, SQLite, reload gate
 ./scripts/build-engine.sh --check  # C ABI: lifecycle, error paths, bad handles
 ```
@@ -75,7 +75,8 @@ cd Engine/bridge && go test ./...  # 16 tests: loader, analysis dispatch, SQLite
 | bv's single-key bindings alongside native menu shortcuts | ✅ |
 | `bvx-cli` with JSON output for agents | Partial — a subset of bv's robot commands |
 | Git correlation / history view | ❌ Not yet wired to the UI |
-| Time travel, recipes, sprint dashboard, exports | ❌ Not yet |
+| Markdown report export (Mermaid diagrams, bv-identical) | ✅ |
+| Time travel, recipes, sprint dashboard, static-site export | ❌ Not yet |
 | Live reload via FSEvents, debounced and hash-gated | ✅ |
 | Label analytics dashboard (health, velocity, completion) | ✅ |
 | Multi-repo workspaces | ❌ Not yet |
