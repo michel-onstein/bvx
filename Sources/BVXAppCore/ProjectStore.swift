@@ -72,6 +72,7 @@ public final class ProjectStore: ObservableObject {
     @Published public private(set) var plan: ExecutionPlan = .empty
     @Published public private(set) var edges: [GraphEdge] = []
     @Published public private(set) var labelAnalysis: LabelAnalysis = .empty
+    @Published public private(set) var triage: Triage = .empty
     @Published public private(set) var info: WorkspaceInfo?
     @Published public private(set) var loadError: String?
     @Published public private(set) var isLoading = false
@@ -88,6 +89,7 @@ public final class ProjectStore: ObservableObject {
 
     private let engine = BeadsEngine()
     private let watcher = FileWatchService()
+    private var triageNeedsRefresh = false
 
     public init() {}
 
@@ -205,6 +207,8 @@ public final class ProjectStore: ObservableObject {
         edges = try await engine.graphEdges()
         // Label health is advisory, so a failure here must not block the load.
         labelAnalysis = (try? await engine.labelHealth()) ?? .empty
+        // Triage depends on Phase-2 scores; it is refreshed again once they land.
+        triage = (try? await engine.triage()) ?? .empty
         if selection == nil || !issues.contains(where: { $0.id == selection }) {
             selection = visibleIssues.first?.id
         }
@@ -220,11 +224,18 @@ public final class ProjectStore: ObservableObject {
         phase2InFlight = true
         defer { phase2InFlight = false }
         do {
+            triageNeedsRefresh = true
             metrics =
                 metrics.phase2Ready
                 ? try await engine.computeFullMetrics()
                 : try await engine.waitForPhase2()
             actionable = try await engine.actionableIDs()
+            // Recommendations are scored from PageRank and betweenness, so
+            // they are only meaningful once Phase 2 has landed.
+            if triageNeedsRefresh {
+                triage = (try? await engine.triage()) ?? triage
+                triageNeedsRefresh = false
+            }
         } catch {
             loadError = error.localizedDescription
         }

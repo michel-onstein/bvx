@@ -13,7 +13,10 @@ struct InsightsView: View {
     var body: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 14) {
+                RecommendationsPanel()
                 HealthPanel()
+                QuickWinsPanel()
+                BlockersPanel()
                 StatusBreakdownPanel()
                 MetricPanel(
                     title: "Foundational blockers",

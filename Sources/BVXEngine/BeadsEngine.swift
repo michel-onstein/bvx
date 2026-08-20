@@ -154,6 +154,10 @@ public actor BeadsEngine {
         try call("unblocks", request: ["id": id], as: UnblocksResponse.self).unblocks
     }
 
+    public func triage() throws -> Triage {
+        try call("triage", as: Triage.self)
+    }
+
     public func labelHealth() throws -> LabelAnalysis {
         try call("label_health", as: LabelAnalysis.self)
     }

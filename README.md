@@ -56,7 +56,7 @@ swift run bvx-cli unblocks --id bvx-3 --path Fixtures/demo
 ## Tests
 
 ```bash
-swift test                       # 62 tests: models, query, layout, engine, store, watch, export
+swift test                       # 66 tests: models, query, layout, engine, store, watch, export, triage
 cd Engine/bridge && go test ./...  # 16 tests: loader, analysis dispatch, SQLite, reload gate
 ./scripts/build-engine.sh --check  # C ABI: lifecycle, error paths, bad handles
 ```
@@ -70,6 +70,7 @@ cd Engine/bridge && go test ./...  # 16 tests: loader, analysis dispatch, SQLite
 | Phase-2 metrics (PageRank, betweenness, HITS, eigenvector, critical path, cycles, k-core, articulation) | ✅ |
 | Per-metric status (`computed` / `approx` / `timeout` / `skipped`) surfaced in the UI | ✅ |
 | Actionable set, execution plan with parallel tracks, unblocks, blocker chains | ✅ |
+| Triage: scored recommendations with reasoning, quick wins, blockers to clear | ✅ |
 | List, Board, Graph, Tree, Insights, Plan, Labels views + Inspector | ✅ |
 | Filters (open/ready/closed/all), labels, sorting, fuzzy search | ✅ |
 | bv's single-key bindings alongside native menu shortcuts | ✅ |
