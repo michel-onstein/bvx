@@ -227,7 +227,7 @@ pre.mermaid svg { max-width: 100%; height: auto; }
 </tr>
 <tr>
 <td><strong>Date</strong></td>
-<td>2026-08-19</td>
+<td>2026-08-20</td>
 </tr>
 <tr>
 <td><strong>Build state</strong></td>
@@ -239,15 +239,27 @@ pre.mermaid svg { max-width: 100%; height: auto; }
 here with the <code>bvx</code> surface that delivers it, the mechanism, and the delivery phase from
 <a href="BVX_DESIGN.html#18-delivery-plan">§18 of the design doc</a>.</p>
 <h2 id="implementation-status"><a class="toclink" href="#implementation-status">Implementation status</a></h2>
-<p>As of 2026-08-19 the following are <strong>built and tested</strong>: JSONL and SQLite
-loading with discovery fallback, Phase-1 and Phase-2 metrics with honest status
-reporting, the actionable set, execution plan, unblocks and blocker chains,
-triage recommendations, the List / Board / Graph / Tree / Insights / Plan /
-Labels views with an Inspector, filters and fuzzy search, bv's single-key
-bindings, live reload via FSEvents, Markdown export, and <code>bvx-cli</code>.</p>
-<p><strong>Not built:</strong> git correlation and the history view, time travel, recipes, the
-sprint dashboard, the flow matrix and attention views, static-site export,
-multi-repo workspaces, semantic search, and the tutorial.</p>
+<p>As of 2026-08-20 every capability tracked in this matrix is <strong>built and
+tested</strong>: JSONL and SQLite loading with discovery fallback, Phase-1 and Phase-2
+metrics with honest status reporting, the actionable set, execution plan,
+unblocks and blocker chains, triage, the List / Board / Graph / Tree / Insights
+/ Plan / Labels / Flow / Attention / History / Alerts / Sprint views with an
+Inspector, filters, fuzzy and hybrid search, bv's single-key bindings, live
+reload via FSEvents, Markdown and static-site export, git correlation with a
+History view, time travel with diff badges, recipes, alerts and drift with
+baselines, the sprint dashboard, multi-repository workspaces, App Intents, the
+<code>bvx://</code> URL scheme, Spotlight indexing, the tutorial, and <code>bvx-cli</code> speaking
+the robot protocol with TOON output.</p>
+<p><strong>Verified rather than asserted.</strong> <code>scripts/parity-check.py</code> runs <code>bvx-cli</code> and
+<code>bv</code> over the same workspace and diffs them command by command, stripping only
+an enumerated list of volatile fields — timestamps, wall-clock durations,
+absolute paths and build identity. It reports commands bv does not have and
+commands bvx has not implemented as coverage gaps rather than skipping them
+silently, and exits non-zero when any comparable command differs.</p>
+<p>Two known non-comparisons are declared in the harness rather than hidden:
+<code>--robot-insights</code>, because bv inlines <code>analysis.Insights</code>' untagged PascalCase
+fields at the top level, and <code>--robot-label-attention</code>, because bv projects a
+ranked subset where bvx returns the full result.</p>
 <p>The Phase numbers in the tables below are the original delivery plan and have
 not been re-sequenced; treat them as intent, not as a claim about what exists.</p>
 <p><strong>Mechanism legend</strong></p>

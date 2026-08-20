@@ -70,7 +70,7 @@ struct ViewSnapshotTests {
     @Test("Inspector renders the selected bead's detail")
     func inspector() async throws {
         let store = await Fixture.loadedStore()
-        store.selection = "bvx-3"
+        store.select(id: "bvx-3")
         #expect(store.selectedIssue != nil)
 
         let result = try Snapshot.render(

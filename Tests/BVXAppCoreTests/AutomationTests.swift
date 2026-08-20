@@ -28,7 +28,7 @@ func urlSelectsBead() async throws {
     let handled = await store.open(url: url)
 
     #expect(handled)
-    #expect(store.selection == "bvx-3")
+    #expect(store.focusedID == "bvx-3")
     await store.close()
 }
 
@@ -37,14 +37,14 @@ func urlSelectsBead() async throws {
 func urlWithUnknownBead() async throws {
     let store = ProjectStore()
     await store.open(path: fixturePath)
-    store.selection = "bvx-3"
+    store.select(id: "bvx-3")
 
     let url = try #require(BeadURL.open(bead: "bvx-nope"))
     let handled = await store.open(url: url)
 
     // A stale link must not clear the selection, in a URL exactly as in prose.
     #expect(!handled)
-    #expect(store.selection == "bvx-3")
+    #expect(store.focusedID == "bvx-3")
     await store.close()
 }
 
@@ -71,7 +71,7 @@ func urlOpensWorkspace() async throws {
 
     #expect(handled)
     #expect(store.isLoaded)
-    #expect(store.selection == "bvx-3")
+    #expect(store.focusedID == "bvx-3")
     await store.close()
 }
 
@@ -101,10 +101,10 @@ func spotlightSelects() async {
     await store.open(path: fixturePath)
 
     #expect(store.openSpotlightItem([CSSearchableItemActivityIdentifier: "bvx-3"]))
-    #expect(store.selection == "bvx-3")
+    #expect(store.focusedID == "bvx-3")
     // An id the workspace does not hold leaves the selection alone.
     #expect(!store.openSpotlightItem([CSSearchableItemActivityIdentifier: "ghost-1"]))
-    #expect(store.selection == "bvx-3")
+    #expect(store.focusedID == "bvx-3")
 
     await store.close()
 }

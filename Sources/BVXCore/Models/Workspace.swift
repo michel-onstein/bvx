@@ -241,3 +241,48 @@ public struct ExecutionPlan: Codable, Sendable, Hashable {
 
     public static let empty = ExecutionPlan(tracks: [])
 }
+
+/// What the engine reports about a path it has *not* opened.
+///
+/// The Open panel needs an answer for every folder the user browses past, and
+/// it needs it before they commit to one. Asking the engine — rather than
+/// checking for a `.beads` directory in Swift — is what keeps the panel and the
+/// loader from disagreeing: a second predicate written here would be a copy of
+/// discovery's rules that drifts the moment they change.
+public struct ProbeResult: Codable, Sendable, Hashable {
+    public var path: String
+    /// Whether ``BeadsEngine/open(path:skipPhase2:)`` would succeed.
+    public var canOpen: Bool
+    /// `workspace`, `jsonl` or `sqlite` when openable, otherwise empty.
+    public var kind: String
+    /// The file that would actually be read.
+    public var source: String
+    /// Why it was refused, for a tooltip or an error.
+    public var reason: String
+
+    private enum CodingKeys: String, CodingKey {
+        case path, kind, source, reason
+        case canOpen = "can_open"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        path = try c.decodeIfPresent(String.self, forKey: .path) ?? ""
+        // Absent reads as "no" — a probe that failed to answer must never
+        // offer a folder the loader will then refuse.
+        canOpen = try c.decodeIfPresent(Bool.self, forKey: .canOpen) ?? false
+        kind = try c.decodeIfPresent(String.self, forKey: .kind) ?? ""
+        source = try c.decodeIfPresent(String.self, forKey: .source) ?? ""
+        reason = try c.decodeIfPresent(String.self, forKey: .reason) ?? ""
+    }
+
+    public init(
+        path: String, canOpen: Bool, kind: String = "", source: String = "", reason: String = ""
+    ) {
+        self.path = path
+        self.canOpen = canOpen
+        self.kind = kind
+        self.source = source
+        self.reason = reason
+    }
+}

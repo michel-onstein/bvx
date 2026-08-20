@@ -21,10 +21,16 @@ extern const char *_GoStringPtr(_GoString_ s);
 /* Start of preamble from import "C" comments.  */
 
 
-#line 27 "bridge.go"
+#line 28 "bridge.go"
 
 #include <stdlib.h>
 #include <stdint.h>
+
+#line 1 "cgo-generated-wrapper"
+
+#line 3 "probe.go"
+
+#include <stdlib.h>
 
 #line 1 "cgo-generated-wrapper"
 
@@ -93,6 +99,7 @@ extern char* bvx_call(int64_t handle, char* method, char* req);
 extern void bvx_close(int64_t handle);
 extern void bvx_free(char* p);
 extern char* bvx_version(void);
+extern char* bvx_probe(char* path);
 
 #ifdef __cplusplus
 }

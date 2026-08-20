@@ -5,6 +5,43 @@ described. Newest first.
 
 ---
 
+## 2026-08-20 — List multi-selection, a row context menu, and an Open-panel guard
+
+Three beads (`bvx-jpn`, `bvx-tlv`, `bvx-roq`).
+
+**Multi-selection.** `ProjectStore.selectedID` became `selection: Set<Issue.ID>`
+plus a derived `focusedID`. Everything that follows the cursor — the inspector,
+the graph, history — binds to `focusedID`, so a multi-row selection does not
+leave those surfaces guessing which of several beads they are describing. The
+focus rule is "the row just added, or the first survivor when the focused one
+leaves the selection", which keeps a filter change or a recipe from blanking the
+inspector.
+
+**Context menu.** Attached with `.contextMenu(forSelectionType:)`, which is what
+makes "the selected beads, or the one right-clicked when it is not selected"
+fall out of AppKit rather than being reconstructed from mouse position. The menu
+is structured around none / one / several from the start. First item is Copy ID;
+several ids join with `", "` **in screen order**, since a `Set` iterates in hash
+order and the same action could otherwise put two different strings on the
+clipboard.
+
+**Open-panel guard.** `bvx_probe` — a new, session-less C entry point — answers
+"could this path be opened?" without loading it, and `OpenPanelGuard` is an
+`NSOpenSavePanelDelegate` over it. The answer comes from the same discovery code
+`open` runs, so the panel and the loader cannot disagree.
+
+The literal rule (a folder containing `.beads`) is not the rule implemented,
+because it is wrong in both directions: it would refuse a multi-repository
+workspace root, which holds `.bv/workspace.yaml` while its `.beads` directories
+live in the repositories below it, and it would accept a folder below a project
+root — discovery does *not* walk upwards, so opening that fails. Greying is
+advisory; `panel(_:validate:)` is the actual gate, because a path typed into
+Go-to-folder never passes through `shouldEnable`.
+
+336 Swift tests, Go suite green, parity 9 matched / 0 differed.
+
+---
+
 ## 2026-08-19 — Markdown in the bead detail view
 
 The inspector renders a bead's description as Markdown when it contains any:

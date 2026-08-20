@@ -12,6 +12,7 @@
 //	bvx_close(handle)              -> void
 //	bvx_free(ptr)                  -> void
 //	bvx_version()                  -> JSON envelope, caller frees with bvx_free
+//	bvx_probe(path)                -> JSON envelope, caller frees with bvx_free
 //
 // Every entry point returns the same envelope shape, so the client has exactly
 // one error path to handle:

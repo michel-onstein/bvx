@@ -324,6 +324,8 @@ func (s *Session) Call(method string, req []byte) ([]byte, error) {
 		return s.graphExport(req)
 	case "file_impact":
 		return s.fileImpact(req)
+	case "probe":
+		return probePayload(req)
 	case "toon":
 		return s.toonPayload(req)
 	case "export_site":
