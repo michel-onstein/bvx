@@ -217,3 +217,39 @@ share a filesystem.
 recipe round trip — both go through the helper, and both assert against a
 directory they own. As a side effect the checkout is no longer mutated by a
 test run at all, which is worth having on its own.
+
+---
+
+## 2026-08-20 — The engine archive ignored the declared deployment target
+
+**Symptom:** every Swift link printed, once per object file:
+
+```
+ld: warning: object file (libbvxengine.a[...]) was built for newer 'macOS'
+    version (26.0) than being linked (14.0)
+```
+
+**Cause:** `Package.swift` declares `platforms: [.macOS(.v14)]`, but
+`build-engine.sh` built the Go archive with no deployment target at all, so
+every object carried the host SDK's minimum — 26.0. Not cosmetic: the app
+claimed to support macOS 14 while linking objects that require 26. It runs on
+the build machine and fails on the machine the deployment target promised.
+
+**Fix:** `-mmacosx-version-min` via `CGO_CFLAGS` and `CGO_LDFLAGS`.
+
+**The part worth remembering:** `MACOSX_DEPLOYMENT_TARGET` alone does **not**
+work with this toolchain. Setting it changed nothing — the Go-linked `go.o` and
+the cgo-compiled objects alike stayed at 26.0. Only the explicit
+`-mmacosx-version-min` flag reaches both. The variable is still set because it
+is the conventional knob and costs nothing, but it is not what fixes this.
+
+**Prevention:** two assertions in `build-engine.sh`, because setting a flag and
+assuming it worked is how this went unnoticed for so long:
+
+- `assert_package_target` reads the platform out of `Package.swift` and refuses
+  to build when the script and the manifest disagree. Nothing else would notice
+  them drifting apart.
+- `assert_archive_target` runs `otool -l` on the built archive and requires
+  *every* object to report the expected `minos`. Checking only the first would
+  have passed while the rest were wrong — the archive holds objects from two
+  different tools, and a flag reaching one need not reach the others.
