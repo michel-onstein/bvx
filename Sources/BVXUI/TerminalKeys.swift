@@ -101,11 +101,27 @@ struct TerminalKeyCatcher: NSViewRepresentable {
             store.selection = visible[next].id
         }
 
+        /// bv's `s`: step through the named orderings.
+        ///
+        /// The cycle and the table's column headers write the same
+        /// `query.sort`, so a header click can leave the sort on an ordering
+        /// the cycle does not contain. That is not an error — `s` simply
+        /// re-enters the cycle at its first entry.
         @MainActor
         private func cycleSort(_ store: ProjectStore) {
-            let modes = SortMode.allCases
-            guard let index = modes.firstIndex(of: store.query.sort) else { return }
-            store.query.sort = modes[(index + 1) % modes.count]
+            let modes = SortMode.cycleCases
+            guard let index = modes.firstIndex(of: store.query.sort) else {
+                store.query.sort = modes[0]
+                return
+            }
+            var next = index
+            // Skip an ordering whose metrics have not been computed rather
+            // than parking the list on a sort that cannot be applied.
+            repeat {
+                next = (next + 1) % modes.count
+            } while modes[next].requiresPhase2 && !store.metrics.hasPhase2Values
+                && next != index
+            store.query.sort = modes[next]
         }
     }
 }

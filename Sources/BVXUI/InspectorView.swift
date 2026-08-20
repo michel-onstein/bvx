@@ -21,7 +21,9 @@ struct InspectorView: View {
                         if !issue.description.isEmpty {
                             Divider()
                             section("Description") {
-                                MarkdownText(source: issue.description)
+                                MarkdownText(
+                                    source: issue.description,
+                                    beadTitles: store.beadTitles)
                             }
                         }
                         if !issue.comments.isEmpty {
@@ -32,6 +34,15 @@ struct InspectorView: View {
                     .padding(14)
                 }
                 .task(id: issue.id) { unblocks = await store.unblocks(issue.id) }
+                // Bead links carry a bvx:// URL. Handling them here keeps the
+                // click inside the app: without this the system would try to
+                // launch a second bvx for the scheme.
+                .environment(
+                    \.openURL,
+                    OpenURLAction { url in
+                        guard let id = BeadURL.bead(in: url) else { return .systemAction }
+                        return store.select(id: id) ? .handled : .discarded
+                    })
             } else {
                 EmptyStateView(
                     symbol: "sidebar.trailing",
@@ -210,10 +221,10 @@ struct InspectorView: View {
                             Text(date, style: .date).font(.caption2).foregroundStyle(.tertiary)
                         }
                     }
-                    Text(comment.text)
-                        .font(.caption)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
+                    MarkdownText(
+                        source: comment.text,
+                        font: .caption,
+                        beadTitles: store.beadTitles)
                 }
                 .padding(7)
                 .frame(maxWidth: .infinity, alignment: .leading)

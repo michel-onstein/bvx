@@ -113,6 +113,25 @@ public final class ProjectStore: ObservableObject {
         Dictionary(uniqueKeysWithValues: issues.map { ($0.id, $0) })
     }
 
+    /// Bead titles keyed by id, for linkifying ids mentioned in prose.
+    ///
+    /// Deliberately tolerant of a duplicate id — a multi-repository workspace
+    /// can carry one — because a tooltip is not worth trapping over.
+    public var beadTitles: [String: String] {
+        Dictionary(issues.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// Selects `id` if the workspace holds it. Returns whether it did.
+    ///
+    /// The guard is what keeps a stale reference — in prose, or in a URL from
+    /// outside the app — from clearing the current selection.
+    @discardableResult
+    public func select(id: String) -> Bool {
+        guard issues.contains(where: { $0.id == id }) else { return false }
+        selection = id
+        return true
+    }
+
     // MARK: - Loading
 
     /// Opens the workspace named by the first CLI argument, the BVX_WORKSPACE

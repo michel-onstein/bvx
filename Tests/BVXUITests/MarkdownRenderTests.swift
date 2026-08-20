@@ -79,6 +79,30 @@ struct MarkdownRenderTests {
         await store.close()
     }
 
+    @Test("A table renders as a grid, not as collapsed prose")
+    func rendersTable() throws {
+        let source = """
+            ## Metrics
+
+            | Metric | Value | Rank |
+            |:---|---:|:--:|
+            | PageRank | 0.20 | 3 |
+            | Betweenness | 0.35 | 1 |
+            | Eigenvector | 0.11 | 7 |
+            """
+        // Guard the premise: if detection regressed, the snapshot below would
+        // still draw ink — as one collapsed line — and pass for the wrong reason.
+        let blocks = MarkdownParser.parse(source)
+        #expect(blocks.contains { if case .table = $0 { return true } else { return false } })
+
+        let result = try Snapshot.render(
+            MarkdownText(source: source).padding(16),
+            name: "markdown-table",
+            size: CGSize(width: 420, height: 220)
+        )
+        #expect(result.inkCoverage() > 0.01, "table drew nothing")
+    }
+
     @Test("An empty description renders nothing rather than crashing")
     func emptyDescription() throws {
         let result = try Snapshot.render(

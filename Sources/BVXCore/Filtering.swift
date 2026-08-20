@@ -40,33 +40,163 @@ public enum IssueFilter: String, CaseIterable, Sendable, Identifiable {
     }
 }
 
-/// bv's sort cycle, reachable with `s`.
-public enum SortMode: String, CaseIterable, Sendable, Identifiable {
-    /// Priority ascending, then created descending — bv's default.
-    case `default`
-    case createdAscending
-    case createdDescending
+/// A list column the table can be ordered by.
+///
+/// Separate from ``SortMode`` because a column carries no direction — a header
+/// click supplies that — while a sort mode is a fixed, named ordering.
+public enum SortColumn: String, CaseIterable, Sendable, Identifiable {
+    case id
+    case title
+    case status
     case priority
+    case blocks
+    case blockedBy
+    case pageRank
+    case labels
+    case created
     case updated
-    /// bvx addition: order by computed impact. Requires Phase 2.
-    case impact
 
     public var id: String { rawValue }
+
+    /// True when ordering by this column needs Phase-2 metrics.
+    ///
+    /// Only `pageRank` does. `blocks` and `blockedBy` come from degree, which
+    /// is Phase 1 and therefore ready the moment the workspace opens.
+    public var requiresPhase2: Bool { self == .pageRank }
+
+    /// The direction a first click on this column's header applies.
+    ///
+    /// Counts and scores read most usefully largest-first; names and dates
+    /// smallest-first.
+    public var defaultAscending: Bool {
+        switch self {
+        case .blocks, .blockedBy, .pageRank, .created, .updated: false
+        case .id, .title, .status, .priority, .labels: true
+        }
+    }
+}
+
+/// An ordering for the issue list.
+///
+/// Every ordering the UI can be in is one case here — the toolbar menu, bv's
+/// `s` cycle and the table's column headers all read and write this single
+/// value, which is what stops the header and the cycle disagreeing about what
+/// the current order is.
+public enum SortMode: String, CaseIterable, Sendable, Identifiable {
+    /// Priority ascending, then created descending — bv's default. The only
+    /// ordering that is not expressible as a single column.
+    case `default`
+    case idAscending
+    case idDescending
+    case titleAscending
+    case titleDescending
+    case statusAscending
+    case statusDescending
+    /// Priority ascending (P0 first) — bv's named "priority" ordering.
+    case priority
+    case priorityDescending
+    case blocksDescending
+    case blocksAscending
+    case blockedByDescending
+    case blockedByAscending
+    case labelsAscending
+    case labelsDescending
+    case createdAscending
+    case createdDescending
+    /// Most recently updated first — bv's named "recently updated" ordering.
+    case updated
+    case updatedAscending
+    /// Order by computed impact, largest first. Requires Phase 2.
+    case impact
+    case impactAscending
+
+    public var id: String { rawValue }
+
+    /// The orderings the toolbar menu lists and bv's `s` key cycles through.
+    ///
+    /// Every column ordering is reachable from its header, so listing all of
+    /// them here would bury the named ones — and would make `s` walk twenty
+    /// steps where bv walks six.
+    public static let cycleCases: [SortMode] = [
+        .default, .createdAscending, .createdDescending, .priority, .updated, .impact,
+    ]
 
     public var displayName: String {
         switch self {
         case .default: "Default"
+        case .idAscending: "ID ↑"
+        case .idDescending: "ID ↓"
+        case .titleAscending: "Title ↑"
+        case .titleDescending: "Title ↓"
+        case .statusAscending: "Status ↑"
+        case .statusDescending: "Status ↓"
+        case .priority: "Priority"
+        case .priorityDescending: "Priority ↓"
+        case .blocksDescending: "Blocks ↓"
+        case .blocksAscending: "Blocks ↑"
+        case .blockedByDescending: "Blocked by ↓"
+        case .blockedByAscending: "Blocked by ↑"
+        case .labelsAscending: "Labels ↑"
+        case .labelsDescending: "Labels ↓"
         case .createdAscending: "Created ↑"
         case .createdDescending: "Created ↓"
-        case .priority: "Priority"
         case .updated: "Recently Updated"
+        case .updatedAscending: "Least Recently Updated"
         case .impact: "Impact"
+        case .impactAscending: "Impact ↑"
         }
     }
 
-    /// True when this ordering needs Phase-2 metrics, so the UI can disable it
-    /// until they land rather than sorting by silent zeros.
-    public var requiresPhase2: Bool { self == .impact }
+    /// The column this ordering sorts by, or nil when it is not one column —
+    /// `.default` orders by priority *and* creation date together.
+    public var column: SortColumn? {
+        switch self {
+        case .default: nil
+        case .idAscending, .idDescending: .id
+        case .titleAscending, .titleDescending: .title
+        case .statusAscending, .statusDescending: .status
+        case .priority, .priorityDescending: .priority
+        case .blocksAscending, .blocksDescending: .blocks
+        case .blockedByAscending, .blockedByDescending: .blockedBy
+        case .impact, .impactAscending: .pageRank
+        case .labelsAscending, .labelsDescending: .labels
+        case .createdAscending, .createdDescending: .created
+        case .updated, .updatedAscending: .updated
+        }
+    }
+
+    /// Which way this ordering runs. `.default` reports ascending because its
+    /// leading key, priority, ascends.
+    public var ascending: Bool {
+        switch self {
+        case .default, .idAscending, .titleAscending, .statusAscending, .priority,
+            .blocksAscending, .blockedByAscending, .labelsAscending, .createdAscending,
+            .updatedAscending, .impactAscending:
+            true
+        default:
+            false
+        }
+    }
+
+    /// The ordering that sorts by `column` in the given direction.
+    public static func ordering(by column: SortColumn, ascending: Bool) -> SortMode {
+        switch column {
+        case .id: ascending ? .idAscending : .idDescending
+        case .title: ascending ? .titleAscending : .titleDescending
+        case .status: ascending ? .statusAscending : .statusDescending
+        case .priority: ascending ? .priority : .priorityDescending
+        case .blocks: ascending ? .blocksAscending : .blocksDescending
+        case .blockedBy: ascending ? .blockedByAscending : .blockedByDescending
+        case .pageRank: ascending ? .impactAscending : .impact
+        case .labels: ascending ? .labelsAscending : .labelsDescending
+        case .created: ascending ? .createdAscending : .createdDescending
+        case .updated: ascending ? .updatedAscending : .updated
+        }
+    }
+
+    /// True when this ordering needs Phase-2 metrics, so the UI can keep it
+    /// inert until they land rather than sorting by silent zeros.
+    public var requiresPhase2: Bool { column?.requiresPhase2 ?? false }
 }
 
 /// Applies filters, search and sorting. Pure and synchronous so it can run
@@ -126,28 +256,57 @@ public struct IssueQuery: Sendable {
         // discard it.
         guard searchText.isEmpty else { return issues }
 
-        switch sort {
-        case .default:
+        // Ordering by a metric that has not been computed would sort by
+        // absent values while looking like it worked. The input order is
+        // returned untouched instead, which is what the UI's disabled header
+        // is telling the user.
+        if sort.requiresPhase2, metrics?.pageRank == nil { return issues }
+
+        guard let column = sort.column else {
+            // .default: priority ascending, then newest first.
             return issues.sorted {
                 if $0.priority != $1.priority { return $0.priority < $1.priority }
                 return ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast)
             }
-        case .createdAscending:
-            return issues.sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
-        case .createdDescending:
-            return issues.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+        }
+
+        let ascending = sort.ascending
+        switch column {
+        case .id:
+            return order(issues, ascending) { $0.id }
+        case .title:
+            return order(issues, ascending) { $0.title.lowercased() }
+        case .status:
+            return order(issues, ascending) { $0.status.workflowRank }
         case .priority:
-            return issues.sorted {
-                $0.priority != $1.priority ? $0.priority < $1.priority : $0.id < $1.id
-            }
+            return order(issues, ascending) { $0.priority }
+        case .blocks:
+            return order(issues, ascending) { metrics?.blocks($0.id) ?? 0 }
+        case .blockedBy:
+            return order(issues, ascending) { metrics?.blockedBy($0.id) ?? 0 }
+        case .pageRank:
+            return order(issues, ascending) { metrics?.pageRank?[$0.id] ?? 0 }
+        case .labels:
+            return order(issues, ascending) { $0.labels.joined(separator: ",").lowercased() }
+        case .created:
+            return order(issues, ascending) { $0.createdAt ?? .distantPast }
         case .updated:
-            return issues.sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
-        case .impact:
-            guard let pr = metrics?.pageRank else { return issues }
-            return issues.sorted {
-                let a = pr[$0.id] ?? 0, b = pr[$1.id] ?? 0
-                return a != b ? a > b : $0.id < $1.id
-            }
+            return order(issues, ascending) { $0.updatedAt ?? .distantPast }
+        }
+    }
+
+    /// Sorts by one key, breaking ties on id.
+    ///
+    /// The tie-break is not cosmetic: without it, rows carrying equal keys —
+    /// every bead at the same priority, every bead with no PageRank — would
+    /// reshuffle on each redraw.
+    private func order<Key: Comparable>(
+        _ issues: [Issue], _ ascending: Bool, by key: (Issue) -> Key
+    ) -> [Issue] {
+        issues.sorted {
+            let a = key($0), b = key($1)
+            if a == b { return $0.id < $1.id }
+            return ascending ? a < b : a > b
         }
     }
 

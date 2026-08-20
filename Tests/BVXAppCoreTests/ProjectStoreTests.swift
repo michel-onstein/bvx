@@ -159,3 +159,32 @@ func storeSummary() async {
 
     await store.close()
 }
+
+@MainActor
+@Test("Selecting by id ignores an id the workspace does not hold")
+func storeSelectGuardsStaleIDs() async {
+    let store = ProjectStore()
+    await store.open(path: fixturePath)
+
+    #expect(store.select(id: "bvx-3"))
+    #expect(store.selection == "bvx-3")
+
+    // A description can outlive the bead it cites. Following a stale
+    // reference must leave the current selection alone rather than clear it.
+    #expect(!store.select(id: "bvx-does-not-exist"))
+    #expect(store.selection == "bvx-3")
+
+    await store.close()
+}
+
+@MainActor
+@Test("Bead titles are exposed for linkifying ids mentioned in prose")
+func storeBeadTitles() async {
+    let store = ProjectStore()
+    await store.open(path: fixturePath)
+
+    #expect(store.beadTitles.count == store.issues.count)
+    #expect(store.beadTitles["bvx-3"] == store.issuesByID["bvx-3"]?.title)
+
+    await store.close()
+}

@@ -96,12 +96,16 @@ public struct ContentView: View {
 
         ToolbarItem {
             Menu {
+                // The named orderings only. Every column ordering is reachable
+                // from its header, and listing all of them here would bury
+                // these.
                 Picker("Sort", selection: $store.query.sort) {
-                    ForEach(SortMode.allCases) { mode in
+                    ForEach(SortMode.cycleCases) { mode in
                         Text(mode.displayName)
                             // Sorting by a metric that has not been computed
                             // would silently order by zeros, so it stays
                             // disabled until Phase 2 lands.
+                            .disabled(mode.requiresPhase2 && !store.metrics.hasPhase2Values)
                             .tag(mode)
                     }
                 }

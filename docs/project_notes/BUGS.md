@@ -137,3 +137,29 @@ render "—", never 0.
 **Prevention:** `UnblocksCacheTests`, including that nil and `[]` stay
 distinguishable, and that unblocks (6) is not conflated with blocks (7) —
 `bvx-6` also waits on `bvx-12`, so closing `bvx-3` alone would not free it.
+
+---
+
+## 2026-08-20 — Markdown tables were collapsed onto a single line
+
+**Symptom:** a pipe table in a bead description rendered two different wrong
+ways depending on what surrounded it. Alone, `looksLikeMarkdown` returned
+`false` and the rows showed as literal pipes in body font. Beside any other
+Markdown, detection fired, the rows fell through to the paragraph branch, and
+every row was joined into one line.
+
+**Cause:** `MarkdownParser` had no table block. The second symptom was a side
+effect of the soft-break fix: `joinSoftWrapped` is correct for prose and
+destructive for a table, and nothing stopped table rows reaching it.
+
+**Fix:** `MarkdownBlock.table(headers:rows:alignments:)`, parsed from a header
+row followed by a delimiter row and rendered with SwiftUI `Grid` inside a
+horizontal `ScrollView`. Detection treats `|` as a signal only when a delimiter
+row follows.
+
+**Prevention:** parser tests for alignment, ragged rows, escaped pipes in cells
+and table termination, a false-positive suite covering prose like
+`use a | b to pipe`, and a render snapshot. The false-positive guard is the load
+bearing one — the delimiter row must have exactly as many cells as the header,
+which is what stops a `---` rule under a pipe-containing sentence from reading
+as a one-column table.
