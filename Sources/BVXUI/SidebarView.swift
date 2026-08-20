@@ -8,6 +8,7 @@ struct SidebarView: View {
     var body: some View {
         List {
             SidebarViewsSection()
+            SidebarReposSection()
             SidebarFiltersSection()
             SidebarRecipesSection()
             SidebarLabelsSection()

@@ -49,6 +49,11 @@ type Session struct {
 
 	loadedAt time.Time
 
+	// Multi-repository state. Empty workspacePath means the ordinary
+	// single-repository case.
+	workspacePath string
+	repoLoads     []repoLoad
+
 	// Correlation state, guarded separately: walking the object store is slow
 	// enough that it must not hold the analysis lock, and it is only built on
 	// demand because most sessions never ask for history at all.
@@ -152,6 +157,13 @@ func phase1OnlyConfig() analysis.AnalysisConfig {
 }
 
 func (s *Session) load() error {
+	// A workspace configuration wins over single-repository discovery: if one
+	// exists, the graph the user means is the aggregate, and loading a single
+	// repo out of it would silently hide every cross-repo dependency.
+	if configPath := findWorkspaceConfig(s.config.Path); configPath != "" {
+		return s.loadWorkspaceSession(configPath)
+	}
+
 	src, kind, warnings, err := resolveSource(s.config.Path)
 	if err != nil {
 		return err
@@ -171,26 +183,36 @@ func (s *Session) load() error {
 		return fmt.Errorf("loading %s: %w", src, err)
 	}
 
+	an, stats := s.analyse(issues)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.source, s.kind, s.warnings = src, kind, warnings
+	s.workspacePath, s.repoLoads = "", nil
+	s.issues, s.analyzer, s.stats = issues, an, stats
+	s.loadedAt = time.Now()
+	return nil
+}
+
+// analyse builds the analyzer and starts the metrics for one issue set.
+//
+// Shared by the single-repository and workspace paths so the two cannot drift
+// apart on which metrics run.
+func (s *Session) analyse(issues []model.Issue) (*analysis.Analyzer, *analysis.GraphStats) {
 	an := analysis.NewAnalyzer(issues)
-	var stats *analysis.GraphStats
 	if s.config.SkipPhase2 {
 		// Every Phase-2 metric off. Analyze() runs them synchronously, so
 		// skipping has to be expressed through the config rather than by
 		// choosing the sync entry point. The resulting status entries read
 		// "skipped", which is what the UI renders instead of a fake zero.
 		st := an.AnalyzeWithConfig(phase1OnlyConfig())
-		stats = &st
-	} else {
-		stats = an.AnalyzeAsync(context.Background())
+		return an, &st
 	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.source, s.kind, s.warnings = src, kind, warnings
-	s.issues, s.analyzer, s.stats = issues, an, stats
-	s.loadedAt = time.Now()
-	return nil
+	return an, an.AnalyzeAsync(context.Background())
 }
+
+// timeNow exists so the workspace path reads the same as the ordinary one.
+func timeNow() time.Time { return time.Now() }
 
 // Close releases session state.
 func (s *Session) Close() {
@@ -262,6 +284,8 @@ func (s *Session) Call(method string, req []byte) ([]byte, error) {
 		return s.fileRelations(req)
 	case "orphans":
 		return s.orphans(req)
+	case "repos":
+		return s.repos()
 	case "search":
 		return s.searchIssues(req)
 	case "search_presets":
@@ -438,6 +462,13 @@ func (s *Session) metrics() ([]byte, error) {
 // file in the same directory — costs one parse and no analysis at all. The
 // response carries `changed` so the UI can skip republishing too.
 func (s *Session) reload() ([]byte, error) {
+	s.mu.RLock()
+	workspacePath := s.workspacePath
+	s.mu.RUnlock()
+	if workspacePath != "" {
+		return s.reloadWorkspace(workspacePath)
+	}
+
 	src, kind, warnings, err := resolveSource(s.config.Path)
 	if err != nil {
 		return nil, err

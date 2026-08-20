@@ -233,6 +233,14 @@ public actor BeadsEngine {
         try call("orphans", request: request(limit: limit, refresh: false), as: OrphanReport.self)
     }
 
+    // MARK: - Repositories
+
+    /// The repositories this workspace aggregates, and the dependencies that
+    /// cross between them.
+    public func repos() throws -> RepoList {
+        try call("repos", as: RepoList.self)
+    }
+
     // MARK: - Search
 
     /// Runs one query.

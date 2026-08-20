@@ -66,6 +66,9 @@ struct IssueListView: View {
                     if let badge = store.badge(for: row.id) {
                         DiffBadgeView(badge: badge)
                     }
+                    if let repo = store.repo(of: row.id) {
+                        RepoBadge(repo: repo, isCrossRepo: store.isCrossRepo(row.id))
+                    }
                     Text(row.issue.title).lineLimit(1)
                     if store.actionable.contains(row.id) {
                         Image(systemName: "bolt.fill")

@@ -135,6 +135,11 @@ public final class ProjectStore: ObservableObject {
     @Published public private(set) var pastIssues: [String: Issue] = [:]
     @Published public private(set) var timeTravelLoading = false
 
+    // MARK: Repositories
+    @Published public private(set) var repos: RepoList = .empty
+    /// Repositories the list is narrowed to. Empty means all of them.
+    @Published public var repoFilter: Set<String> = []
+
     // MARK: Search
     //
     // The scope bar's mode. `.text` is the default because it is what the
@@ -194,6 +199,10 @@ public final class ProjectStore: ObservableObject {
     /// recipe's results is the obvious thing to want and losing the recipe on
     /// the first keystroke is not.
     public var visibleIssues: [Issue] {
+        narrowToRepos(unfilteredVisibleIssues)
+    }
+
+    private var unfilteredVisibleIssues: [Issue] {
         // Hybrid search replaces the ordering entirely: its whole point is to
         // rank by things other than the words typed, so re-sorting afterwards
         // would discard the ranking that was asked for.
@@ -208,6 +217,37 @@ public final class ProjectStore: ObservableObject {
         let selected = recipeIDs.compactMap { byID[$0] }
         guard !query.searchText.isEmpty else { return selected }
         return IssueQuery.rank(selected, query: query.searchText)
+    }
+
+    /// Narrows to the selected repositories, if any are selected.
+    ///
+    /// Applied last, on top of whatever chose the set — so a recipe, a search
+    /// and a repository selection compose instead of overriding each other.
+    private func narrowToRepos(_ candidates: [Issue]) -> [Issue] {
+        guard !repoFilter.isEmpty, repos.isWorkspace else { return candidates }
+        return candidates.filter { issue in
+            guard let repo = repos.repo(owning: issue.id) else { return false }
+            return repoFilter.contains(repo.name)
+        }
+    }
+
+    /// The repository a bead belongs to, in a multi-repository workspace.
+    public func repo(of id: Issue.ID) -> RepoInfo? {
+        repos.repo(owning: id)
+    }
+
+    /// True when this bead sits on a dependency that crosses repositories.
+    public func isCrossRepo(_ id: Issue.ID) -> Bool {
+        repos.crossRepoIDs.contains(id)
+    }
+
+    /// Toggles one repository in the filter.
+    public func toggleRepo(_ name: String) {
+        if repoFilter.contains(name) {
+            repoFilter.remove(name)
+        } else {
+            repoFilter.insert(name)
+        }
     }
 
     public var selectedIssue: Issue? {
@@ -344,6 +384,7 @@ public final class ProjectStore: ObservableObject {
         labelAnalysis = (try? await engine.labelHealth()) ?? .empty
         labelFlow = (try? await engine.labelFlow()) ?? .empty
         labelAttention = (try? await engine.labelAttention()) ?? .empty
+        repos = (try? await engine.repos()) ?? .empty
         // Alerts are cheap once the analysis exists, and they are the one
         // thing a user wants to see without asking.
         await refreshAlerts()
