@@ -162,3 +162,81 @@ struct TableColumnOrderTests {
         }
     }
 }
+
+/// The identifiers that persist a user's column layout.
+///
+/// Read from source for the same reason as the order above: SwiftUI's `Table`
+/// exposes no list of its columns to inspect at runtime. These identifiers are
+/// a storage contract — they are already in users' preferences once shipped —
+/// so a duplicate or a rename is a silent data problem, not a compile error.
+@Suite("Column customization IDs")
+struct ColumnCustomizationTests {
+
+    private static func source() throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/VBXUI/IssueListView.swift")
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    /// Every `.customizationID(...)` argument, in declaration order.
+    private static func customizationIDs() throws -> [String] {
+        try source()
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.hasPrefix(".customizationID(") }
+            .map { line in
+                let inner = line.dropFirst(".customizationID(".count).dropLast()
+                return String(inner)
+            }
+    }
+
+    @Test("Every column carries a customization ID")
+    func everyColumnHasAnID() throws {
+        let columns = try Self.source()
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("TableColumn(\"") }
+        let ids = try Self.customizationIDs()
+
+        // A column without one cannot be hidden, reordered, or remembered —
+        // it silently opts out of the whole feature.
+        #expect(
+            ids.count == columns.count,
+            "\(columns.count) columns but \(ids.count) customization IDs")
+    }
+
+    @Test("No two columns share a customization ID")
+    func idsAreUnique() throws {
+        let ids = try Self.customizationIDs()
+        let duplicates = Dictionary(grouping: ids, by: { $0 }).filter { $0.value.count > 1 }
+
+        // The bug this caught in review: PageRank was given the `blocks`
+        // identifier, so hiding one would have acted on the other and both
+        // would have shared a saved width.
+        #expect(duplicates.isEmpty, "duplicated customization IDs: \(duplicates.keys.sorted())")
+    }
+
+    @Test("IDs come from SortColumn rather than being written out twice")
+    func idsAreDerivedFromSortColumn() throws {
+        let ids = try Self.customizationIDs()
+        // Only the type glyph has no ordering and so no SortColumn case.
+        let literals = ids.filter { !$0.hasPrefix("SortColumn.") }
+        #expect(
+            literals == ["\"type\""],
+            "unexpected hand-written IDs \(literals); derive them from SortColumn")
+    }
+
+    @Test("The identifier and the type glyph cannot be hidden")
+    func essentialColumnsAreNotHideable() throws {
+        let text = try Self.source()
+        // Every bead link, context menu and URL is keyed by the id; the glyph
+        // column is headerless and would list as a blank menu row. Both are
+        // deliberately exempt, and a later tidy-up must not quietly re-enable
+        // them.
+        let exemptions = text.components(separatedBy: ".disabledCustomizationBehavior(.visibility)")
+            .count - 1
+        #expect(exemptions == 2, "expected exactly 2 non-hideable columns, found \(exemptions)")
+    }
+}

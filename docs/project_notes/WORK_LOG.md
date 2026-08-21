@@ -5,6 +5,43 @@ store was empty until 2026-08-21, so earlier entries carry no id.
 
 ---
 
+## 2026-08-21 — Hideable list columns
+
+`vbx-gsd`. Columns can be hidden and shown from the header's own right-click
+menu, and the layout — visibility, order and widths — survives a relaunch.
+
+Almost none of this is hand-written. `TableColumnCustomization` is macOS 14 and
+this package targets 14, so one `@AppStorage` binding plus a `customizationID`
+per column delivers the menu, the persistence and column reordering together.
+Worth recording because the bead was filed asking for a hand-built context
+menu: the platform already had it, and checking took one type-check against the
+SDK.
+
+Two columns opt out of visibility. **ID** because every context menu, bead link
+and URL is keyed by it, and **the type glyph** because it is headerless and
+would list as a blank row in the menu.
+
+Hiding the column being sorted by falls back to `.default`, decided in
+`SortMode.whenColumnsHidden(_:)` so the rule is testable without a view. The
+alternative — leaving the sort pointed at an invisible column — leaves the rows
+looking shuffled with nothing on screen to explain it.
+
+The identifiers are a storage contract: they sit in users' preferences once
+shipped, so they are derived from `SortColumn` rather than written out twice,
+and three source-level tests hold that line — every column has one, none is
+duplicated, and only the glyph uses a literal. That is not theoretical
+tidiness: the first implementation gave PageRank the `blocks` identifier
+through a mis-aimed edit, and the uniqueness test is what caught it.
+
+**Not implemented: the accent-coloured divider marking hidden groups.**
+SwiftUI's `Table` exposes no API for column dividers and no way to read column
+frames, so it cannot be layered on. It needs either a header-level indicator
+instead, or replacing `Table` with `NSTableView` — a large rewrite that sorting,
+selection, badges and every list snapshot currently depend on. Left open in the
+bead's discussion rather than half-built.
+
+---
+
 ## 2026-08-21 — Open panel navigation, and bead selection as navigation
 
 `vbx-kjh`, `vbx-8ea`.
