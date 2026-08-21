@@ -292,12 +292,18 @@ def test_no_tracked_file_carries_credentials() -> None:
     check("no tracked file carries a configured signing value",
           not offenders, "; ".join(offenders))
 
+    # Three states, not two. "Nothing to scan for" and "no config at all" look
+    # identical to the assertion and mean different things to a reader, and
+    # reporting the second when the first is true is a lie about coverage —
+    # which is what this check exists to avoid in the first place.
+    config = ROOT / "scripts" / "signing.env"
     if real_values:
         names = ", ".join(sorted(key for key, _ in real_values))
         print(f"        (checked against {len(real_values)} configured value(s): {names})")
+    elif config.exists():
+        print("        (scripts/signing.env holds only template placeholders — "
+              "nothing to scan for yet)")
     else:
-        # Said out loud, because a silent pass here would otherwise look like
-        # proof of something it did not check.
         print("        (no scripts/signing.env on this machine — literal-value "
               "check did not run)")
 
