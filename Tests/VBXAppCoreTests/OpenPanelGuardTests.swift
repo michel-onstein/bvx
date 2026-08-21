@@ -71,9 +71,14 @@ struct OpenPanelGuardTests {
         let guardDelegate = OpenPanelGuard()
 
         #expect(!guardDelegate.canOpen(empty.path))
-        #expect(!guardDelegate.panel(NSNull(), shouldEnable: empty))
-        // A greyed-out row with no explanation is the thing users file bugs
-        // about, so the refusal has to carry one.
+        // Deliberately *not* asserting that the row is greyed. It used to be,
+        // and that is what made the panel impossible to navigate: a disabled
+        // directory cannot be entered, so every folder on the way to a
+        // repository was a dead end. The refusal now happens on OK instead —
+        // see `unopenableFolderStaysNavigable` and the validate test below.
+        //
+        // An unexplained refusal is the thing users file bugs about, so it
+        // still has to carry a reason.
         #expect(!guardDelegate.result(for: empty.path).reason.isEmpty)
         #expect(guardDelegate.refusal(for: empty.path).contains(empty.lastPathComponent))
     }
@@ -138,6 +143,67 @@ struct OpenPanelGuardTests {
 
         #expect(failed != nil)
         await store.close()
+    }
+
+    @Test("A folder that cannot be opened is still enabled, so it can be entered")
+    func unopenableFolderStaysNavigable() throws {
+        // The bug this guards: greying an unopenable directory also stops it
+        // being double-clicked, and every folder on the way to a repository is
+        // itself unopenable. `~/src` holds no .beads, so the panel could not be
+        // navigated down to a workspace at all unless it opened inside one.
+        let plain = try Self.temporaryDirectory()
+        let guardDelegate = OpenPanelGuard()
+
+        #expect(!guardDelegate.canOpen(plain.path), "premise: this folder cannot be opened")
+        #expect(
+            guardDelegate.panel(NSNull(), shouldEnable: plain),
+            "an unopenable folder must stay enabled or it cannot be entered")
+    }
+
+    @Test("An unopenable folder is still refused on OK, with a reason")
+    func unopenableFolderIsRefusedOnValidate() throws {
+        // The other half, and the reason enabling the row costs nothing:
+        // validate is the actual gate. Without this the fix above would read
+        // as "the guard stopped guarding".
+        let plain = try Self.temporaryDirectory()
+        let guardDelegate = OpenPanelGuard()
+
+        #expect(throws: (any Error).self) {
+            try guardDelegate.panel(NSNull(), validate: plain)
+        }
+        #expect(guardDelegate.refusal(for: plain.path).contains("cannot be opened"))
+    }
+
+    @Test("A file that is not bead data is greyed out")
+    func nonBeadFileIsDisabled() throws {
+        // Files are still greyed, and this is where the greying does work.
+        // `resolveSource` used to treat every non-.db file as JSONL, so a
+        // README — or a binary — reported openable and nothing was greyed.
+        let directory = try Self.temporaryDirectory()
+        let guardDelegate = OpenPanelGuard()
+
+        for name in ["README.md", "notes", "icon.icns"] {
+            let file = directory.appendingPathComponent(name)
+            try Data("not bead data\n".utf8).write(to: file)
+
+            #expect(!guardDelegate.canOpen(file.path), "\(name) reported openable")
+            #expect(
+                !guardDelegate.panel(NSNull(), shouldEnable: file),
+                "\(name) was offered in the panel")
+        }
+    }
+
+    @Test("A .jsonl file is still offered")
+    func beadDataFileStaysEnabled() throws {
+        // Guards the over-correction: refusing every file would switch the
+        // panel's file support off entirely, and the engine genuinely opens a
+        // data file chosen directly.
+        let beads = URL(fileURLWithPath: demoFixture).appendingPathComponent(".beads")
+        let file = beads.appendingPathComponent("issues.jsonl")
+        let guardDelegate = OpenPanelGuard()
+
+        #expect(guardDelegate.canOpen(file.path))
+        #expect(guardDelegate.panel(NSNull(), shouldEnable: file))
     }
 
     private static func temporaryDirectory() throws -> URL {

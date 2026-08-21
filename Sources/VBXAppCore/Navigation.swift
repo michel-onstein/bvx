@@ -65,18 +65,52 @@ extension ProjectStore {
         navigationCursor = navigationHistory.count - 1
     }
 
-    /// Keeps the current position's bead in step with the focus.
+    /// How long a run of selections keeps collapsing into one position.
     ///
-    /// Moving down the list with `j`/`k` is browsing, not navigation: pushing
-    /// an entry per row would evict every real position within one screenful.
-    /// The current entry is updated in place instead, so going back later
-    /// returns to where the user actually was rather than to a stale row.
+    /// A selection arriving within this of the last one continues the run and
+    /// replaces its position; a slower one is a separate move and records its
+    /// own. The number is a judgement about intent, not a measurement: it is
+    /// long enough to swallow key repeat, short enough that two deliberate
+    /// clicks are never merged.
+    public static let navigationCoalesceWindow: TimeInterval = 0.5
+
+    /// Records the bead now in focus as a position.
+    ///
+    /// Selecting a bead is navigation: it is a place the user was, and back is
+    /// expected to return to it. This originally refreshed the current entry in
+    /// place instead, reasoning that `j`/`k` browsing was not navigation — but
+    /// that left back unable to return to the bead just read, which is the
+    /// commonest thing to want back *for*.
+    ///
+    /// The objection behind the original rule was real, though: with a
+    /// twenty-position cap, holding a key down would otherwise evict every
+    /// surface position within one screenful. So a *run* of selections
+    /// collapses into a single position — the one the run ends on — and back
+    /// returns to wherever the run started rather than crawling out of it row
+    /// by row.
     func noteFocusChanged() {
         guard !isRestoringNavigation, !isJumpingToBead else { return }
-        guard navigationHistory.indices.contains(navigationCursor) else { return }
-        let current = navigationHistory[navigationCursor]
-        guard current.surface == surface else { return }
-        navigationHistory[navigationCursor] = NavigationEntry(surface: surface, bead: focusedID)
+
+        let now = navigationClock()
+        defer { lastSelectionRecordedAt = now }
+
+        // The window is a half-open range rather than a bare `<`: an interval
+        // that comes out negative means the clock moved backwards — an NTP
+        // step, or a test installing its own clock — and "the same run" is not
+        // a safe reading of that. Recording is the harmless answer; silently
+        // merging positions is not.
+        let sinceLast = lastSelectionRecordedAt.map { now.timeIntervalSince($0) }
+        if let sinceLast, (0..<Self.navigationCoalesceWindow).contains(sinceLast),
+            let current = currentNavigationEntry,
+            current.surface == surface
+        {
+            // Still the same run: move the position rather than adding one.
+            navigationHistory[navigationCursor] = NavigationEntry(
+                surface: surface, bead: focusedID)
+            return
+        }
+
+        recordNavigation()
     }
 
     /// Seeds the history with the current position, discarding what was there.

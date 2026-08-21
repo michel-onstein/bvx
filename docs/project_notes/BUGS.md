@@ -4,6 +4,51 @@ Found-and-fixed issues, with the regression test that locks each fix in.
 
 ---
 
+## 2026-08-21 — The Open panel could not be navigated to a workspace
+
+**Symptom:** folders without `.beads` could not be double-clicked to enter
+them, so a workspace below one was unreachable — the panel was only usable if
+it happened to open inside a workspace already. Meanwhile *every* file was
+selectable, greyed out or not.
+
+**Cause, part one:** `OpenPanelGuard.panel(_:shouldEnable:)` returned
+`canOpen(url.path)` for directories as well as files, and the type's own
+documentation asserted that was safe: *"AppKit still lets the user navigate
+into a disabled directory, which is essential."* It does not. A disabled
+directory cannot be entered, and since every folder on the way to a repository
+is itself unopenable, each was a dead end.
+
+**Cause, part two:** `resolveSource`'s non-directory branch returned
+`(path, "jsonl")` for anything that was not `.db`/`.sqlite`/`.sqlite3`, without
+checking extension or content. Measured: `README.md`, `Package.swift` and a
+binary `vbx.icns` all probed `can_open=true`. So `shouldEnable` said yes to
+every file and the failure arrived later, in the loader — the panel/loader
+disagreement `Probe`'s header says it exists to design out.
+
+**Fix:** directories are always enabled and `panel(_:validate:)` — which
+already existed for exactly this, and refuses with a reason — is the gate.
+Greying now applies to files only, and the engine accepts a file by extension
+(`.jsonl`, `.db`, `.sqlite`, `.sqlite3`). Content is deliberately not sniffed:
+an empty or mid-write `issues.jsonl` is still the file the user means, and
+refusing it here would break the documented fallback to `beads.db`.
+
+**Also corrected:** `Probe`'s header claimed discovery "does *not* walk
+upwards". A folder inside a git checkout does resolve to the repository root's
+`.beads` — `Sources/deep` is openable — while the same layout *outside* git is
+refused. Git is what decides it, and the two cases look identical on disk, so
+both are now asserted: `TestProbeAcceptsAFolderInsideAGitRepository` alongside
+the existing `TestProbeRefusesAFolderBelowOneWithBeads`.
+
+**Prevention:** `unopenableFolderStaysNavigable` asserts an unopenable folder
+stays *enabled*, paired with `unopenableFolderIsRefusedOnValidate` so a fix for
+one cannot silently undo the other. `nonBeadFileIsDisabled` and
+`beadDataFileStaysEnabled` pin both directions of the file rule — refusing
+every file would "fix" the greying by switching the panel's file support off.
+The existing `refusesEmptyFolder` was rewritten rather than deleted: it no
+longer asserts the row is greyed, and says why.
+
+---
+
 ## 2026-08-21 — A second workspace opened behind the first one's filters
 
 **Symptom:** open one workspace, filter it, open another — and the list comes up

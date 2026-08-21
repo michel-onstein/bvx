@@ -159,22 +159,90 @@ func beadJumpIsNavigable() async throws {
 }
 
 @MainActor
-@Test("Browsing rows updates the current position instead of pushing one")
-func rowSelectionDoesNotPushPositions() async {
+@Test("Selecting a bead records a position, so back returns to the one before")
+func rowSelectionRecordsAPosition() async throws {
+    // This replaces a test that asserted the opposite. Row selection used to
+    // refresh the current position in place, on the reasoning that `j`/`k`
+    // browsing was not navigation — which left back unable to return to the
+    // bead just read, the commonest thing to want back for.
     let store = await loadedStore()
-    store.surface = .graph
-    let count = store.navigationHistory.count
+    var clock = Date(timeIntervalSince1970: 1_000_000)
+    store.navigationClock = { clock }
 
-    // What `j`/`k` and a table click do: write the selection directly. Pushing
-    // per row would evict all 20 positions within one screenful of browsing.
-    for id in store.issues.prefix(5).map(\.id) {
+    let ids = store.issues.map(\.id)
+    let first = try #require(ids.first)
+    let second = try #require(ids.dropFirst().first)
+    let third = try #require(ids.dropFirst(2).first)
+
+    // Spaced beyond the coalescing window: three separate moves.
+    for id in [first, second, third] {
+        clock = clock.addingTimeInterval(ProjectStore.navigationCoalesceWindow * 2)
         store.selection = [id]
     }
 
-    #expect(store.navigationHistory.count == count, "row browsing pushed positions")
-    // The current position still has to track where the user actually is, or
-    // back from the next surface would return to a stale row.
-    #expect(store.currentNavigationEntry?.bead == store.focusedID)
+    store.goBack()
+    #expect(store.focusedID == second, "back did not return to the previously viewed bead")
+    store.goBack()
+    #expect(store.focusedID == first)
+
+    store.goForward()
+    #expect(store.focusedID == second)
+
+    await store.close()
+}
+
+@MainActor
+@Test("A fast run of selections collapses into the position it ends on")
+func rapidSelectionRunCoalesces() async throws {
+    // The reason the original rule existed, kept: with a 20-position cap,
+    // holding a key down would otherwise evict every surface position within
+    // one screenful. A run collapses, so back leaves the run rather than
+    // crawling out of it row by row.
+    let store = await loadedStore()
+    var clock = Date(timeIntervalSince1970: 2_000_000)
+    store.navigationClock = { clock }
+
+    store.surface = .graph
+    let before = store.navigationHistory.count
+    let positionBeforeRun = store.currentNavigationEntry
+    let ids = Array(store.issues.prefix(6).map(\.id))
+
+    for id in ids {
+        // Key repeat: each selection lands well inside the window.
+        clock = clock.addingTimeInterval(ProjectStore.navigationCoalesceWindow / 5)
+        store.selection = [id]
+    }
+
+    #expect(
+        store.navigationHistory.count == before + 1,
+        "a run of \(ids.count) selections recorded \(store.navigationHistory.count - before) positions")
+    #expect(store.currentNavigationEntry?.bead == ids.last, "the run kept the wrong position")
+
+    // One step leaves the whole run, rather than crawling back through six
+    // rows — which is the point of collapsing it.
+    store.goBack()
+    #expect(
+        store.currentNavigationEntry == positionBeforeRun,
+        "back did not land on the position the run started from")
+
+    await store.close()
+}
+
+@MainActor
+@Test("Browsing cannot evict every position: the cap still holds")
+func browsingRespectsTheCap() async throws {
+    let store = await loadedStore()
+    var clock = Date(timeIntervalSince1970: 3_000_000)
+    store.navigationClock = { clock }
+
+    // Deliberate, spaced selections — the case that does record one each.
+    for id in store.issues.map(\.id) {
+        clock = clock.addingTimeInterval(ProjectStore.navigationCoalesceWindow * 2)
+        store.selection = [id]
+    }
+
+    #expect(store.navigationHistory.count <= ProjectStore.navigationHistoryLimit)
+    #expect(store.navigationCursor == store.navigationHistory.count - 1)
 
     await store.close()
 }

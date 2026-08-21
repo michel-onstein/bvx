@@ -41,13 +41,23 @@ type ProbeResult struct {
 //   - a multi-repository workspace root, which holds `.bv/workspace.yaml` while
 //     its `.beads` directories live in the repositories below it
 //   - a git worktree whose `.beads` lives in the main repository, not in it
+//   - any folder inside a *git checkout* whose root holds `.beads`, because
+//     discovery resolves a path to its repository root
 //
 // The workspace case is the one a naive check breaks: requiring `.beads` at the
 // chosen level makes every workspace root unselectable.
 //
-// Note discovery does *not* walk upwards — bv checks `<path>/.beads` and the
-// main repository of a worktree, and nothing else. A folder below a workspace
-// root is therefore refused, and refusing it is correct: opening it would fail.
+// A file is accepted only by extension — `.jsonl`, `.db`, `.sqlite`,
+// `.sqlite3`. It is not sniffed for content: an `issues.jsonl` that is empty,
+// or momentarily mid-write, is still the file the user means, and refusing it
+// here would break the documented fallback to `beads.db`.
+//
+// Discovery does not walk arbitrary parents. A plain directory below one
+// holding `.beads` is refused — `TestProbeRefusesAFolderBelowOneWithBeads` —
+// while the same layout inside a git checkout is accepted, because the lookup
+// resolves the repository root rather than climbing. *Git* is what decides it,
+// which is worth stating since the two cases look identical on disk and this
+// file's whole job is publishing which folders are openable.
 func Probe(path string) ProbeResult {
 	result := ProbeResult{Path: path}
 
