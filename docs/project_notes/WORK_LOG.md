@@ -5,6 +5,21 @@ store was empty until 2026-08-21, so earlier entries carry no id.
 
 ---
 
+## 2026-08-21 — Filters reset on a workspace switch
+
+`vbx-ozd`. See BUGS.md. Opening a second workspace inherited the first one's
+filters, and because labels, assignees, repo names and a recipe's ids are
+workspace-specific strings, the new workspace typically came up empty with
+nothing on screen explaining why.
+
+The reset is gated on the resolved source changing rather than run on every
+`open`, and it sits before `refreshAll()` so the first render is already
+unfiltered. `surface` is left alone on purpose — it is not a filter — and there
+is a test pinning that, so the exclusion reads as a decision rather than an
+oversight.
+
+---
+
 ## 2026-08-21 — Five open beads: list columns, link affordances, view history
 
 `bvx-iyc`, `bvx-4xw`, `vbx-tdk`, `vbx-8lk`, `bvx-hsv`. Four UI changes and one
