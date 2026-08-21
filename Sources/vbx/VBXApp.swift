@@ -32,7 +32,11 @@ struct VBXApp: App {
                 }
         }
         .windowToolbarStyle(.unified)
-        .commands { VBXCommands(store: store, showingExportWizard: $showingExportWizard) }
+        .commands {
+            VBXCommands(
+                store: store, recents: store.recents,
+                showingExportWizard: $showingExportWizard)
+        }
 
         // Its own window rather than a sheet: the tutorial is meant to be read
         // beside the app, not instead of it.
@@ -53,13 +57,37 @@ struct VBXApp: App {
 /// bindings in `TerminalKeys` are an additive layer on top.
 struct VBXCommands: Commands {
     @ObservedObject var store: ProjectStore
+    /// Observed separately from `store`: a nested `ObservableObject` publishes
+    /// its own changes, and without watching it here the menu would keep
+    /// showing the list as it was when the window opened.
+    @ObservedObject var recents: RecentWorkspaces
     @Binding var showingExportWizard: Bool
     @Environment(\.openWindow) private var openWindow
+
+    /// The last few workspaces, most recent first.
+    ///
+    /// Titled without an ellipsis: the convention is that "…" promises a dialog,
+    /// and this opens a submenu. "Clear Menu" is the wording the rest of macOS
+    /// uses for the same action, so it needs no explaining.
+    @ViewBuilder
+    private var recentWorkspacesMenu: some View {
+        Menu("Recent Workspaces") {
+            ForEach(recents.entries) { entry in
+                Button(entry.name) { Task { await store.open(path: entry.path) } }
+                    .help(entry.path)
+            }
+            Divider()
+            Button("Clear Menu") { recents.clear() }
+                .disabled(recents.entries.isEmpty)
+        }
+        .disabled(recents.entries.isEmpty)
+    }
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
             Button("Open Workspace…") { store.presentOpenPanel() }
                 .keyboardShortcut("o", modifiers: .command)
+            recentWorkspacesMenu
             Button("Reload") { Task { await store.reload(force: true) } }
                 .keyboardShortcut("r", modifiers: .command)
                 .disabled(!store.isLoaded)

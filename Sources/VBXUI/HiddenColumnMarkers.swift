@@ -60,17 +60,58 @@ final class HiddenColumnMarkerView: NSView {
     private static let ruleWidth: CGFloat = 3
     private static let hitSlop: CGFloat = 4
 
+    /// The ordinary column boundary drawn below the header.
+    private static let hairline: CGFloat = 1
+
     var unhide: (([String]) -> Void)?
     private(set) var markers: [Marker] = []
 
+    /// How far down the accent rule runs, in this view's coordinates.
+    ///
+    /// The rule marks the *header* only. Running it the full height of the
+    /// table turned it into a wall through the data: it competed with the rows
+    /// for attention and read as a division of the content rather than a note
+    /// about the columns. Below the header the boundary goes back to an
+    /// ordinary hairline, like every other column edge.
+    private(set) var headerHeight: CGFloat = 0
+
     override var isFlipped: Bool { true }
+
+    /// Sets the drawn state directly, for tests that need a known geometry
+    /// without standing up a whole table.
+    func setMarkersForTesting(_ markers: [Marker], headerHeight: CGFloat) {
+        self.markers = markers
+        self.headerHeight = headerHeight
+        needsDisplay = true
+    }
 
     /// Recomputes the markers from the backing table and redraws.
     func refresh() {
-        let found = Self.markers(in: backingTable(), relativeTo: self)
-        guard found.map(\.x) != markers.map(\.x) || found.count != markers.count else { return }
+        let table = backingTable()
+        let found = Self.markers(in: table, relativeTo: self)
+        let header = Self.headerHeight(of: table, relativeTo: self)
+
+        let unchanged =
+            found.map(\.x) == markers.map(\.x)
+            && found.count == markers.count
+            && header == headerHeight
+        guard !unchanged else { return }
+
         markers = found
+        headerHeight = header
         needsDisplay = true
+    }
+
+    /// The bottom of the column header, in `target`'s coordinates.
+    ///
+    /// Measured from the table's own header view rather than assumed, because
+    /// the height follows the system's control size and text settings.
+    /// Returning 0 when there is no header is what makes the accent rule vanish
+    /// rather than misdraw.
+    static func headerHeight(of table: NSTableView?, relativeTo target: NSView) -> CGFloat {
+        guard let header = table?.headerView else { return 0 }
+        let rect = target.convert(header.bounds, from: header)
+        return max(0, rect.maxY)
     }
 
     override func layout() {
@@ -141,14 +182,28 @@ final class HiddenColumnMarkerView: NSView {
         super.draw(dirtyRect)
         guard !markers.isEmpty else { return }
 
-        NSColor.controlAccentColor.setFill()
         for marker in markers {
-            let rule = NSRect(
+            // The accent rule marks the header, where column controls live and
+            // where the eye goes to ask about columns.
+            NSColor.controlAccentColor.setFill()
+            NSRect(
                 x: marker.x - Self.ruleWidth / 2,
                 y: 0,
                 width: Self.ruleWidth,
-                height: bounds.height)
-            rule.fill()
+                height: headerHeight
+            ).fill()
+
+            // Below it the boundary is an ordinary hairline, matching every
+            // other column edge rather than driving a coloured wall through
+            // the rows.
+            guard bounds.height > headerHeight else { continue }
+            NSColor.separatorColor.setFill()
+            NSRect(
+                x: marker.x - Self.hairline / 2,
+                y: headerHeight,
+                width: Self.hairline,
+                height: bounds.height - headerHeight
+            ).fill()
         }
     }
 
@@ -163,8 +218,15 @@ final class HiddenColumnMarkerView: NSView {
         return self
     }
 
+    /// The rule under `point`, if the point is on one.
+    ///
+    /// Bounded to the header band, where the accent rule is actually drawn.
+    /// Matching the full height would mean the overlay swallowed clicks on
+    /// rows that happen to lie under the boundary — the row would simply not
+    /// select, with nothing on screen explaining why.
     private func marker(at point: NSPoint) -> Marker? {
-        markers.first { abs($0.x - point.x) <= Self.ruleWidth / 2 + Self.hitSlop }
+        guard point.y >= 0, point.y <= headerHeight else { return nil }
+        return markers.first { abs($0.x - point.x) <= Self.ruleWidth / 2 + Self.hitSlop }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -185,7 +247,7 @@ final class HiddenColumnMarkerView: NSView {
                 x: marker.x - Self.ruleWidth / 2 - Self.hitSlop,
                 y: 0,
                 width: Self.ruleWidth + Self.hitSlop * 2,
-                height: bounds.height)
+                height: headerHeight)
             addCursorRect(band, cursor: .pointingHand)
         }
     }

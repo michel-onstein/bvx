@@ -5,6 +5,42 @@ store was empty until 2026-08-21, so earlier entries carry no id.
 
 ---
 
+## 2026-08-21 — Rule confined to the header, and a recents menu
+
+**The hidden-column rule now marks the header only.** Run the full height of
+the table it read as a division of the *content* — a coloured wall through the
+rows, competing with the data for attention — rather than a note about the
+columns. Below the header the boundary is an ordinary hairline, like every
+other column edge. The header height is measured from the table's own
+`headerView` rather than assumed, because it follows the system's control size.
+
+That change fixed a bug that had shipped with the original: the overlay's hit
+region ran the full height too, so a click on a row lying under the boundary
+was swallowed and the row simply would not select. Hit-testing now stops at the
+header, where the rule actually is.
+
+**A Recent Workspaces submenu** in File, holding the last five, with the
+conventional Clear Menu at the bottom. Deliberately not
+`NSDocumentController`'s recent-documents list: vbx is not document-based and
+what it reopens is a workspace *directory*, so the system list would both
+mis-describe the entries and fight the app over which is current.
+
+Three decisions worth keeping:
+
+- **Recorded only after a successful open.** A path that failed to load is not
+  somewhere the user has been, and offering it again would reproduce the error.
+- **Entries that no longer exist are hidden but not forgotten.** Listing a moved
+  folder and letting the click fail is worse than omitting it; deleting it from
+  storage would mean an unmounted drive costs the user their history.
+- **Re-opening moves an entry up rather than adding it twice**, which is what
+  makes the list read as "where I have been" rather than "what I have clicked".
+
+`RecentWorkspaces` takes its `UserDefaults` by injection so the tests never
+touch the real preferences — and so two of them cannot see each other's entries
+under parallel execution.
+
+---
+
 ## 2026-08-21 — The hidden-column marker, after all
 
 Follow-up to `vbx-gsd`, which shipped hiding without the accent rule and
