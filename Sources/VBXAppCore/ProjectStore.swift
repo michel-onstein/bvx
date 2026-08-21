@@ -100,8 +100,42 @@ public final class ProjectStore: ObservableObject {
     @Published public private(set) var isLoading = false
     @Published public private(set) var phase2InFlight = false
 
-    @Published public var surface: ViewSurface = .list
+    @Published public var surface: ViewSurface = .list {
+        didSet {
+            guard surface != oldValue else { return }
+            recordNavigation()
+        }
+    }
     @Published public var query = IssueQuery()
+
+    // MARK: Navigation history
+    //
+    // Where the user has been, so back and forward can return. See
+    // ``NavigationEntry`` for what counts as a position and why plain row
+    // selection does not push one.
+
+    /// Visited positions, oldest first, capped at ``navigationHistoryLimit``.
+    @Published public internal(set) var navigationHistory: [NavigationEntry] = []
+
+    /// Index into ``navigationHistory`` of where the user is now.
+    ///
+    /// A cursor rather than a stack pointer: going back moves it down and
+    /// leaves the entries above intact, which is the only reason forward has
+    /// anywhere to go.
+    @Published public internal(set) var navigationCursor: Int = -1
+
+    /// True while an entry is being restored.
+    ///
+    /// Restoring writes `surface` and `selection`, which are the very things
+    /// that record history — without this, going back would record the arrival
+    /// as a fresh navigation and forward would be truncated away instantly.
+    var isRestoringNavigation = false
+
+    /// True while ``select(id:)`` is deliberately jumping to a bead.
+    ///
+    /// Suppresses the in-place refresh so the entry being left keeps the bead
+    /// it was recorded with, rather than being overwritten by the destination.
+    var isJumpingToBead = false
 
     /// Every selected bead. Bound directly to the list's `Table`.
     ///
@@ -347,7 +381,13 @@ public final class ProjectStore: ObservableObject {
     @discardableResult
     public func select(id: String) -> Bool {
         guard issues.contains(where: { $0.id == id }) else { return false }
+        // Jumping, not browsing: the position being left keeps the bead it was
+        // recorded with, and the arrival is pushed as a position of its own so
+        // back returns to where the jump started.
+        isJumpingToBead = true
         selection = [id]
+        isJumpingToBead = false
+        recordNavigation()
         return true
     }
 
@@ -388,6 +428,7 @@ public final class ProjectStore: ObservableObject {
         } else if selection.isEmpty {
             focusedID = nil
         }
+        noteFocusChanged()
     }
 
     /// The selected ids in the order they appear on screen.
@@ -447,6 +488,9 @@ public final class ProjectStore: ObservableObject {
             let info = try await engine.open(path: path, skipPhase2: skipPhase2)
             self.info = info
             try await refreshAll()
+            // Positions name beads, and the previous workspace's beads do not
+            // exist in this one.
+            resetNavigationHistory()
             startWatching()
             if !skipPhase2 { await computePhase2() }
         } catch {

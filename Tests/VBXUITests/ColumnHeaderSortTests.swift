@@ -110,3 +110,55 @@ struct ColumnHeaderSortTests {
         await store.close()
     }
 }
+
+/// The order the table declares its columns in.
+///
+/// SwiftUI's `Table` builds its columns from a result builder, and the built
+/// value exposes no list of headers to inspect, so there is nothing to assert
+/// against at runtime. Reading the source is the only way to pin the order —
+/// and the order is exactly the kind of thing an unrelated edit reshuffles
+/// without anyone noticing.
+@Suite("Table column order")
+struct TableColumnOrderTests {
+
+    /// Headers in declaration order, read from `IssueListView.swift`.
+    private static func declaredColumns() throws -> [String] {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/VBXUI/IssueListView.swift")
+        let text = try String(contentsOf: source, encoding: .utf8)
+
+        var headers: [String] = []
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("TableColumn(\"") else { continue }
+            let afterQuote = trimmed.dropFirst("TableColumn(\"".count)
+            guard let close = afterQuote.firstIndex(of: "\"") else { continue }
+            headers.append(String(afterQuote[afterQuote.startIndex..<close]))
+        }
+        return headers
+    }
+
+    @Test("Priority is the column immediately after ID")
+    func priorityFollowsID() throws {
+        let headers = try Self.declaredColumns()
+        let id = try #require(headers.firstIndex(of: "ID"), "no ID column found")
+        let priority = try #require(headers.firstIndex(of: "P"), "no priority column found")
+        #expect(
+            priority == id + 1,
+            "priority must follow ID directly; got \(headers)")
+    }
+
+    @Test("The columns the view is built from are all present")
+    func columnsPresent() throws {
+        let headers = try Self.declaredColumns()
+        // Guards the parser itself: if it silently matched nothing, the order
+        // assertion above would have nothing to fail on.
+        #expect(headers.count >= 9, "parsed too few columns: \(headers)")
+        for expected in ["ID", "P", "Title", "Status", "Labels", "Updated"] {
+            #expect(headers.contains(expected), "\(expected) column missing from \(headers)")
+        }
+    }
+}

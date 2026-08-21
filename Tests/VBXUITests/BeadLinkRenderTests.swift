@@ -111,3 +111,62 @@ struct BeadLinkRenderTests {
         await store.close()
     }
 }
+
+/// The affordances that tell a reader an id is clickable.
+///
+/// Separate from linking itself because the two fail independently: an id can
+/// carry a working link and still look and feel like ordinary prose, which is
+/// exactly the state this suite was written against.
+@MainActor
+@Suite("Bead link affordances")
+struct BeadLinkAffordanceTests {
+
+    private let titles = ["vbx-8ou": "Bind git correlation engine through the bridge"]
+
+    private func attributed(_ source: String) -> AttributedString {
+        MarkdownText(source: source, beadTitles: titles).plainAttributed(source)
+    }
+
+    /// The runs carrying a bead link.
+    private func linkedRuns(_ text: AttributedString) -> [AttributedString.Runs.Element] {
+        text.runs.filter { run in
+            guard let link = run.link else { return false }
+            return BeadURL.bead(in: link) != nil
+        }
+    }
+
+    @Test("A linked id is tinted, underlined and takes a pointing-hand cursor")
+    func linkedIDCarriesAffordances() throws {
+        let text = attributed("work on vbx-8ou first to unblock this")
+        let runs = linkedRuns(text)
+        #expect(runs.count == 1, "expected exactly one linked run")
+        let run = try #require(runs.first)
+
+        #expect(run.foregroundColor == .accentColor, "linked id is not tinted")
+        #expect(run.underlineStyle != nil, "linked id is not underlined")
+        #expect(run.appKit.cursor == .pointingHand, "linked id has no pointer cursor")
+    }
+
+    @Test("The affordances stop at the id and do not bleed into the prose")
+    func affordancesAreScopedToTheID() throws {
+        // The bug this guards is an attribute applied to the whole string:
+        // every check above would still pass while the entire paragraph turned
+        // blue and the cursor changed over text that is not clickable.
+        let text = attributed("work on vbx-8ou first to unblock this")
+        let styled = text.runs.filter { run in run.appKit.cursor != nil }
+        #expect(styled.count == 1, "cursor applied to \(styled.count) runs, expected 1")
+
+        let run = try #require(styled.first)
+        #expect(String(text[run.range].characters) == "vbx-8ou")
+    }
+
+    @Test("An id the workspace does not hold gets no affordances at all")
+    func unknownIDStaysPlain() {
+        // A stale id is deliberately left as plain text. Tinting it would
+        // promise a target that is not there.
+        let text = attributed("vbx-nope was closed long ago")
+        #expect(linkedRuns(text).isEmpty)
+        #expect(text.runs.allSatisfy { run in run.appKit.cursor == nil })
+        #expect(text.runs.allSatisfy { run in run.foregroundColor != .accentColor })
+    }
+}

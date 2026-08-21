@@ -4,6 +4,44 @@ Found-and-fixed issues, with the regression test that locks each fix in.
 
 ---
 
+## 2026-08-21 — Triage staleness counted commits bv does not see
+
+**Symptom:** `stale_count` disagreed with `bv --robot-triage` on the same
+workspace. Reproduced against bv v0.20.0 in a repository holding three months-
+old open beads plus one recent commit naming a bead in its message while
+touching no bead record: bv reported 3 stale, vbx reported 2.
+
+Invisible on the demo fixture — every bead there is recently active, so
+staleness is `null` in both tools and the parity harness reported a match. It
+takes a bead old enough to cross the 14-day threshold before the two disagree.
+
+**Cause:** vbx correlates a commit to a bead two ways — the commit edited the
+bead's record beside code (co-committed), or the commit *message* names the
+bead (explicit). bv's triage path only ever has the first: it derives its
+commits from the beads-file events, and its `ExplicitMatcher` is never
+constructed anywhere in bv's own `pkg/` or `cmd/`. `ComputeStaleness` takes the
+latest of a bead's events and commits, so an explicit-only commit made a bead
+look freshly worked to vbx and stale to bv. Staleness is 10 % of the triage
+score, so this moved the whole ranking, not one field.
+
+**Fix:** `historyForTriage` hands triage a narrowed copy keeping only commits
+whose SHA also appears among that bead's own events — exactly the set bv
+derives. Narrowing by *method label* would have been wrong: a commit that both
+names a bead and edits its record is recorded as explicit here but is a
+co-commit to bv, so dropping it by label swaps one divergence for another.
+Explicit correlation is untouched everywhere else — it is the History view's
+whole point, and it is genuinely better, since bv's own patterns require a
+numeric suffix and miss every `br`-minted id like `vbx-8ou`.
+
+**Prevention:** `TestTriageStalenessIgnoresExplicitOnlyCommits` builds that
+repository and asserts `stale_count`; it reports 1 against the unfixed engine.
+`TestTriageNarrowingLeavesTheCachedReportIntact` guards the other direction —
+the report is cached and shared with the History view, so narrowing a copy
+rather than the original is load-bearing. `TestHistoryForTriageKeepsOnlyEvent`
+`Commits` pins the SHA-based rule against a hand-built report.
+
+---
+
 ## 2026-08-20 — The leak scan flagged nine files that held no secret
 
 **Symptom:** the first run against a real `scripts/signing.env` reported

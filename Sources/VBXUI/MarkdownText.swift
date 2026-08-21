@@ -234,6 +234,22 @@ struct MarkdownText: View {
             // The title rides along as a tooltip so hovering answers "which
             // bead is that?" without a round trip through the list.
             attributed[edit.range].appKit.toolTip = beadTitles[edit.id]
+
+            // The tint is set explicitly even though SwiftUI already draws a
+            // link in the accent colour: relying on that default leaves the
+            // styling at the mercy of whatever context the text is rendered
+            // in, and it is the underline below that has to agree with it.
+            attributed[edit.range].foregroundColor = .accentColor
+            // Colour alone is a weak signal in dense prose — and no signal at
+            // all for a colour-blind reader. The underline is the conventional
+            // "this is a link" mark and needs no colour to read.
+            attributed[edit.range].underlineStyle = .single
+            // The pointer is the affordance that says "clickable" before you
+            // click. Scoped to the linked range as an attribute rather than an
+            // `onHover` on the whole `Text`, which would change the cursor over
+            // unlinked prose too. `.pointerStyle(.link)` would be the modern
+            // spelling but it is macOS 15 and this package targets 14.
+            attributed[edit.range].appKit.cursor = .pointingHand
         }
     }
 

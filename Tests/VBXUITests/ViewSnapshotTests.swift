@@ -36,6 +36,46 @@ struct ViewSnapshotTests {
         await store.close()
     }
 
+    @Test("Labels render as separate pills, not one run-on string")
+    func labelPills() async throws {
+        let store = await Fixture.loadedStore()
+        // The fixture must actually carry labels, or the snapshot below would
+        // pass by rendering nothing at all.
+        let labelled = store.visibleIssues.filter { $0.labels.count >= 2 }
+        #expect(!labelled.isEmpty, "fixture has no multi-label bead to draw")
+
+        let result = try Snapshot.render(
+            hosted(IssueListView(), store),
+            name: "issue-list-label-pills",
+            size: CGSize(width: 1000, height: 520)
+        )
+        #expect(result.inkCoverage() > 0.015, "list looks blank (ink \(result.inkCoverage()))")
+        await store.close()
+    }
+
+    @Test("A label pill draws a filled capsule, not bare text")
+    func labelPillFill() throws {
+        // Measured against bare text rather than a fixed threshold, because a
+        // fixed one hides the failure this guards. A neutral capsule at
+        // StatusChip's 0.12 opacity quantises into the window background and
+        // scores the same ink as no pill at all (0.049 vs 0.043) — it renders,
+        // it just cannot be seen. Only a comparison catches that.
+        let size = CGSize(width: 90, height: 28)
+        let bare = try Snapshot.render(
+            Text("engine").font(.caption).foregroundStyle(.secondary).padding(4),
+            name: "label-pill-baseline",
+            size: size
+        )
+        let pill = try Snapshot.render(
+            LabelPill(label: "engine").padding(4),
+            name: "label-pill",
+            size: size
+        )
+        #expect(
+            pill.inkCoverage() > bare.inkCoverage() + 0.1,
+            "pill not visibly distinct from text (pill \(pill.inkCoverage()) vs \(bare.inkCoverage()))")
+    }
+
     @Test("Board renders columns and cards")
     func board() async throws {
         let store = await Fixture.loadedStore()
