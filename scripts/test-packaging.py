@@ -74,6 +74,56 @@ def run_package(*args: str, env_extra: dict[str, str] | None = None,
     )
 
 
+# Which settings are actually secret.
+#
+# BVX_BUNDLE_ID is not: `com.qjam.bvx` is committed in Info.plist, in the
+# scripts and in the Swift sources, deliberately. Scanning for it flagged nine
+# tracked files the first time this ran against a real config — and a leak
+# detector that cries wolf on its first real use is one people learn to ignore.
+#
+# BVX_NOTARY_PROFILE is not secret either: it names a keychain profile, while
+# the credential it stores stays in the keychain.
+SECRET_KEYS = {
+    "BVX_TEAM_ID",
+    "BVX_DEVELOPER_ID_APP",
+    "BVX_APP_STORE_APP",
+    "BVX_APP_STORE_INSTALLER",
+    "BVX_PROVISION_PROFILE",
+}
+
+
+def parse_env_file(path: Path) -> dict[str, str]:
+    """Read KEY=value lines, ignoring comments and blanks."""
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        values[key.strip()] = value.strip().strip('"').strip("'")
+    return values
+
+
+def parse_config_secrets(path: Path) -> list[tuple[str, str]]:
+    """The secret (key, value) pairs actually configured on this machine.
+
+    Values still equal to the template's placeholders are skipped: a config
+    copied from `signing.env.example` and only partly filled in would otherwise
+    report the example file as leaking its own placeholders.
+    """
+    placeholders = set(parse_env_file(EXAMPLE).values())
+    out: list[tuple[str, str]] = []
+    for key, value in parse_env_file(path).items():
+        if key not in SECRET_KEYS:
+            continue
+        if not value or value in placeholders or value.startswith("$"):
+            continue
+        out.append((key, value))
+    return out
+
+
 def tracked_files() -> list[Path]:
     out = subprocess.run(
         ["git", "-C", str(ROOT), "ls-files", "-z"],
@@ -216,18 +266,7 @@ def test_no_tracked_file_carries_credentials() -> None:
     """
     print("\nNo credentials in tracked files")
 
-    real_values = []
-    config = ROOT / "scripts" / "signing.env"
-    if config.exists():
-        for line in config.read_text().splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            value = line.split("=", 1)[1].strip().strip('"').strip("'")
-            # Only substantial values; a bundle id or a short word would match
-            # everywhere and say nothing.
-            if len(value) >= 8 and not value.startswith("$"):
-                real_values.append(value)
+    real_values = parse_config_secrets(ROOT / "scripts" / "signing.env")
 
     offenders: list[str] = []
     apple_id_re = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
@@ -238,9 +277,11 @@ def test_no_tracked_file_carries_credentials() -> None:
             text = path.read_text(errors="ignore")
         except OSError:
             continue
-        for value in real_values:
+        for key, value in real_values:
             if value in text:
-                offenders.append(f"{path.relative_to(ROOT)} contains a configured signing value")
+                # The key is named so the report is actionable; the value never
+                # is, because this output goes wherever test output goes.
+                offenders.append(f"{path.relative_to(ROOT)} contains {key}")
         # An Apple ID would most plausibly arrive inside the example file or
         # the docs, as someone's address pasted over the placeholder.
         if path.name in ("signing.env.example", "package-app.sh"):
@@ -252,12 +293,52 @@ def test_no_tracked_file_carries_credentials() -> None:
           not offenders, "; ".join(offenders))
 
     if real_values:
-        print(f"        (checked against {len(real_values)} configured value(s))")
+        names = ", ".join(sorted(key for key, _ in real_values))
+        print(f"        (checked against {len(real_values)} configured value(s): {names})")
     else:
         # Said out loud, because a silent pass here would otherwise look like
         # proof of something it did not check.
         print("        (no scripts/signing.env on this machine — literal-value "
               "check did not run)")
+
+
+def test_the_leak_scan_still_detects() -> None:
+    """Narrowing the scan must not have switched it off.
+
+    Two directions, because a detector that never fires and a detector that
+    always fires are equally useless — and the second is how the first happens,
+    since people stop reading it.
+    """
+    print("\nThe leak scan itself")
+    with tempfile.TemporaryDirectory() as tmp:
+        config = Path(tmp) / "signing.env"
+        config.write_text(
+            "BVX_TEAM_ID=QQ1OTHER77\n"
+            "BVX_BUNDLE_ID=com.qjam.bvx\n"
+            "BVX_NOTARY_PROFILE=bvx-notary\n"
+            'BVX_DEVELOPER_ID_APP="Developer ID Application: Nemo Nobody (QQ1OTHER77)"\n'
+        )
+        secrets = dict(parse_config_secrets(config))
+
+        check("a real Team ID is scanned for", "BVX_TEAM_ID" in secrets)
+        check("a real certificate name is scanned for",
+              "BVX_DEVELOPER_ID_APP" in secrets)
+        # The false positive that started this: com.qjam.bvx is committed in
+        # Info.plist, the scripts and the Swift sources, on purpose.
+        check("the bundle id is not treated as a secret",
+              "BVX_BUNDLE_ID" not in secrets)
+        check("the notary profile name is not treated as a secret",
+              "BVX_NOTARY_PROFILE" not in secrets)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # A config copied from the template and not yet filled in has nothing
+        # worth scanning for, and must not report the template as leaking its
+        # own placeholders.
+        config = Path(tmp) / "signing.env"
+        config.write_text(EXAMPLE.read_text())
+        check("untouched placeholders are not scanned for",
+              parse_config_secrets(config) == [],
+              str(parse_config_secrets(config)))
 
 
 def test_example_holds_only_placeholders() -> None:
@@ -423,6 +504,7 @@ def main() -> int:
     test_app_store_entitlements_are_generated_not_committed()
     test_signing_env_is_ignored()
     test_no_tracked_file_carries_credentials()
+    test_the_leak_scan_still_detects()
     test_example_holds_only_placeholders()
     test_short_values_are_not_masked()
     test_ad_hoc_cannot_be_notarized()

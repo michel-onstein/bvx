@@ -12,6 +12,10 @@ Engine/build/
 # macOS
 .DS_Store
 
+# Python bytecode from the scripts in scripts/
+__pycache__/
+*.pyc
+
 # bv's per-workspace state, written by bvx as well: the semantic search index,
 # a saved baseline, drift configuration. The index is a rebuildable cache and
 # the baseline is a local reference point, so neither belongs in the repository
