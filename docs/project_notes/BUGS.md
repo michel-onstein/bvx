@@ -4,6 +4,34 @@ Found-and-fixed issues, with the regression test that locks each fix in.
 
 ---
 
+## 2026-08-20 — The leak scan flagged nine files that held no secret
+
+**Symptom:** the first run against a real `scripts/signing.env` reported
+`FileWatchService.swift`, `Keychain.swift`, `build-app.sh`, `package-app.sh`,
+`test-packaging.py` and the template itself as carrying "a configured signing
+value". None of them did.
+
+**Cause:** the scan took every value in the config file longer than eight
+characters. `BVX_BUNDLE_ID=com.qjam.bvx` is one of them — and it is committed
+in `Info.plist`, the scripts and the Swift sources, deliberately. A partly
+filled config also still holds the template's placeholders, which by definition
+match the template.
+
+**Fix:** scan only the settings that are actually secret — Team ID, the three
+certificate names, the provisioning profile path. The bundle identifier is
+public by design, and the notary *profile name* is local rather than secret
+(the credential it names stays in the keychain). Values still equal to a
+placeholder are skipped.
+
+**Prevention:** `test_the_leak_scan_still_detects` asserts both directions
+against a planted config: a real Team ID and a real certificate name *are*
+scanned for, the bundle id and notary profile are *not*, and an untouched
+template yields nothing. Narrowing a detector risks switching it off, and a
+detector that fires on everything gets ignored — which is the same outcome by a
+longer route.
+
+---
+
 ## 2026-08-20 — An editor's swap file beside `signing.env` was committable
 
 **Symptom:** with `scripts/signing.env` created and correctly ignored,
