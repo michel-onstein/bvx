@@ -653,13 +653,68 @@ func (s *Session) triage() ([]byte, error) {
 	historyStatus := "skipped"
 	if hasOpenIssues(issues) {
 		report, status := s.triageHistory()
-		opts.History = report
+		opts.History = historyForTriage(report)
 		historyStatus = status
 	}
 
 	result := analysis.ComputeTriageWithOptionsAndTime(issues, opts, robotNow())
 	result.Meta.HistoryStatus = historyStatus
 	return json.Marshal(result)
+}
+
+// historyForTriage narrows a report to the activity signal bv's triage sees.
+//
+// vbx correlates a commit to a bead two ways: the commit edited the bead's
+// record beside some code (co-committed), or the commit *message* names the
+// bead (explicit). bv's triage path only ever sees the first — it derives its
+// commits from the beads-file events, and its `ExplicitMatcher` is never
+// constructed anywhere in bv — so a commit that mentions a bead without
+// touching its record is activity to vbx and nothing at all to bv.
+//
+// That is not cosmetic. `ComputeStaleness` takes the latest of a bead's events
+// and commits, so an explicit-only commit makes a bead look freshly worked and
+// drops it out of `stale_count`, and staleness is 10 % of the triage score:
+// the whole ranking shifts. Reproduced against bv v0.20.0 with one bead
+// mentioned in a commit touching no bead record — bv reported 3 stale, vbx 2.
+//
+// The narrowing keeps commits whose SHA also appears among the bead's own
+// events, which is exactly the set bv derives, rather than filtering on the
+// method label: a commit that both names a bead and edits its record is
+// recorded as explicit here but is a co-commit to bv, and dropping it by label
+// would swap one divergence for another.
+//
+// Explicit correlation is untouched everywhere else. It is the History view's
+// whole point, and it is genuinely better — bv's own patterns require a
+// numeric suffix and so miss every `br`-minted id. Only triage's staleness has
+// to agree with bv, so only triage's copy is narrowed; the cached report the
+// History view reads is left alone.
+func historyForTriage(report *correlation.HistoryReport) *correlation.HistoryReport {
+	if report == nil {
+		return nil
+	}
+
+	histories := make(map[string]correlation.BeadHistory, len(report.Histories))
+	for id, history := range report.Histories {
+		fromEvents := make(map[string]struct{}, len(history.Events))
+		for _, event := range history.Events {
+			fromEvents[event.CommitSHA] = struct{}{}
+		}
+
+		kept := make([]correlation.CorrelatedCommit, 0, len(history.Commits))
+		for _, commit := range history.Commits {
+			if _, ok := fromEvents[commit.SHA]; ok {
+				kept = append(kept, commit)
+			}
+		}
+		// A copy: the report is cached and shared with the History view, which
+		// must keep every correlation this drops.
+		history.Commits = kept
+		histories[id] = history
+	}
+
+	narrowed := *report
+	narrowed.Histories = histories
+	return &narrowed
 }
 
 // hasOpenIssues reports whether there is anything left to triage.

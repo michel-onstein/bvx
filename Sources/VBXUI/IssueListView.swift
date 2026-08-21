@@ -50,6 +50,13 @@ struct IssueListView: View {
             }
             .width(min: 70, ideal: 96, max: 160)
 
+            TableColumn("P", value: \.priority) { row in
+                Text(row.issue.priorityLabel)
+                    .monospacedDigit()
+                    .foregroundStyle(row.issue.priority <= 1 ? .primary : .secondary)
+            }
+            .width(30)
+
             // The type glyph has no header to click and no useful ordering of
             // its own, so it stays an unsorted column.
             TableColumn("") { row in
@@ -85,13 +92,6 @@ struct IssueListView: View {
             }
             .width(min: 90, ideal: 110, max: 140)
 
-            TableColumn("P", value: \.priority) { row in
-                Text(row.issue.priorityLabel)
-                    .monospacedDigit()
-                    .foregroundStyle(row.issue.priority <= 1 ? .primary : .secondary)
-            }
-            .width(30)
-
             TableColumn("Blocks", value: \.blocks) { row in
                 Text(row.blocks == 0 ? "—" : "\(row.blocks)")
                     .monospacedDigit()
@@ -119,9 +119,15 @@ struct IssueListView: View {
             .width(min: 76, ideal: 86, max: 120)
 
             TableColumn("Labels", value: \.labelsKey) { row in
-                Text(row.issue.labels.joined(separator: ", "))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                // Identity is the position, not the label: a bead carrying the
+                // same label twice is bad data, but it must not collide here
+                // and drop one of the pills.
+                HStack(spacing: 4) {
+                    ForEach(Array(row.issue.labels.enumerated()), id: \.offset) { _, label in
+                        LabelPill(label: label)
+                    }
+                }
+                .help(row.issue.labels.joined(separator: ", "))
             }
             .width(min: 80, ideal: 140)
 
@@ -306,6 +312,30 @@ struct MetricCell: View {
         case .none, .pending: "—"
         default: "—"
         }
+    }
+}
+
+/// One label, drawn as a pill.
+///
+/// Unlike ``StatusChip`` the fill is neutral. A label carries no status
+/// meaning, so the pill's job is only to bound one label against the next —
+/// which a comma-joined string does not do once there are more than two.
+///
+/// The fill is heavier than ``StatusChip``'s 0.12 because it is grey rather
+/// than tinted: measured against the window background, a neutral capsule at
+/// 0.12 is indistinguishable from bare text (ink 0.049 vs 0.043), so the pill
+/// would have been invisible. At 0.18 it reads.
+struct LabelPill: View {
+    let label: String
+
+    var body: some View {
+        Text(label)
+            .font(.caption)
+            .lineLimit(1)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.secondary.opacity(0.18), in: Capsule())
     }
 }
 

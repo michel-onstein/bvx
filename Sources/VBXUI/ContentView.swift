@@ -85,6 +85,30 @@ public struct ContentView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        // Declared before the view picker so they sit at the leading end of
+        // the bar, where the same control lives in every browser and Finder.
+        ToolbarItem(placement: .navigation) {
+            HStack(spacing: 2) {
+                Button {
+                    store.goBack()
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .disabled(!store.canGoBack)
+                // The glyph alone is not an accessible name, and a disabled
+                // button gives no other clue what it would have done.
+                .help("Back")
+
+                Button {
+                    store.goForward()
+                } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .disabled(!store.canGoForward)
+                .help("Forward")
+            }
+        }
+
         ToolbarItem(placement: .navigation) {
             Picker("View", selection: $store.surface) {
                 ForEach(ViewSurface.allCases) { surface in

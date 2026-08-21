@@ -1,7 +1,51 @@
 # Work Log
 
-No ticket IDs: this repo's beads store is empty, so entries are dated and
-described. Newest first.
+Entries are dated, newest first, and cite their bead where one exists. The
+store was empty until 2026-08-21, so earlier entries carry no id.
+
+---
+
+## 2026-08-21 — Five open beads: list columns, link affordances, view history
+
+`bvx-iyc`, `bvx-4xw`, `vbx-tdk`, `vbx-8lk`, `bvx-hsv`. Four UI changes and one
+parity bug, landed together.
+
+**Priority column moved after ID** (`bvx-iyc`) and **labels drawn as pills**
+(`bvx-4xw`). The pill fill is 0.18 rather than the 0.12 `StatusChip` uses,
+because that chip's tint is *coloured* while a label's is grey: measured
+against the window background, a neutral capsule at 0.12 scores the same ink as
+bare text (0.049 vs 0.043) — it renders, it just cannot be seen. The test
+compares pill against bare text instead of a fixed threshold, which is the only
+form that catches this.
+
+SwiftUI's `Table` exposes no list of its columns, so the column order is pinned
+by reading `IssueListView.swift` in the test. Unusual, but the order is exactly
+what an unrelated edit reshuffles unnoticed.
+
+**Bead-link affordances** (`vbx-tdk`). Linked ids already drew in the accent
+colour — SwiftUI does that for any `.link` — so the visible gap was narrower
+than the bead assumed. Added an explicit tint (so the styling does not depend
+on the rendering context), an underline, and a pointing-hand cursor.
+`.pointerStyle(.link)` is macOS 15 and this package targets 14, so the cursor
+rides as an `appKit.cursor` attribute on the linked range — precise, unlike an
+`onHover` over the whole `Text`. Whether AppKit honours that attribute inside a
+SwiftUI `Text` is not assertable headlessly; the tests pin that the attribute is
+set on exactly the linked run, and the runtime behaviour wants a look in the
+running app.
+
+**Navigation history** (`vbx-8lk`). Twenty positions, back/forward at the
+leading end of the toolbar. A position is surface *plus* focused bead: following
+a bead link changes selection without changing surface, and that is the move
+back exists to undo. Row browsing (`j`/`k`, a table click) updates the current
+position in place instead of pushing one — pushing per row would evict all
+twenty within a screenful — while `select(id:)`, the deliberate jump, pushes.
+The cursor rules are what make forward work: back moves a cursor rather than
+popping, a new move mid-history truncates the forward branch, and restoring
+never re-records.
+
+**Triage staleness parity** (`bvx-hsv`) — see BUGS.md. The bead carried only a
+title, so the divergence was found by running vbx and bv side by side over
+purpose-built repositories until they disagreed.
 
 ---
 
