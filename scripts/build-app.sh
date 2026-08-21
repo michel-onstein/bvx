@@ -44,6 +44,13 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/bvx" "$APP/Contents/MacOS/bvx"
 cp "$BIN_DIR/bvx-cli" "$APP/Contents/MacOS/bvx-cli"
 
+if [[ -f "$ROOT/Resources/bvx.icns" ]]; then
+  cp "$ROOT/Resources/bvx.icns" "$APP/Contents/Resources/bvx.icns"
+else
+  # Without the icon the app still runs; it just gets the generic Dock tile.
+  echo "  (no Resources/bvx.icns — run ./scripts/build-icon.sh)"
+fi
+
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -53,6 +60,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleDisplayName</key>     <string>bvx</string>
     <key>CFBundleIdentifier</key>      <string>com.qjam.bvx</string>
     <key>CFBundleExecutable</key>      <string>bvx</string>
+    <key>CFBundleIconFile</key>        <string>bvx</string>
     <key>CFBundlePackageType</key>     <string>APPL</string>
     <key>CFBundleShortVersionString</key> <string>0.1.0</string>
     <key>CFBundleVersion</key>         <string>1</string>

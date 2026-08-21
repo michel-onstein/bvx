@@ -39,6 +39,8 @@ formatted with `gofmt`.
 
 ```bash
 ./scripts/build-engine.sh --check   # Go archive + C ABI smoke test
+./scripts/build-icon.sh --check     # committed .icns + README PNG are intact
+./scripts/build-icon.sh             # regenerate the icon (needs rsvg-convert)
 ./scripts/build-app.sh --run        # bvx.app, opened on the demo fixture
 swift test                          # Swift suite
 cd Engine/bridge && go test ./...   # Go suite
@@ -62,12 +64,22 @@ view snapshots for inspection.
 | `Sources/BVXUI` | SwiftUI views |
 | `Sources/bvx`, `Sources/bvx-cli` | App shell and CLI |
 | `Fixtures/demo` | 18-bead workspace used by tests and demos |
+| `Resources` | App icon: generated `bvx-icon.svg` and the committed `bvx.icns` |
+| `docs/images` | `bvx-icon.png`, the same artwork at 512px for the README |
 
 ## Gotchas
 
 - **The engine archive is not committed.** ~29 MB and reproducible; a fresh
   clone must run `./scripts/build-engine.sh` before `swift build`. The generated
   *header* is committed, because the Swift C target needs it to compile.
+- **The app icon is generated, and the `.icns` is committed.** Edit the
+  control points in `scripts/make-icon.py`, never `Resources/bvx-icon.svg`.
+  Unlike the engine archive the `.icns` *is* committed, because rasterising it
+  needs `rsvg-convert` (`brew install librsvg`) and `build-app.sh` must be able
+  to bundle an icon without it. The same run also emits
+  `docs/images/bvx-icon.png` for the README, so the two cannot drift — a test
+  asserts they are pixel-identical. `scripts/make-icon.py <dir> --variants`
+  re-renders the palettes that were considered. See ADR-008.
 - **This repo's own `.beads` store is empty** (0 issues). Point bvx at
   `Fixtures/demo` for anything with a real dependency graph.
 - **Swift Testing exports its own `Issue` type**, which collides with the model.
