@@ -55,6 +55,41 @@ open -a .build/bvx.app --args ~/src/my-project
 
 With no argument the app uses `$BVX_WORKSPACE`, then the current directory.
 
+## Distribution builds
+
+Two channels, both driven from the same script:
+
+```bash
+./scripts/package-app.sh --check              # what is configured, what is ready
+./scripts/build-app.sh --release --dmg        # Developer ID, notarized, stapled .dmg
+./scripts/build-app.sh --release --app-store  # sandboxed .pkg for App Store Connect
+./scripts/build-app.sh --release --dmg --dry-run   # print the plan, run nothing
+```
+
+Signing needs an Apple developer account, and **none of its identifiers are in
+this repository** — it is public. Copy the template and fill it in:
+
+```bash
+cp scripts/signing.env.example scripts/signing.env   # gitignored
+```
+
+Every setting can come from the environment instead, which is what CI should
+do. Everything the scripts print is masked, because `codesign -dvvv`,
+`security find-identity` and `notarytool` all echo the Team ID and build logs
+end up in public issues.
+
+The two channels are not the same app. Developer ID is unsandboxed and keeps
+the bundled `bvx-cli` and shell hooks; the App Store build is sandboxed and
+drops the CLI, because a sandboxed app cannot install it. See
+[ADR-009](docs/project_notes/DECISIONS.md).
+
+To try the packaging without certificates, sign ad-hoc — the result runs on
+this machine only:
+
+```bash
+BVX_DEVELOPER_ID_APP=- ./scripts/build-app.sh --dmg --no-notarize
+```
+
 ## Command line
 
 `bvx-cli` links the same engine archive, so its output comes from exactly the

@@ -44,7 +44,17 @@ formatted with `gofmt`.
 ./scripts/build-app.sh --run        # bvx.app, opened on the demo fixture
 swift test                          # Swift suite
 cd Engine/bridge && go test ./...   # Go suite
+python3 scripts/test-packaging.py   # signing config, redaction, leak guard
 python3 scripts/build-docs.py       # regenerate docs/html
+```
+
+Distribution:
+
+```bash
+./scripts/package-app.sh --check              # what is configured, what is ready
+./scripts/build-app.sh --release --dmg        # Developer ID, notarized, stapled
+./scripts/build-app.sh --release --app-store  # sandboxed .pkg for App Store Connect
+BVX_DEVELOPER_ID_APP=- ./scripts/build-app.sh --dmg --no-notarize   # ad-hoc, local only
 ```
 
 `BVX_SNAPSHOT_DIR=/tmp/bvx-snaps swift test --filter BVXUITests` keeps rendered
@@ -65,7 +75,9 @@ view snapshots for inspection.
 | `Sources/bvx`, `Sources/bvx-cli` | App shell and CLI |
 | `Fixtures/demo` | 18-bead workspace used by tests and demos |
 | `Resources` | App icon: generated `bvx-icon.svg` and the committed `bvx.icns` |
+| `Resources/entitlements` | Developer ID entitlements, plus the App Store *template* |
 | `docs/images` | `bvx-icon.png`, the same artwork at 512px for the README |
+| `scripts/signing.env` | Signing configuration — **gitignored**, from `signing.env.example` |
 
 ## Gotchas
 
@@ -104,6 +116,19 @@ view snapshots for inspection.
   gitignored (a rebuildable cache and a local reference point); `recipes.yaml`
   is deliberately not, because it is shared configuration that `bv --recipe`
   reads too.
+- **No signing identifier is in this repository, and none may be.** It is
+  public. Configuration lives in the gitignored `scripts/signing.env` or the
+  environment; the App Store entitlements are a template expanded into
+  `.build/dist/`; and everything `package-app.sh` prints is masked, because
+  `codesign -dvvv` and `security find-identity` echo the Team ID and build logs
+  get pasted into issues. `scripts/test-packaging.py` asserts all three, and
+  scans tracked files for the values configured locally. See ADR-009.
+- **The two channels ship different apps.** `--dmg` is unsandboxed and keeps
+  `bvx-cli`; `--app-store` is sandboxed and removes it, because a sandboxed app
+  cannot symlink it into `/usr/local/bin`. See ADR-010.
+- **`BVX_DEVELOPER_ID_APP=-` signs ad-hoc**, which makes the whole packaging
+  path runnable with no certificates. It produces nothing distributable and
+  says so; notarizing it is refused rather than attempted.
 - **Discovery does not walk upwards.** bv's `GetBeadsDir` checks `<path>/.beads`
   and, for a linked checkout, the main repository's — nothing else. A folder
   *below* a project root is therefore not openable, which is why the Open

@@ -18,3 +18,20 @@ Engine/build/
 # — but `.bv/recipes.yaml` is shared configuration and is deliberately kept.
 .bv/semantic/
 .bv/baseline.json
+
+# Signing configuration. Every value in it identifies an Apple developer
+# account — the Team ID, the certificate names that embed it, the notary
+# credential — and this repository is public. `scripts/signing.env.example`
+# is the committed template, with placeholders.
+scripts/signing.env
+
+# Provisioning profiles carry the team identifier and the certificates they
+# are bound to. Configure a path to one outside the checkout; if one is copied
+# in anyway, it is still not committed.
+*.provisionprofile
+*.mobileprovision
+
+# Expanded entitlements and built artifacts land in .build/dist/, which is
+# already covered by .build/ above. Listed here so the reason is recorded:
+# the App Store entitlements are generated from a template because the real
+# file has to contain the Team ID verbatim.

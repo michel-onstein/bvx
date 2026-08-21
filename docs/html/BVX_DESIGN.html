@@ -1342,6 +1342,18 @@ functionality" a claim rather than a hope.</p>
   features behind a capability check rather than forking the codebase.</li>
 <li><strong>Homebrew cask</strong> <code>bvx</code>, so <code>bv</code> users can <code>brew install --cask bvx</code>.</li>
 </ul>
+<p><strong>Status.</strong> Signing and packaging are built: <code>scripts/package-app.sh</code> produces a
+Developer ID <code>.dmg</code> — hardened runtime, notarized, stapled — and a sandboxed
+<code>.pkg</code> for App Store Connect, both driven from <code>build-app.sh --release --dmg</code>
+and <code>--app-store</code>. The two channels ship deliberately different apps
+(<a href="project_notes/DECISIONS.html">ADR-010</a>), and no signing identifier is in this
+repository (<a href="project_notes/DECISIONS.html">ADR-009</a>).</p>
+<p>Not built: the <strong>universal binary</strong> (the engine archive is host-architecture by
+default; <code>build-engine.sh --universal</code> lipos arm64 with x86_64, but the app is
+not yet archived that way), the <strong>Sparkle appcast</strong>, and the <strong>Homebrew cask</strong>.
+The diagram above describes the intended end state, not today's pipeline —
+there is no xcframework, and <code>build-app.sh</code> assembles the bundle directly from
+SwiftPM output rather than through <code>xcodebuild archive</code>.</p>
 <hr />
 <h2 id="18-delivery-plan"><a class="toclink" href="#18-delivery-plan">18. Delivery Plan</a></h2>
 <div class="table-wrap"><table>

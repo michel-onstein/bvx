@@ -37,6 +37,53 @@ Tests: 336 → 341 Swift.
 
 ---
 
+## 2026-08-20 — Signed distribution: a notarized .dmg and an App Store .pkg
+
+`scripts/package-app.sh` signs and packages the app for both channels;
+`build-app.sh --release --dmg` and `--app-store` build the bundle and hand off
+to it. `--check` reports what is configured and which channel is ready,
+`--dry-run` prints the plan without running anything.
+
+**The channels ship different apps** (ADR-010). Developer ID is unsandboxed,
+hardened-runtime, keeps `bvx-cli` and the shell hooks. The App Store build is
+sandboxed, embeds the provisioning profile, and *removes* `bvx-cli` — a
+sandboxed app cannot symlink it into `/usr/local/bin`, so shipping it would put
+an unusable binary in the bundle. Packaging always works on a staged copy, so an
+`--app-store` run cannot quietly delete the CLI from the developer's own build.
+
+**Nothing account-specific is in the repository** (ADR-009), which is the part
+that needed care rather than typing. Configuration is a gitignored
+`scripts/signing.env` or the environment; the App Store entitlements are a
+template expanded into `.build/dist/` at mode 600, because
+`com.apple.application-identifier` must contain the Team ID verbatim; and every
+line the script prints goes through `redact`, since `codesign -dvvv` and
+`security find-identity` echo the Team ID and build logs get pasted into public
+issues.
+
+`scripts/test-packaging.py` — 65 checks — drives the real script with fabricated
+credentials and asserts they do not come back out. It found two bugs that
+review would not have:
+
+- **Masking order.** A certificate name contains the Team ID, so masking the
+  Team ID first left a string that no longer matched the full name, and the
+  developer's *name* survived into the log. Longest first.
+- **Short values.** The ad-hoc identity is a single `-`; masking it replaced
+  every hyphen in the output, turning flags and paths into
+  `<DEVELOPER_ID_APP>`. Only values of six characters or more are masked.
+
+It also scans every tracked file for the values configured locally, and says so
+when there is no configuration to check against rather than passing silently.
+
+Verified end to end with an ad-hoc signature (`BVX_DEVELOPER_ID_APP=-`): a real
+26 MB `.dmg` that mounts, carries a valid signature inside and out, and an App
+Store bundle that signs with the expanded entitlements and drops the CLI. Both
+scripts were checked under `/bin/bash` 3.2, not just the Homebrew bash 5.
+
+Still not built, and now said so in §17: the universal binary, the Sparkle
+appcast, and the Homebrew cask.
+
+---
+
 ## 2026-08-20 — List multi-selection, a row context menu, and an Open-panel guard
 
 Three beads (`bvx-jpn`, `bvx-tlv`, `bvx-roq`).

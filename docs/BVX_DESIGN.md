@@ -895,6 +895,20 @@ flowchart LR
   features behind a capability check rather than forking the codebase.
 - **Homebrew cask** `bvx`, so `bv` users can `brew install --cask bvx`.
 
+**Status.** Signing and packaging are built: `scripts/package-app.sh` produces a
+Developer ID `.dmg` — hardened runtime, notarized, stapled — and a sandboxed
+`.pkg` for App Store Connect, both driven from `build-app.sh --release --dmg`
+and `--app-store`. The two channels ship deliberately different apps
+([ADR-010](project_notes/DECISIONS.md)), and no signing identifier is in this
+repository ([ADR-009](project_notes/DECISIONS.md)).
+
+Not built: the **universal binary** (the engine archive is host-architecture by
+default; `build-engine.sh --universal` lipos arm64 with x86_64, but the app is
+not yet archived that way), the **Sparkle appcast**, and the **Homebrew cask**.
+The diagram above describes the intended end state, not today's pipeline —
+there is no xcframework, and `build-app.sh` assembles the bundle directly from
+SwiftPM output rather than through `xcodebuild archive`.
+
 ---
 
 ## 18. Delivery Plan
