@@ -49,6 +49,28 @@ purpose-built repositories until they disagreed.
 
 ---
 
+## 2026-08-21 — Licence: MIT with an AI training rider
+
+The repo had no `LICENSE` at all, which defaults to all rights reserved and
+leaves anyone reading the public source unsure whether they may build it. It now
+carries the unmodified MIT grant plus a rider that reserves one use: feeding the
+source to model training, fine-tuning, distillation, RAG indexing or corpus
+construction. The rider is written as a narrowing condition on the MIT grant and
+says so in its own text, so nobody mistakes the result for OSI-approved MIT —
+the file's title is "MIT License with AI Training Rider" rather than "MIT
+License".
+
+Two carve-outs keep it from over-reaching: using an AI assistant while working
+on or with vbx is explicitly permitted, as is a model reading the source
+transiently at inference time without retaining it. The restriction is about
+corpora, not tools.
+
+A closing section states what the licence does *not* cover — the Go modules in
+`Engine/bridge/go.mod`, and beads_viewer, whose engine vbx links unmodified.
+Those keep their own terms. Copyright is held by Michel Onstein.
+
+---
+
 ## 2026-08-20 — App icon
 
 vbx had no `CFBundleIconFile` and no `.icns`, so it took the generic macOS
