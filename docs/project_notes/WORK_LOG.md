@@ -5,6 +5,43 @@ store was empty until 2026-08-21, so earlier entries carry no id.
 
 ---
 
+## 2026-08-21 — The hidden-column marker, after all
+
+Follow-up to `vbx-gsd`, which shipped hiding without the accent rule and
+recorded that the rule "cannot be layered on" because SwiftUI's `Table` exposes
+no divider API and no column geometry.
+
+**That conclusion was wrong, and the reason is worth keeping.** It was drawn
+from SwiftUI's public API alone. On macOS the `Table` is built on a real
+`NSTableView` — `SwiftUIOutlineTableView` inside a `ListCoreScrollView` — and
+probing it settled three things the public API hides:
+
+- the backing table is reachable by walking the view hierarchy;
+- a column hidden through the customization menu **stays** in `tableColumns`
+  marked `isHidden`, so a run of hidden columns is detectable and its visible
+  neighbours report exact rects;
+- `@AppStorage` persists the customization as JSON `Data`, which is what makes
+  a hidden layout seedable in a test rather than only reachable by clicking.
+
+So the rule is drawn by an overlay that reads those rects, and a double-click
+on it restores exactly the run behind it. Adjacent hidden columns collapse into
+one marker, which is what makes "unhide the group" a single action.
+
+The mapping between the two worlds is the header title: SwiftUI assigns the
+`NSTableColumn` identifiers UUIDs, not the customization IDs, so the title is
+the only stable shared key. A test asserts every declared title has an entry —
+without it, a new column could be hidden and never brought back.
+
+**The cost is a dependency on an implementation detail, not a contract.** It is
+handled two ways: the overlay fails soft, drawing nothing when no table is
+found rather than breaking the list, and a test asserts the hierarchy is still
+reachable, so a macOS release that changes it fails loudly instead of the
+markers quietly never appearing. The overlay also hit-tests to the rule alone —
+without that it would swallow row selection, the header and the context menu,
+which is a far worse bug than the one it fixes.
+
+---
+
 ## 2026-08-21 — Hideable list columns
 
 `vbx-gsd`. Columns can be hidden and shown from the header's own right-click
@@ -33,12 +70,13 @@ duplicated, and only the glyph uses a literal. That is not theoretical
 tidiness: the first implementation gave PageRank the `blocks` identifier
 through a mis-aimed edit, and the uniqueness test is what caught it.
 
-**Not implemented: the accent-coloured divider marking hidden groups.**
-SwiftUI's `Table` exposes no API for column dividers and no way to read column
-frames, so it cannot be layered on. It needs either a header-level indicator
-instead, or replacing `Table` with `NSTableView` — a large rewrite that sorting,
-selection, badges and every list snapshot currently depend on. Left open in the
-bead's discussion rather than half-built.
+**Not implemented here: the accent-coloured divider marking hidden groups.**
+The reasoning at the time was that SwiftUI's `Table` exposes no divider API and
+no column geometry, so it could not be layered on. **Superseded the same day** —
+that only held for the public API, and the entry above records what probing the
+backing `NSTableView` actually found. Kept as written because the mistake is
+the useful part: "the framework has no API for this" was a conclusion about
+documentation, not about the framework.
 
 ---
 

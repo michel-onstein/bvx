@@ -31,6 +31,32 @@ struct IssueListView: View {
         Set(SortColumn.allCases.filter { columnCustomization[visibility: $0.rawValue] == .hidden })
     }
 
+    /// Header title to customization ID.
+    ///
+    /// The backing `NSTableColumn` identifiers are UUIDs SwiftUI assigns, not
+    /// the customization IDs, so the header title is the one stable thing the
+    /// two sides share. `ColumnCustomizationTests` asserts this covers every
+    /// declared column, so a new column cannot quietly fall out of it.
+    static let columnIDsByTitle: [String: String] = [
+        "ID": SortColumn.id.rawValue,
+        "P": SortColumn.priority.rawValue,
+        "Title": SortColumn.title.rawValue,
+        "Status": SortColumn.status.rawValue,
+        "Blocks": SortColumn.blocks.rawValue,
+        "Blocked by": SortColumn.blockedBy.rawValue,
+        "PageRank": SortColumn.pageRank.rawValue,
+        "Labels": SortColumn.labels.rawValue,
+        "Updated": SortColumn.updated.rawValue,
+    ]
+
+    /// Brings back the run of columns behind one marker.
+    private func unhide(titled titles: [String]) {
+        for title in titles {
+            guard let id = Self.columnIDsByTitle[title] else { continue }
+            columnCustomization[visibility: id] = .visible
+        }
+    }
+
     /// Bridges SwiftUI's comparator-array sort binding to the store's ordering.
     ///
     /// Read: the store's mode becomes the comparator the header chevron draws.
@@ -191,6 +217,14 @@ struct IssueListView: View {
             rowMenu(for: ids)
         }
         .tableStyle(.inset(alternatesRowBackgrounds: true))
+        // Shows where columns were hidden, and brings them back on a
+        // double-click. Drawn over the table because SwiftUI cannot style a
+        // divider — see HiddenColumnMarkers for what that costs.
+        .overlay {
+            HiddenColumnMarkers(customization: columnCustomization) { titles in
+                unhide(titled: titles)
+            }
+        }
         // Hiding the column being sorted by would otherwise leave the list in
         // an order with nothing on screen to explain it: the header carrying
         // the chevron is the thing that just disappeared.
