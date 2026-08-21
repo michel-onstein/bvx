@@ -4,6 +4,43 @@ Found-and-fixed issues, with the regression test that locks each fix in.
 
 ---
 
+## 2026-08-21 — A second workspace opened behind the first one's filters
+
+**Symptom:** open one workspace, filter it, open another — and the list comes up
+empty with no visible cause. The sidebar shows a filter nobody chose for this
+workspace, and an empty table reads as "this workspace has no beads".
+
+**Cause:** `open(path:)` swapped the workspace but left `query` (filter, search
+text, labels, assignees, sort), `repoFilter`, the active recipe with its ids,
+and the two alert filters exactly as the previous workspace left them. Labels,
+assignees, repository names and a recipe's ids are all workspace-specific
+strings, so after a switch they typically match nothing. Observed in the
+failing test: `recipeIDs` still held `["vbx-12", "vbx-3", "vbx-14"]` — beads of
+the workspace that had just been closed.
+
+The rule was already stated twice in that same function and simply never
+carried to filters: `resetNavigationHistory()` ("the previous workspace's beads
+do not exist in this one"), and `refreshAll` keeping only selected ids the
+fresh set still holds.
+
+**Fix:** `resetWorkspaceFilters()` returns all of it to initialiser defaults,
+called from `open(path:)` before `refreshAll()` so the first render is already
+unfiltered. Gated on the resolved `info.source` actually changing, so reopening
+the workspace already open leaves it alone. `surface` is deliberately *not*
+reset: which view you are on is not a filter, it names nothing inside the
+workspace, and someone comparing two workspaces in one view wants to stay in it.
+
+**Prevention:** `openingAnotherWorkspaceResetsFilters` sets every listed filter,
+opens a copy of the fixture at its own path, and asserts each default plus a
+non-empty list; it fails nine assertions against the unfixed store.
+`reloadPreservesFilters` is the half that matters just as much — resetting
+inside `refreshAll` would satisfy the first test while wiping the filter on
+every watcher tick, and `reload` exists precisely to keep the view stable while
+the file changes underneath. `surfaceIsNotAFilter` pins the exclusion so it
+cannot be "tidied up" later.
+
+---
+
 ## 2026-08-21 — Triage staleness counted commits bv does not see
 
 **Symptom:** `stale_count` disagreed with `bv --robot-triage` on the same

@@ -484,9 +484,20 @@ public final class ProjectStore: ObservableObject {
         loadError = nil
         defer { isLoading = false }
 
+        // Captured before the swap: the resolved source is what identifies a
+        // workspace, so this is what says whether the filters below belong to
+        // the workspace being left or the one being opened.
+        let previousSource = info?.source
+
         do {
             let info = try await engine.open(path: path, skipPhase2: skipPhase2)
             self.info = info
+            // Before refreshAll, so the first render of the new workspace is
+            // already unfiltered rather than briefly showing someone else's
+            // filters — or nothing at all.
+            if info.source != previousSource {
+                resetWorkspaceFilters()
+            }
             try await refreshAll()
             // Positions name beads, and the previous workspace's beads do not
             // exist in this one.
@@ -719,6 +730,29 @@ public final class ProjectStore: ObservableObject {
             loadError = error.localizedDescription
             clearRecipe()
         }
+    }
+
+    /// Drops every filter that named something in the previous workspace.
+    ///
+    /// Labels, assignees, repository names and a recipe's ids are all
+    /// workspace-specific strings, so carried across a switch they typically
+    /// match nothing: the list comes up empty with no visible cause, and an
+    /// empty table reads as "this workspace has no beads" rather than "you are
+    /// still looking through the last workspace's filter".
+    ///
+    /// The same rule already governs the navigation history and the selection
+    /// in ``open(path:)`` — a label is workspace-specific in exactly the way a
+    /// recorded position or a selected id is.
+    ///
+    /// ``surface`` is deliberately left alone. Which view you are on is not a
+    /// filter, it names nothing inside the workspace, and carrying it across is
+    /// what someone comparing two workspaces in the same view would want.
+    func resetWorkspaceFilters() {
+        query = IssueQuery()
+        repoFilter = []
+        clearRecipe()
+        alertSeverityFilter = nil
+        alertTypeFilter = nil
     }
 
     /// Returns to the ordinary filter and sort.
