@@ -4,6 +4,29 @@ Found-and-fixed issues, with the regression test that locks each fix in.
 
 ---
 
+## 2026-08-20 — An editor's swap file beside `signing.env` was committable
+
+**Symptom:** with `scripts/signing.env` created and correctly ignored,
+`git status` showed `?? scripts/.signing.env.swp` — vim's swap file, holding
+the same buffer contents, Team ID included, and stageable.
+
+**Cause:** the `.gitignore` rule was the exact filename. It covered the file
+being protected and nothing an editor leaves beside it: `.signing.env.swp`,
+`signing.env~`, `signing.env.bak`. The one file everybody thinks of was
+covered; the copies made automatically were not.
+
+**Fix:** glob the family — `scripts/signing.env`, `scripts/signing.env.*`,
+`scripts/signing.env~`, `scripts/.signing.env*` — with an explicit
+`!scripts/signing.env.example` negation, because the broadened glob would
+otherwise swallow the committed template.
+
+**Prevention:** `scripts/test-packaging.py` asserts six editor leftovers are
+ignored *and* that the example template is not, so the negation cannot be lost
+while widening the glob later. Found by watching real `git status` output
+rather than by reasoning about the rule — the original rule looked right.
+
+---
+
 ## 2026-08-19 — Blockquote rule stretched down the whole pane
 
 **Symptom:** a one-line quote in a bead description drew a grey vertical bar

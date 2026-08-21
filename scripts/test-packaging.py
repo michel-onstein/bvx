@@ -193,6 +193,18 @@ def test_signing_env_is_ignored() -> None:
           subprocess.run(["git", "-C", str(ROOT), "check-ignore", "-q", str(profile)]
                          ).returncode == 0)
 
+    # Regression: the rule was the exact filename, so `scripts/signing.env` was
+    # ignored while vim's `.signing.env.swp` — holding the same buffer, Team ID
+    # and all — sat next to it untracked and committable. Every file an editor
+    # leaves beside the real one carries the same contents.
+    for leftover in (".signing.env.swp", ".signing.env.swo", "signing.env~",
+                     "signing.env.bak", "signing.env.save", "signing.env.orig"):
+        path = ROOT / "scripts" / leftover
+        check(f"editor leftover {leftover} is gitignored",
+              subprocess.run(["git", "-C", str(ROOT), "check-ignore", "-q", str(path)]
+                             ).returncode == 0,
+              "it would hold the same Team ID as signing.env")
+
 
 def test_no_tracked_file_carries_credentials() -> None:
     """The regression test for the thing that cannot be undone.
