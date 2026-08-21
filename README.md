@@ -81,6 +81,7 @@ end up in public issues.
 The two channels are not the same app. Developer ID is unsandboxed and keeps
 the bundled `bvx-cli` and shell hooks; the App Store build is sandboxed and
 drops the CLI, because a sandboxed app cannot install it. See
+[ADR-010](docs/project_notes/DECISIONS.md); the secrets design above is
 [ADR-009](docs/project_notes/DECISIONS.md).
 
 To try the packaging without certificates, sign ad-hoc — the result runs on
@@ -89,6 +90,30 @@ this machine only:
 ```bash
 BVX_DEVELOPER_ID_APP=- ./scripts/build-app.sh --dmg --no-notarize
 ```
+
+### Notarization credentials
+
+Store them once, interactively. It is deliberately not scripted, because it
+takes an app-specific password that must never reach a build script:
+
+```bash
+xcrun notarytool store-credentials "bvx-notary" \
+    --apple-id you@example.com --team-id ABCDE12345 --password <app-specific>
+```
+
+Two failures worth recognising, because neither error text points at its cause:
+
+- **`HTTP status code: 500. Internal Server Error`** — usually malformed input
+  rather than an Apple outage. Check `--team-id` is the bare 10-character ID:
+  writing `--team-id BVX_TEAM_ID=ABCDE12345`, the `signing.env` form, produces
+  exactly this.
+- **`HTTP status code: 403. A required agreement is missing or has expired`** —
+  the team has not accepted the current Apple Developer Program License
+  Agreement, which Apple revises periodically. Sign in at
+  [developer.apple.com/account](https://developer.apple.com/account) and accept
+  the outstanding agreement, and check App Store Connect → Business →
+  Agreements. **Only the Account Holder can accept them** — an Admin cannot.
+  The same class of error appears when the membership itself has lapsed.
 
 ## Command line
 
@@ -107,10 +132,17 @@ swift run bvx-cli unblocks --id bvx-3 --path Fixtures/demo
 ## Tests
 
 ```bash
-swift test                       # 104 tests: models, query, layout, markdown, engine, store, watch, export, triage, view snapshots
-cd Engine/bridge && go test ./...  # 16 tests: loader, analysis dispatch, SQLite, reload gate
-./scripts/build-engine.sh --check  # C ABI: lifecycle, error paths, bad handles
+swift test                          # 341 tests: models, query, layout, markdown, engine, store, watch, export, triage, selection, view snapshots
+cd Engine/bridge && go test ./...   # 137 tests: loader, analysis dispatch, SQLite, reload gate, history, search, workspaces
+./scripts/build-engine.sh --check   # C ABI: lifecycle, error paths, bad handles
+./scripts/build-icon.sh --check     # the committed .icns and README PNG are intact
+python3 scripts/test-packaging.py   # signing config, output redaction, credential leak scan
+python3 scripts/parity-check.py     # bvx-cli against bv, command by command (needs `bv` on PATH)
 ```
+
+A fresh clone must run `./scripts/build-engine.sh` before `swift test` — the
+engine archive is deliberately not committed, and without it the link fails
+with `library 'bvxengine' not found`.
 
 ## What works today
 
@@ -127,13 +159,15 @@ cd Engine/bridge && go test ./...  # 16 tests: loader, analysis dispatch, SQLite
 | Filters (open/ready/closed/all), labels, sorting, fuzzy search | ✅ |
 | bv's single-key bindings alongside native menu shortcuts | ✅ |
 | Offscreen view snapshot tests (no screen-recording permission needed) | ✅ |
-| `bvx-cli` with JSON output for agents | Partial — a subset of bv's robot commands |
-| Git correlation / history view | ❌ Not yet wired to the UI |
+| `bvx-cli` with JSON output for agents | ✅ Full robot-protocol coverage, checked against `bv` by `scripts/parity-check.py` |
+| Git correlation and the history view | ✅ Reads the object store directly, so it works sandboxed (ADR-006) |
 | Markdown report export (Mermaid diagrams, bv-identical) | ✅ |
-| Time travel, recipes, sprint dashboard, static-site export | ❌ Not yet |
+| Time travel, recipes, sprint dashboard, static-site export | ✅ |
 | Live reload via FSEvents, debounced and hash-gated | ✅ |
 | Label analytics dashboard (health, velocity, completion) | ✅ |
-| Multi-repo workspaces | ❌ Not yet |
+| Signed distribution: notarized `.dmg`, sandboxed App Store `.pkg` | ✅ |
+| Universal binary, Sparkle appcast, Homebrew cask | ❌ Not yet |
+| Multi-repo workspaces | ✅ |
 
 ## View snapshots
 
