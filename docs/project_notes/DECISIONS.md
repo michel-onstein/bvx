@@ -231,3 +231,104 @@ beaded chain from `br`'s illustration.
   shows hundreds of shades — and the transparent squircle margin has to be
   excluded or it registers as one enormous edge and hides the artwork's
   absence.
+
+---
+
+## ADR-009 — Signing identifiers never enter the repository, and output is masked
+
+**Date:** 2026-08-20 · **Status:** Accepted, implemented
+
+**Context.** Producing a distributable build needs an Apple developer account,
+and everything that identifies one is account-specific: the 10-character Team
+ID, the certificate common names that embed it, the notary credential, the
+provisioning profile. This repository is public.
+
+Two properties make that harder than "add it to `.gitignore`".
+
+The first is that a leak is not undoable. A Team ID committed and then deleted
+in a later commit is still in the history, and in every fork and clone taken
+meanwhile. So the design has to make the leak *not happen*, not make it fixable.
+
+The second is that these values are printed by the tools themselves, not only
+written into files. `codesign -dvvv` prints `TeamIdentifier=`, `security
+find-identity` prints full certificate names, and `notarytool` echoes both. A
+build log is a public artifact more often than not — it gets pasted into
+issues and uploaded by CI.
+
+App Store entitlements make it worse: `com.apple.application-identifier` must
+contain the Team ID *verbatim*, so the file that gets signed cannot be a file
+that is committed.
+
+**Decision.** Three mechanisms, none of which relies on remembering:
+
+1. **Configuration lives outside the tree.** `scripts/signing.env` is
+   gitignored; `scripts/signing.env.example` is the committed template, with
+   placeholders. The environment overrides the file, so CI supplies everything
+   from a secret store and writes nothing into the checkout.
+2. **The App Store entitlements are a template.** `package-app.sh` expands
+   `__TEAM_ID__` and `__BUNDLE_ID__` into `.build/dist/`, which is ignored, and
+   at mode 600. The real file exists only on the machine that built it.
+3. **Everything printed passes through `redact`.** Configured values are masked
+   by name, and anything shaped like a certificate name — `Developer ID
+   Application: Name (TEAMID)` — is masked by pattern, which covers identities
+   the build never configured but `security find-identity` lists anyway.
+
+**Consequences.** A fresh clone cannot produce a distributable build without
+configuration, which is correct: it should not be able to.
+
+Two things were only found because `scripts/test-packaging.py` drives the real
+script with fabricated credentials and asserts they do not come back out.
+
+- **Masking order is load-bearing.** A certificate name *contains* the Team ID,
+  so masking the Team ID first left a string that no longer matched the full
+  name — and the developer's name survived into the log. Longest first.
+- **Short values must not be masked at all.** The ad-hoc identity is a single
+  `-`, and masking it replaced every hyphen in the output: flags, paths and
+  prose all became `<DEVELOPER_ID_APP>`. Only values of six characters or more
+  are masked.
+
+The test suite also scans every *tracked* file for the values configured on the
+machine running it. That is the check that would actually catch a leak, since a
+placeholder looks nothing like the real thing — and it reports when no
+configuration is present rather than passing silently.
+
+**Alternatives rejected.** Committing entitlements with the Team ID and relying
+on the repository staying private: it is not private, and "we will remember to
+scrub it" is not a mechanism. Keeping a `signing.env` in the tree and hoping
+`.gitignore` covers it: the check is now asserted by a test rather than assumed.
+
+---
+
+## ADR-010 — The two distribution channels ship different apps
+
+**Date:** 2026-08-20 · **Status:** Accepted, implemented
+
+**Context.** [§8.3](../BVX_DESIGN.md#83-sandboxing) plans for a sandboxed app;
+[§17](../BVX_DESIGN.md#17-build-packaging-and-distribution) plans for Developer
+ID as the primary channel with the App Store optional. Those two pull in
+opposite directions, and the packaging script has to pick.
+
+The bundle carries `bvx-cli` so that "Install Command Line Tool" can symlink it
+into `/usr/local/bin` later — which a sandboxed app cannot do. Shipping the
+binary anyway would put an executable in the bundle that cannot be reached by
+the mechanism it exists for, and App Review would reasonably ask why it is
+there.
+
+**Decision.** `--dmg` builds an unsandboxed Developer ID app with the hardened
+runtime, keeping the CLI, shell hooks and unrestricted repository access.
+`--app-store` builds a sandboxed app with `user-selected.read-only`, app-scope
+bookmarks and network-client, and **removes `bvx-cli` from the bundle**.
+
+Both are built from one staged copy of the same `bvx.app`, so the difference is
+signing and contents rather than a separate build.
+
+**Consequences.** The App Store build is a genuinely smaller product, and that
+is a decision to state rather than a detail to discover after submission. It
+also means a feature gated on the CLI has to degrade rather than assume, which
+matches §17's "gate the affected features behind a capability check rather than
+forking the codebase".
+
+Packaging never mutates its input bundle — it copies to `.build/dist/stage`
+first. Otherwise an `--app-store` run would silently delete `bvx-cli` from the
+developer's own build, and the next `build-app.sh --run` would launch a bundle
+that had quietly lost a binary.

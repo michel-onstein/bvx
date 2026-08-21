@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    Entitlements for the Mac App Store build.
+
+    A TEMPLATE, not a usable file: App Store entitlements must name the team
+    that owns the app, and this repository is public. `package-app.sh` expands
+    __TEAM_ID__ and __BUNDLE_ID__ into `.build/dist/`, which is gitignored, so
+    the expanded copy exists only on the machine that built it.
+
+    Reviewing a change here means reading the substituted file the build wrote,
+    not this one.
+-->
+<plist version="1.0">
+<dict>
+    <!--
+        The sandbox is what makes this an App Store build rather than a
+        Developer ID one, and it is the reason the two channels differ in
+        features rather than only in signature.
+    -->
+    <key>com.apple.security.app-sandbox</key>                          <true/>
+
+    <!--
+        The user grants a workspace folder through the Open panel. Read-only:
+        bvx never writes bead data, and asking for write access it does not use
+        is the kind of thing App Review asks about.
+
+        This is also why `.bv/` — the semantic index, the saved baseline — is
+        written to the container rather than into the workspace in this build.
+    -->
+    <key>com.apple.security.files.user-selected.read-only</key>        <true/>
+
+    <!--
+        Security-scoped bookmarks, so reopening a recent workspace does not
+        re-prompt for the same folder every launch.
+    -->
+    <key>com.apple.security.files.bookmarks.app-scope</key>            <true/>
+
+    <!--
+        Static-site export can deploy to GitHub, which is an outbound HTTPS
+        client and nothing more (ADR-005 keeps it in-process rather than
+        shelling out to `gh`).
+    -->
+    <key>com.apple.security.network.client</key>                       <true/>
+
+    <!--
+        Required for an App Store submission, and the two values the team owns.
+        Both are substituted at build time.
+    -->
+    <key>com.apple.application-identifier</key>   <string>__TEAM_ID__.__BUNDLE_ID__</string>
+    <key>com.apple.developer.team-identifier</key><string>__TEAM_ID__</string>
+</dict>
+</plist>

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    Entitlements for the Developer ID build — the .dmg channel.
+
+    Deliberately *not* sandboxed. This is the channel that keeps the features a
+    sandbox would take away: the bundled `bvx-cli`, shell hooks around export
+    phases, and unrestricted access to repositories anywhere on disk. The App
+    Store build gives those up and is signed with app-store.entitlements.
+
+    Nothing here is account-specific, so the file is committed as it stands.
+    The App Store one cannot be, which is why it is a template.
+-->
+<plist version="1.0">
+<dict>
+    <!--
+        The hardened runtime is required for notarization. Each escape from it
+        is listed explicitly as false rather than omitted, so that turning one
+        on is a visible edit to a reviewed file instead of an invisible default.
+
+        The engine is a static archive linked into the executable, so no
+        library-validation escape is needed for it.
+    -->
+    <key>com.apple.security.cs.allow-jit</key>                        <false/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key> <false/>
+    <key>com.apple.security.cs.disable-library-validation</key>       <false/>
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key> <false/>
+
+    <!--
+        Correlation reads the git object store directly rather than spawning
+        `git` (ADR-006), so nothing here needs to inherit into a child process.
+    -->
+    <key>com.apple.security.automation.apple-events</key>             <false/>
+</dict>
+</plist>
