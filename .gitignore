@@ -23,7 +23,17 @@ Engine/build/
 # account — the Team ID, the certificate names that embed it, the notary
 # credential — and this repository is public. `scripts/signing.env.example`
 # is the committed template, with placeholders.
+# The glob, not just the exact name: an editor leaves `signing.env~`,
+# `signing.env.bak` and `.signing.env.swp` beside it, each holding the same
+# buffer — the Team ID included. The exact-name rule caught the file and left
+# vim's swap file untracked-but-committable, which is how this was found.
 scripts/signing.env
+scripts/signing.env.*
+scripts/signing.env~
+scripts/.signing.env*
+# ...except the committed template, which the glob above would otherwise
+# swallow. A test asserts this stays true in both directions.
+!scripts/signing.env.example
 
 # Provisioning profiles carry the team identifier and the certificates they
 # are bound to. Configure a path to one outside the checkout; if one is copied
