@@ -197,6 +197,19 @@ public enum SortMode: String, CaseIterable, Sendable, Identifiable {
     /// True when this ordering needs Phase-2 metrics, so the UI can keep it
     /// inert until they land rather than sorting by silent zeros.
     public var requiresPhase2: Bool { column?.requiresPhase2 ?? false }
+
+    /// The ordering to use once `hidden` columns are off screen.
+    ///
+    /// Sorting by a column nobody can see leaves the list in an order with no
+    /// visible explanation: the header that would carry the chevron is gone,
+    /// so the rows simply look shuffled. Falling back to `.default` is the
+    /// honest answer — it is a named ordering the toolbar can still show.
+    ///
+    /// `.default` itself names no column, so it can never be the hidden one.
+    public func whenColumnsHidden(_ hidden: Set<SortColumn>) -> SortMode {
+        guard let column, hidden.contains(column) else { return self }
+        return .default
+    }
 }
 
 /// Applies filters, search and sorting. Pure and synchronous so it can run

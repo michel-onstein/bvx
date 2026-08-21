@@ -5,6 +5,29 @@ import Testing
 
 private typealias Bead = VBXCore.Issue
 
+@Test("Hiding the sorted column falls back to the default ordering")
+func hidingTheSortedColumnFallsBack() {
+    // Sorting by a column nobody can see leaves the rows looking shuffled:
+    // the header that would have carried the chevron is exactly what
+    // disappeared.
+    #expect(SortMode.impact.whenColumnsHidden([.pageRank]) == .default)
+    #expect(SortMode.titleAscending.whenColumnsHidden([.title]) == .default)
+}
+
+@Test("Hiding other columns leaves the ordering alone")
+func hidingOtherColumnsKeepsTheSort() {
+    // The over-correction to guard against: resetting the sort on any layout
+    // change would throw away the user's ordering every time they hid an
+    // unrelated column.
+    #expect(SortMode.impact.whenColumnsHidden([.labels, .updated]) == .impact)
+    #expect(SortMode.titleAscending.whenColumnsHidden([]) == .titleAscending)
+}
+
+@Test("The default ordering names no column, so nothing hidden can disturb it")
+func defaultOrderingIsNeverHidden() {
+    #expect(SortMode.default.whenColumnsHidden(Set(SortColumn.allCases)) == .default)
+}
+
 /// Four beads whose every sortable field differs, so an ordering that ignores
 /// its key produces a visibly wrong answer rather than a coincidentally
 /// right one.

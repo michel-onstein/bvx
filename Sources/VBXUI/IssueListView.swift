@@ -12,6 +12,25 @@ import SwiftUI
 struct IssueListView: View {
     @EnvironmentObject var store: ProjectStore
 
+    /// Which columns are on screen, in what order, at what width.
+    ///
+    /// `TableColumnCustomization` gives the header its own right-click menu for
+    /// showing and hiding columns, which is the affordance a macOS table is
+    /// expected to have — there is nothing to hand-roll. Through `@AppStorage`
+    /// it is also what remembers the choice between launches.
+    ///
+    /// The key is a persistence contract: it holds users' saved layouts, so it
+    /// must not be renamed casually. The same is true of every
+    /// `customizationID` below, which is why they are taken from
+    /// ``SortColumn`` rather than written out twice.
+    @AppStorage("issueListColumnCustomization")
+    private var columnCustomization: TableColumnCustomization<IssueRow>
+
+    /// The columns the user has put away.
+    private var hiddenColumns: Set<SortColumn> {
+        Set(SortColumn.allCases.filter { columnCustomization[visibility: $0.rawValue] == .hidden })
+    }
+
     /// Bridges SwiftUI's comparator-array sort binding to the store's ordering.
     ///
     /// Read: the store's mode becomes the comparator the header chevron draws.
@@ -44,11 +63,19 @@ struct IssueListView: View {
     }
 
     var body: some View {
-        Table(rows, selection: $store.selection, sortOrder: sortOrder) {
+        Table(
+            rows, selection: $store.selection, sortOrder: sortOrder,
+            columnCustomization: $columnCustomization
+        ) {
             TableColumn("ID", value: \.id) { row in
                 Text(row.issue.id).monospaced().font(.callout)
             }
             .width(min: 70, ideal: 96, max: 160)
+            .customizationID(SortColumn.id.rawValue)
+            // Every context menu, bead link and URL is keyed by the id.
+            // A row without one is hard to act on, so it may be moved
+            // and resized but not put away.
+            .disabledCustomizationBehavior(.visibility)
 
             TableColumn("P", value: \.priority) { row in
                 Text(row.issue.priorityLabel)
@@ -56,6 +83,7 @@ struct IssueListView: View {
                     .foregroundStyle(row.issue.priority <= 1 ? .primary : .secondary)
             }
             .width(30)
+            .customizationID(SortColumn.priority.rawValue)
 
             // The type glyph has no header to click and no useful ordering of
             // its own, so it stays an unsorted column.
@@ -65,6 +93,11 @@ struct IssueListView: View {
                     .help(row.issue.type.displayName)
             }
             .width(22)
+            .customizationID("type")
+            // Headerless, so it would appear as a blank row in the
+            // customization menu. Opted out rather than given a label:
+            // the glyph is 22pt of context, not a column to manage.
+            .disabledCustomizationBehavior(.visibility)
 
             TableColumn("Title", value: \.titleKey) { row in
                 HStack(spacing: 6) {
@@ -86,11 +119,13 @@ struct IssueListView: View {
                 }
             }
             .width(min: 200, ideal: 360)
+            .customizationID(SortColumn.title.rawValue)
 
             TableColumn("Status", value: \.statusKey) { row in
                 StatusChip(status: row.issue.status)
             }
             .width(min: 90, ideal: 110, max: 140)
+            .customizationID(SortColumn.status.rawValue)
 
             TableColumn("Blocks", value: \.blocks) { row in
                 Text(row.blocks == 0 ? "—" : "\(row.blocks)")
@@ -99,6 +134,7 @@ struct IssueListView: View {
                     .help("Issues that depend on this one")
             }
             .width(52)
+            .customizationID(SortColumn.blocks.rawValue)
 
             TableColumn("Blocked by", value: \.blockedBy) { row in
                 Text(row.blockedBy == 0 ? "—" : "\(row.blockedBy)")
@@ -106,6 +142,7 @@ struct IssueListView: View {
                     .foregroundStyle(row.blockedBy > 0 ? .primary : .tertiary)
             }
             .width(74)
+            .customizationID(SortColumn.blockedBy.rawValue)
 
             // Sortable in the same way as the rest, but the binding refuses
             // the write until Phase 2 has values — see `sortOrder` above.
@@ -117,6 +154,7 @@ struct IssueListView: View {
                 )
             }
             .width(min: 76, ideal: 86, max: 120)
+            .customizationID(SortColumn.pageRank.rawValue)
 
             TableColumn("Labels", value: \.labelsKey) { row in
                 // Identity is the position, not the label: a bead carrying the
@@ -130,6 +168,7 @@ struct IssueListView: View {
                 .help(row.issue.labels.joined(separator: ", "))
             }
             .width(min: 80, ideal: 140)
+            .customizationID(SortColumn.labels.rawValue)
 
             TableColumn("Updated", value: \.updatedKey) { row in
                 Text(
@@ -140,6 +179,7 @@ struct IssueListView: View {
                 .foregroundStyle(.secondary)
             }
             .width(min: 80, ideal: 100, max: 140)
+            .customizationID(SortColumn.updated.rawValue)
         }
         // `forSelectionType:` is what makes "the selected beads, or the one
         // right-clicked when it is not selected" fall out of the framework:
@@ -151,6 +191,12 @@ struct IssueListView: View {
             rowMenu(for: ids)
         }
         .tableStyle(.inset(alternatesRowBackgrounds: true))
+        // Hiding the column being sorted by would otherwise leave the list in
+        // an order with nothing on screen to explain it: the header carrying
+        // the chevron is the thing that just disappeared.
+        .onChange(of: columnCustomization) {
+            store.query.sort = store.query.sort.whenColumnsHidden(hiddenColumns)
+        }
         .overlay {
             if store.visibleIssues.isEmpty {
                 EmptyStateView(
