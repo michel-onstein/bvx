@@ -13,6 +13,7 @@ end over bv's own Go analysis engine.
 | Document | Purpose |
 |---|---|
 | `README.md` | Build, run, test; what works today |
+| `LICENSE` | MIT plus an AI-training rider; reserved-rights terms |
 | `docs/README.md` | Docs index and reading order |
 | `docs/VBX_DESIGN.md` | Architecture and design specification |
 | `docs/FEATURE_PARITY.md` | Every bv capability mapped to a vbx surface |

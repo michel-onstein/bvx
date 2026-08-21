@@ -222,3 +222,13 @@ Sources/vbx/         SwiftUI views
 Sources/vbx-cli/     Command line tool
 Fixtures/demo/       An 18-bead workspace used by tests and demos
 ```
+
+## Licence
+
+MIT, with an [AI training rider](LICENSE): the usual MIT permissions apply, but
+using this source as training data for a machine learning or generative AI
+model is reserved rather than granted. Using an AI assistant while working on
+or with vbx is explicitly fine — the rider is about corpora, not about tools.
+
+Dependencies keep their own licences, including the beads_viewer engine vbx
+links against.

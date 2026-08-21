@@ -1,0 +1,67 @@
+MIT License with AI Training Rider
+
+Copyright (c) 2026 Michel Onstein
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+AI Training Rider
+
+This rider is an additional condition on the permission granted above. It
+narrows the MIT grant; where the two conflict, this rider governs. Because of
+it, this license is not the unmodified MIT license and is not an OSI-approved
+open source license.
+
+1. Reserved use. No permission is granted to use the Software, in whole or in
+   part, as input to the training, pre-training, fine-tuning, distillation,
+   reinforcement learning, retrieval-augmented indexing, evaluation-set
+   construction, or other development of any machine learning model, language
+   model, or generative artificial intelligence system, nor to include it in
+   any corpus or dataset assembled for those purposes. This applies whether
+   the resulting model is published, sold, or kept internal.
+
+2. Automated collection. Scraping, crawling, mirroring, or bulk-downloading
+   the Software for the purposes in section 1 is likewise not permitted. A
+   robots.txt, terms of service, or licence metadata on any host that
+   distributes the Software does not enlarge this grant.
+
+3. Permitted uses. This rider does not restrict any other use allowed by the
+   MIT terms above. In particular it does not restrict reading, running,
+   modifying, or redistributing the Software; using an AI assistant to help
+   you write, review, or explain code in a project that depends on the
+   Software; or a model processing the Software transiently at inference time
+   without retaining it as training data.
+
+4. Separate permission. Rights withheld by this rider may be granted in
+   writing by the copyright holder. Absent that writing, they are reserved.
+
+5. Severability. If any part of this rider is held unenforceable, the
+   remainder stays in force, and the MIT terms above continue to apply to
+   everything the rider does not reach.
+
+---
+
+Third-party components
+
+This licence covers the vbx source in this repository. It does not cover the
+dependencies vbx builds against, which carry their own licences — including
+beads_viewer (github.com/Dicklesworthstone/beads_viewer), whose Go engine vbx
+links, and the modules listed in Engine/bridge/go.mod. Their terms, not this
+one, govern that code.
