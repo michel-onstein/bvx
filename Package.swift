@@ -11,67 +11,67 @@ let engineBuildDir = "\(packageRoot)/Engine/build"
 // Frameworks the Go runtime and modernc.org/sqlite need on darwin.
 let engineLinkerSettings: [LinkerSetting] = [
     .unsafeFlags(["-L\(engineBuildDir)"]),
-    .linkedLibrary("bvxengine"),
+    .linkedLibrary("vbxengine"),
     .linkedLibrary("resolv"),
     .linkedFramework("CoreFoundation"),
     .linkedFramework("Security"),
 ]
 
 let package = Package(
-    name: "bvx",
+    name: "vbx",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "bvx", targets: ["bvx"]),
-        .executable(name: "bvx-cli", targets: ["bvx-cli"]),
-        .library(name: "BVXCore", targets: ["BVXCore"]),
-        .library(name: "BVXEngine", targets: ["BVXEngine"]),
-        .library(name: "BVXUI", targets: ["BVXUI"]),
+        .executable(name: "vbx", targets: ["vbx"]),
+        .executable(name: "vbx-cli", targets: ["vbx-cli"]),
+        .library(name: "VBXCore", targets: ["VBXCore"]),
+        .library(name: "VBXEngine", targets: ["VBXEngine"]),
+        .library(name: "VBXUI", targets: ["VBXUI"]),
     ],
     targets: [
         // C module exposing the Go archive's generated header.
         .target(
-            name: "CBVXEngine",
+            name: "CVBXEngine",
             linkerSettings: engineLinkerSettings
         ),
 
         // Value types and pure logic. No engine dependency, so it stays
         // testable without linking the archive.
-        .target(name: "BVXCore"),
+        .target(name: "VBXCore"),
 
         // async/await facade over the C ABI.
         .target(
-            name: "BVXEngine",
-            dependencies: ["CBVXEngine", "BVXCore"]
+            name: "VBXEngine",
+            dependencies: ["CVBXEngine", "VBXCore"]
         ),
 
         // Application state, split out of the executable so it can be tested
         // headlessly — an executable target cannot be imported by tests.
         .target(
-            name: "BVXAppCore",
-            dependencies: ["BVXCore", "BVXEngine"]
+            name: "VBXAppCore",
+            dependencies: ["VBXCore", "VBXEngine"]
         ),
 
         // SwiftUI views, in a library rather than the executable so they can be
         // hosted and snapshot-rendered by tests.
         .target(
-            name: "BVXUI",
-            dependencies: ["BVXCore", "BVXEngine", "BVXAppCore"]
+            name: "VBXUI",
+            dependencies: ["VBXCore", "VBXEngine", "VBXAppCore"]
         ),
 
         .executableTarget(
-            name: "bvx",
-            dependencies: ["BVXCore", "BVXEngine", "BVXAppCore", "BVXUI"]
+            name: "vbx",
+            dependencies: ["VBXCore", "VBXEngine", "VBXAppCore", "VBXUI"]
         ),
 
         .executableTarget(
-            name: "bvx-cli",
-            dependencies: ["BVXCore", "BVXEngine"]
+            name: "vbx-cli",
+            dependencies: ["VBXCore", "VBXEngine"]
         ),
 
-        .testTarget(name: "BVXCoreTests", dependencies: ["BVXCore"]),
-        .testTarget(name: "BVXEngineTests", dependencies: ["BVXEngine", "BVXCore"]),
-        .testTarget(name: "BVXAppCoreTests", dependencies: ["BVXAppCore", "BVXCore"]),
-        .testTarget(name: "BVXUITests", dependencies: ["BVXUI", "BVXAppCore", "BVXCore"]),
+        .testTarget(name: "VBXCoreTests", dependencies: ["VBXCore"]),
+        .testTarget(name: "VBXEngineTests", dependencies: ["VBXEngine", "VBXCore"]),
+        .testTarget(name: "VBXAppCoreTests", dependencies: ["VBXAppCore", "VBXCore"]),
+        .testTarget(name: "VBXUITests", dependencies: ["VBXUI", "VBXAppCore", "VBXCore"]),
     ],
     swiftLanguageModes: [.v5]
 )

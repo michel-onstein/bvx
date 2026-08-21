@@ -1,14 +1,20 @@
-# bvx — project instructions
+# vbx — project instructions
 
-A native macOS app for beads issue graphs: a SwiftUI front end over the Go
-analysis engine of [`bv`](https://github.com/Dicklesworthstone/beads_viewer).
+**Visual Beads for macOS.** A native app for beads issue graphs: a SwiftUI
+front end over the Go analysis engine of
+[`bv`](https://github.com/Dicklesworthstone/beads_viewer).
+
+`vbx` is the short form and is what appears in code, paths, the bundle
+identifier and the URL scheme. **Visual Beads** is the display name, and the
+only place the long form belongs is user-facing text — the menu bar, the About
+box, the README title.
 
 ## Document index
 
 | Document | ADR | Description | State |
 |---|---|---|---|
-| [BVX_DESIGN.md](docs/BVX_DESIGN.md) | ADR-001 | Architecture: engine reuse, C ABI bridge, data model, UI, distribution | Built |
-| [FEATURE_PARITY.md](docs/FEATURE_PARITY.md) | — | Every bv capability mapped to a bvx surface and delivery phase | Living |
+| [VBX_DESIGN.md](docs/VBX_DESIGN.md) | ADR-001 | Architecture: engine reuse, C ABI bridge, data model, UI, distribution | Built |
+| [FEATURE_PARITY.md](docs/FEATURE_PARITY.md) | — | Every bv capability mapped to a vbx surface and delivery phase | Living |
 | [project_notes/BUGS.md](docs/project_notes/BUGS.md) | — | Bug log with the regression test locking each fix in | Living |
 | [project_notes/DECISIONS.md](docs/project_notes/DECISIONS.md) | ADR-001…008 | Architectural decisions and their trade-offs | Living |
 | [project_notes/KEY_FACTS.md](docs/project_notes/KEY_FACTS.md) | — | Toolchain, commands, layout, gotchas | Living |
@@ -39,9 +45,9 @@ them.
   before `swift build` in a fresh clone. The generated header *is* committed,
   because the Swift C target needs it to compile.
 - **The app icon *is* committed, and never hand-edited.**
-  `Resources/bvx-icon.svg` is output from `scripts/make-icon.py` — edit the
-  script's control points, not the SVG. `Resources/bvx.icns` and the README's
-  `docs/images/bvx-icon.png` are committed too (unlike the engine archive)
+  `Resources/vbx-icon.svg` is output from `scripts/make-icon.py` — edit the
+  script's control points, not the SVG. `Resources/vbx.icns` and the README's
+  `docs/images/vbx-icon.png` are committed too (unlike the engine archive)
   because rasterising them needs `rsvg-convert`, which is not part of the
   toolchain, and `build-app.sh` has to be able to bundle an icon on a bare
   clone. `./scripts/build-icon.sh` rebuilds both from the SVG, so the README
@@ -52,7 +58,7 @@ them.
 - **`.task` and `.onAppear` do not run in a snapshot.** Prefer data the store
   already holds; that constraint is why the unblocks cache exists.
 - **Swift Testing exports its own `Issue` type.** Test files alias the model:
-  `private typealias Bead = BVXCore.Issue`.
+  `private typealias Bead = VBXCore.Issue`.
 - **Tests that write into a workspace use `Fixture.writableStore()`**, which
   copies the fixture to a temporary directory. Swift Testing runs tests in
   parallel, and two writing to the shared fixture interfere.
@@ -69,7 +75,7 @@ them.
 swift test                          # Swift suite
 cd Engine/bridge && go test ./...   # Go suite
 gofmt -l Engine/bridge              # must print nothing
-python3 scripts/parity-check.py     # bvx-cli vs bv, command by command
+python3 scripts/parity-check.py     # vbx-cli vs bv, command by command
 ```
 
 The parity check needs `bv` on the PATH. Without it every comparison is

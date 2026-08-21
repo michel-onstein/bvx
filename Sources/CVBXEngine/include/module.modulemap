@@ -1,0 +1,4 @@
+module CVBXEngine {
+    header "libvbxengine.h"
+    export *
+}

@@ -108,7 +108,7 @@ func TestUserRecipeRoundTrip(t *testing.T) {
 	})
 
 	// bv's own location, so a recipe written here is one `bv --recipe` can
-	// use rather than one only bvx can see.
+	// use rather than one only vbx can see.
 	if filepath.Base(saved.Path) != "recipes.yaml" ||
 		filepath.Base(filepath.Dir(saved.Path)) != ".bv" {
 		t.Errorf("recipe written to %s, want <project>/.bv/recipes.yaml", saved.Path)

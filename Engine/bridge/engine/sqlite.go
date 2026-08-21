@@ -15,7 +15,7 @@ import (
 // LoadSQLite reads a beads.db store.
 //
 // bv has an equivalent reader but it lives in internal/datasource, which Go
-// forbids importing across module boundaries, so bvx carries its own. It is
+// forbids importing across module boundaries, so vbx carries its own. It is
 // written to be schema-tolerant in the same way bv's is: columns that a given
 // beads version does not have are simply absent from the projection rather
 // than causing the whole load to fail.

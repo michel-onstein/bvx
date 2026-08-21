@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Generate the bvx app-icon artwork: a beaded strand plus a corner X.
+"""Generate the vbx app-icon artwork: a beaded strand plus a corner X.
 
-    ./scripts/make-icon.py Resources            # write bvx-icon.svg
+    ./scripts/make-icon.py Resources            # write vbx-icon.svg
     ./scripts/make-icon.py /tmp/out --variants  # write every colour variant
 
 Geometry follows Apple's macOS icon grid: a 1024x1024 canvas with the icon
@@ -81,7 +81,7 @@ def icon_svg(variant=DEFAULT_VARIANT, bead_count=BEAD_COUNT, bead_radius=BEAD_RA
     add = out.append
 
     add('<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" '
-        'viewBox="0 0 1024 1024" role="img" aria-label="bvx">')
+        'viewBox="0 0 1024 1024" role="img" aria-label="vbx">')
     add('<defs>')
     add('<linearGradient id="bg" x1="0.05" y1="0" x2="0.95" y2="1">'
         f'<stop offset="0" stop-color="{palette["bg1"]}"/>'
@@ -148,7 +148,7 @@ def main(argv):
                 path.write_text(icon_svg(variant, count, radius))
                 print(path)
     else:
-        path = out_dir / "bvx-icon.svg"
+        path = out_dir / "vbx-icon.svg"
         path.write_text(icon_svg())
         print(path)
 

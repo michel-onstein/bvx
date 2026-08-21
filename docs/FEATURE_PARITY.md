@@ -1,4 +1,4 @@
-# bvx — Feature Parity Matrix
+# vbx — Feature Parity Matrix
 
 | Field | Value |
 |---|---|
@@ -6,9 +6,9 @@
 | **Date** | 2026-08-20 |
 | **Build state** | See "Implementation status" below, and the root `README.md` |
 
-Companion to the [bvx Design Document](BVX_DESIGN.md). Every capability of `bv` is listed
-here with the `bvx` surface that delivers it, the mechanism, and the delivery phase from
-[§18 of the design doc](BVX_DESIGN.md#18-delivery-plan).
+Companion to the [vbx Design Document](VBX_DESIGN.md). Every capability of `bv` is listed
+here with the `vbx` surface that delivers it, the mechanism, and the delivery phase from
+[§18 of the design doc](VBX_DESIGN.md#18-delivery-plan).
 
 ## Implementation status
 
@@ -21,20 +21,20 @@ Inspector, filters, fuzzy and hybrid search, bv's single-key bindings, live
 reload via FSEvents, Markdown and static-site export, git correlation with a
 History view, time travel with diff badges, recipes, alerts and drift with
 baselines, the sprint dashboard, multi-repository workspaces, App Intents, the
-`bvx://` URL scheme, Spotlight indexing, the tutorial, and `bvx-cli` speaking
+`vbx://` URL scheme, Spotlight indexing, the tutorial, and `vbx-cli` speaking
 the robot protocol with TOON output.
 
-**Verified rather than asserted.** `scripts/parity-check.py` runs `bvx-cli` and
+**Verified rather than asserted.** `scripts/parity-check.py` runs `vbx-cli` and
 `bv` over the same workspace and diffs them command by command, stripping only
 an enumerated list of volatile fields — timestamps, wall-clock durations,
 absolute paths and build identity. It reports commands bv does not have and
-commands bvx has not implemented as coverage gaps rather than skipping them
+commands vbx has not implemented as coverage gaps rather than skipping them
 silently, and exits non-zero when any comparable command differs.
 
 Two known non-comparisons are declared in the harness rather than hidden:
 `--robot-insights`, because bv inlines `analysis.Insights`' untagged PascalCase
 fields at the top level, and `--robot-label-attention`, because bv projects a
-ranked subset where bvx returns the full result.
+ranked subset where vbx returns the full result.
 
 The Phase numbers in the tables below are the original delivery plan and have
 not been re-sequenced; treat them as intent, not as a claim about what exists.
@@ -52,7 +52,7 @@ not been re-sequenced; treat them as intent, not as a claim about what exists.
 
 ## 1. Data Loading
 
-| `bv` capability | `bvx` surface | Mechanism | Phase |
+| `bv` capability | `vbx` surface | Mechanism | Phase |
 |---|---|---|---|
 | `.beads/issues.jsonl` discovery order (`issues` → `beads` → `beads.base`) | Document open | Engine | 0 |
 | SQLite `beads.db` read-only reader | Document open | Engine | 0 |
@@ -77,9 +77,9 @@ not been re-sequenced; treat them as intent, not as a claim about what exists.
 
 ## 2. Graph Analysis
 
-All nine metrics are computed by the engine. `bvx` never reimplements one.
+All nine metrics are computed by the engine. `vbx` never reimplements one.
 
-| Metric | `bvx` surface | Mechanism | Phase |
+| Metric | `vbx` surface | Mechanism | Phase |
 |---|---|---|---|
 | In/out degree | List column, node encoding, badges | Engine + Native | 1 |
 | Topological sort | Tree ranking, plan ordering, graph layer assignment | Engine + Native | 1 |
@@ -100,7 +100,7 @@ All nine metrics are computed by the engine. `bvx` never reimplements one.
 
 ## 3. Derived Analysis
 
-| `bv` capability | `bvx` surface | Mechanism | Phase |
+| `bv` capability | `vbx` surface | Mechanism | Phase |
 |---|---|---|---|
 | Composite impact/triage scoring | List column + inspector score breakdown | Engine + Native | 4 |
 | Priority recommendations with confidence | Insights panel, priority-hints overlay on the list | Engine + Native | 4 |
@@ -128,7 +128,7 @@ All nine metrics are computed by the engine. `bvx` never reimplements one.
 
 ## 4. Git Correlation and History
 
-| `bv` capability | `bvx` surface | Mechanism | Phase |
+| `bv` capability | `vbx` surface | Mechanism | Phase |
 |---|---|---|---|
 | Bead ↔ commit correlation (explicit, co-commit, file, temporal) | History view | Engine + Native | 5 |
 | Confidence scoring | Confidence badges on each link | Engine + Native | 5 |
@@ -142,7 +142,7 @@ All nine metrics are computed by the engine. `bvx` never reimplements one.
 | Orphan commit detection | History view "Orphans" tab | Engine + Native | 5 |
 | Impact network with clusters | Graph view "Impact network" mode | Engine + Native | 5 |
 | Related-work discovery | Inspector "Related work" | Engine + Native | 5 |
-| Incremental per-commit disk caches | Transparent, under `~/Library/Caches/bvx` | Engine | 5 |
+| Incremental per-commit disk caches | Transparent, under `~/Library/Caches/vbx` | Engine | 5 |
 | cass session correlation + preview modal | Optional; sheet showing matched sessions | Engine + Native | 5 |
 | Git subprocess usage | Replaced by direct object-store reads inside the sandbox; the CLI keeps the subprocess path | Engine | 5 |
 
@@ -150,7 +150,7 @@ All nine metrics are computed by the engine. `bvx` never reimplements one.
 
 ## 5. Views
 
-| `bv` view | `bvx` surface | Mechanism | Phase |
+| `bv` view | `vbx` surface | Mechanism | Phase |
 |---|---|---|---|
 | List view with virtualization | SwiftUI `Table`, lazy, multi-select, sortable columns | Native | 0 |
 | Sort modes (default, created ↑/↓, priority, updated) | Column-header sorting + a Sort menu preserving `bv`'s exact orderings | Engine + Native | 0 |
@@ -196,10 +196,10 @@ All nine metrics are computed by the engine. `bvx` never reimplements one.
 
 ## 6. Robot Protocol and Outputs
 
-Every `--robot-*` command is available from `bvx-cli` with byte-identical output, verified by
+Every `--robot-*` command is available from `vbx-cli` with byte-identical output, verified by
 the parity suite. The table marks where the GUI additionally surfaces the same data.
 
-| `bv` command | `bvx-cli` | GUI surface | Phase |
+| `bv` command | `vbx-cli` | GUI surface | Phase |
 |---|---|---|---|
 | `--robot-triage`, `--robot-triage-by-track`, `--robot-triage-by-label` | ✓ | Insights triage section | 6 |
 | `--robot-next` | ✓ | "Next bead" toolbar action + Shortcuts intent | 6 |
@@ -230,13 +230,13 @@ the parity suite. The table marks where the GUI additionally surfaces the same d
 | TOON token-optimised encoding | ✓ | — | 6 |
 | Data hash + config echoed in every payload | ✓ | Status bar shows the hash | 6 |
 | — | App Intents / Shortcuts actions | **New** | 6 |
-| — | `bvx://` URL scheme deep links | **New** | 6 |
+| — | `vbx://` URL scheme deep links | **New** | 6 |
 
 ---
 
 ## 7. Exports and Integration
 
-| `bv` capability | `bvx` surface | Mechanism | Phase |
+| `bv` capability | `vbx` surface | Mechanism | Phase |
 |---|---|---|---|
 | `--export-md` Markdown report with Mermaid | File → Export → Markdown Report (`⌘⇧E`) | Engine + Native | 7 |
 | Priority brief, agent brief bundle | Export submenu | Engine + Native | 7 |
@@ -248,7 +248,7 @@ the parity suite. The table marks where the GUI additionally surfaces the same d
 | WASM hybrid search scorer for the static bundle | Built and embedded as `bv` does | Engine | 7 |
 | Graph snapshots (SVG/PNG) | Export + drag-out from the canvas + Share sheet | Engine + Native | 3 |
 | Shell script emission | Export submenu; copy to clipboard | Engine + Native | 7 |
-| Hooks around export phases | Full support in `bvx-cli`; in the sandboxed app via user-approved tasks | Engine + Native | 7 |
+| Hooks around export phases | Full support in `vbx-cli`; in the sandboxed app via user-approved tasks | Engine + Native | 7 |
 | `AGENTS.md` / `CLAUDE.md` blurb management | Menu item "Add bv blurb to AGENTS.md" | Engine + Native | 7 |
 | Self-update engine | Sparkle 2 with a signed appcast | Native | 7 |
 
@@ -256,7 +256,7 @@ the parity suite. The table marks where the GUI additionally surfaces the same d
 
 ## 8. Configuration
 
-| `bv` environment variable | `bvx` equivalent | Notes |
+| `bv` environment variable | `vbx` equivalent | Notes |
 |---|---|---|
 | `BEADS_DIR` | Honoured; also a per-document setting | |
 | `BV_BACKGROUND_MODE` | Not needed — always off the main actor | |
@@ -269,21 +269,21 @@ the parity suite. The table marks where the GUI additionally surfaces the same d
 | `BV_SKIP_PHASE2` | Settings → "Skip expensive metrics" | |
 | `BV_PHASE2_TIMEOUT_S` | Settings (advanced) | |
 | `BV_SEMANTIC_EMBEDDER` / `BV_SEMANTIC_DIM` / `BV_SEMANTIC_MODEL` | Settings → Search → Embedding provider | Adds an on-device Core ML option |
-| `~/.config/bv/config.yaml` | Read for compatibility; `bvx` writes its own `UserDefaults` | Shared workspace/recipe files stay canonical |
+| `~/.config/bv/config.yaml` | Read for compatibility; `vbx` writes its own `UserDefaults` | Shared workspace/recipe files stay canonical |
 
 ---
 
 ## 9. Deliberate Divergences
 
-These are the only places `bvx` intentionally differs from `bv`. Each is a considered
+These are the only places `vbx` intentionally differs from `bv`. Each is a considered
 decision, not an omission.
 
 | Divergence | Reason |
 |---|---|
 | No instance lock file | Document-based apps handle single-workspace-per-window natively; the lock exists to arbitrate terminal instances |
-| No background-mode toggle | `bvx` is always asynchronous; the flag exists in `bv` because Bubble Tea is single-threaded |
-| Terminal single-key shortcuts are opt-out, not the only binding | macOS users expect menu-driven `⌘` shortcuts; both are provided ([design doc §10.3](BVX_DESIGN.md#103-keyboard-model)) |
+| No background-mode toggle | `vbx` is always asynchronous; the flag exists in `bv` because Bubble Tea is single-threaded |
+| Terminal single-key shortcuts are opt-out, not the only binding | macOS users expect menu-driven `⌘` shortcuts; both are provided ([design doc §10.3](VBX_DESIGN.md#103-keyboard-model)) |
 | Correlation reads the git object store directly in the sandboxed app | The App Sandbox cannot spawn `git`; the CLI keeps the subprocess path |
 | Optional Core ML embedder for semantic search | Better on-device quality, but off by default because it changes ranking relative to the CLI |
-| Shell hooks restricted under the sandbox | Sandbox policy; `bvx-cli` retains full behaviour |
+| Shell hooks restricted under the sandbox | Sandbox policy; `vbx-cli` retains full behaviour |
 | ASCII sparklines and heatmaps become real charts | The whole point of a native UI |

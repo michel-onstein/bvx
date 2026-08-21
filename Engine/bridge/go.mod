@@ -1,4 +1,4 @@
-module github.com/qjam/bvx/engine
+module github.com/qjam/vbx/engine
 
 go 1.25.0
 

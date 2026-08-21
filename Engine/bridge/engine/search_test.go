@@ -33,7 +33,7 @@ func TestTextSearchReturnsRankedResults(t *testing.T) {
 		t.Errorf("mode defaulted to %q", result.Mode)
 	}
 	// The default embedder is the deterministic hash one, which is what keeps
-	// bvx's ranking identical to the CLI's.
+	// vbx's ranking identical to the CLI's.
 	if result.Provider != "hash" {
 		t.Errorf("provider is %q, want hash", result.Provider)
 	}

@@ -2,21 +2,21 @@
 #
 # Turns the icon artwork into the .icns the app bundle carries.
 #
-#   ./scripts/build-icon.sh           # regenerate Resources/bvx.icns from the SVG
+#   ./scripts/build-icon.sh           # regenerate Resources/vbx.icns from the SVG
 #   ./scripts/build-icon.sh --check   # verify the committed .icns without rewriting it
 #
 # Regenerating needs `rsvg-convert` (brew install librsvg); --check needs only
 # the macOS tools, so a fresh clone can verify the committed icon even without
-# librsvg installed. That is why bvx.icns is committed while the engine archive
+# librsvg installed. That is why vbx.icns is committed while the engine archive
 # is not: `build-app.sh` must be able to bundle an icon on a bare machine.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SVG="$ROOT/Resources/bvx-icon.svg"
-ICNS="$ROOT/Resources/bvx.icns"
+SVG="$ROOT/Resources/vbx-icon.svg"
+ICNS="$ROOT/Resources/vbx.icns"
 # The README cannot display an .icns, so the same artwork is also emitted as a
 # PNG. It is generated here rather than exported by hand so it cannot drift.
-PNG="$ROOT/docs/images/bvx-icon.png"
+PNG="$ROOT/docs/images/vbx-icon.png"
 PNG_PX=512
 CHECK=0
 
@@ -43,11 +43,11 @@ if [[ $CHECK -eq 1 ]]; then
   # Expanding the committed .icns and measuring each PNG checks the shape of
   # the file rather than its bytes, so a different librsvg version on another
   # machine cannot make an intact icon look stale.
-  iconutil --convert iconset --output "$TMP/bvx.iconset" "$ICNS"
+  iconutil --convert iconset --output "$TMP/vbx.iconset" "$ICNS"
   fail=0
   for rep in "${REPS[@]}"; do
     name="${rep%%:*}"; px="${rep##*:}"
-    png="$TMP/bvx.iconset/$name.png"
+    png="$TMP/vbx.iconset/$name.png"
     if [[ ! -f "$png" ]]; then
       echo "  missing representation: $name" >&2; fail=1; continue
     fi
@@ -63,7 +63,7 @@ if [[ $CHECK -eq 1 ]]; then
   else
     got="$(sips -g pixelWidth "$PNG" | awk '/pixelWidth/{print $2}')"
     [[ "$got" == "$PNG_PX" ]] || {
-      echo "  docs/images/bvx-icon.png is ${got}px, expected ${PNG_PX}px" >&2
+      echo "  docs/images/vbx-icon.png is ${got}px, expected ${PNG_PX}px" >&2
       fail=1
     }
   fi
@@ -80,7 +80,7 @@ command -v rsvg-convert >/dev/null || {
 echo "==> Generating $SVG"
 python3 "$ROOT/scripts/make-icon.py" "$ROOT/Resources" >/dev/null
 
-ICONSET="$(mktemp -d)/bvx.iconset"
+ICONSET="$(mktemp -d)/vbx.iconset"
 mkdir -p "$ICONSET"
 trap 'rm -rf "$(dirname "$ICONSET")"' EXIT
 

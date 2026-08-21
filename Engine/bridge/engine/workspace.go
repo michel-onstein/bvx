@@ -21,7 +21,7 @@ import (
 // so this is discovery, bookkeeping and reporting which repo a bead came from.
 //
 // The namespacing matters more than it looks: two repositories can each hold a
-// `bvx-1`, and without a prefix one would silently overwrite the other in
+// `vbx-1`, and without a prefix one would silently overwrite the other in
 // every id-keyed map in the system.
 
 // repoLoad records how one repository fared.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Signs bvx.app for distribution and packages it.
+# Signs vbx.app for distribution and packages it.
 #
 #   ./scripts/package-app.sh --dmg          # Developer ID, notarized, stapled .dmg
 #   ./scripts/package-app.sh --app-store    # sandboxed, signed .pkg for App Store Connect
@@ -41,7 +41,7 @@ MODE=""          # sign | dmg | app-store
 DRY_RUN=0
 CHECK=0
 NOTARIZE=1
-APP_IN="$ROOT/.build/bvx.app"
+APP_IN="$ROOT/.build/vbx.app"
 
 usage() {
   sed -n '3,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -68,36 +68,36 @@ done
 
 # The environment wins over the file, so CI can supply everything from a secret
 # store and never write a config file into the checkout at all.
-CONFIG_FILE="${BVX_SIGNING_CONFIG:-$ROOT/scripts/signing.env}"
+CONFIG_FILE="${VBX_SIGNING_CONFIG:-$ROOT/scripts/signing.env}"
 if [[ -f "$CONFIG_FILE" ]]; then
   # Snapshot what the environment already set, then restore it afterwards.
-  _env_team="${BVX_TEAM_ID:-}"
-  _env_bundle="${BVX_BUNDLE_ID:-}"
-  _env_devid="${BVX_DEVELOPER_ID_APP:-}"
-  _env_notary="${BVX_NOTARY_PROFILE:-}"
-  _env_as_app="${BVX_APP_STORE_APP:-}"
-  _env_as_inst="${BVX_APP_STORE_INSTALLER:-}"
-  _env_profile="${BVX_PROVISION_PROFILE:-}"
+  _env_team="${VBX_TEAM_ID:-}"
+  _env_bundle="${VBX_BUNDLE_ID:-}"
+  _env_devid="${VBX_DEVELOPER_ID_APP:-}"
+  _env_notary="${VBX_NOTARY_PROFILE:-}"
+  _env_as_app="${VBX_APP_STORE_APP:-}"
+  _env_as_inst="${VBX_APP_STORE_INSTALLER:-}"
+  _env_profile="${VBX_PROVISION_PROFILE:-}"
 
   # shellcheck disable=SC1090
   source "$CONFIG_FILE"
 
-  [[ -n "$_env_team" ]]    && BVX_TEAM_ID="$_env_team"
-  [[ -n "$_env_bundle" ]]  && BVX_BUNDLE_ID="$_env_bundle"
-  [[ -n "$_env_devid" ]]   && BVX_DEVELOPER_ID_APP="$_env_devid"
-  [[ -n "$_env_notary" ]]  && BVX_NOTARY_PROFILE="$_env_notary"
-  [[ -n "$_env_as_app" ]]  && BVX_APP_STORE_APP="$_env_as_app"
-  [[ -n "$_env_as_inst" ]] && BVX_APP_STORE_INSTALLER="$_env_as_inst"
-  [[ -n "$_env_profile" ]] && BVX_PROVISION_PROFILE="$_env_profile"
+  [[ -n "$_env_team" ]]    && VBX_TEAM_ID="$_env_team"
+  [[ -n "$_env_bundle" ]]  && VBX_BUNDLE_ID="$_env_bundle"
+  [[ -n "$_env_devid" ]]   && VBX_DEVELOPER_ID_APP="$_env_devid"
+  [[ -n "$_env_notary" ]]  && VBX_NOTARY_PROFILE="$_env_notary"
+  [[ -n "$_env_as_app" ]]  && VBX_APP_STORE_APP="$_env_as_app"
+  [[ -n "$_env_as_inst" ]] && VBX_APP_STORE_INSTALLER="$_env_as_inst"
+  [[ -n "$_env_profile" ]] && VBX_PROVISION_PROFILE="$_env_profile"
 fi
 
-TEAM_ID="${BVX_TEAM_ID:-}"
-BUNDLE_ID="${BVX_BUNDLE_ID:-com.qjam.bvx}"
-DEVELOPER_ID_APP="${BVX_DEVELOPER_ID_APP:-}"
-NOTARY_PROFILE="${BVX_NOTARY_PROFILE:-}"
-APP_STORE_APP="${BVX_APP_STORE_APP:-}"
-APP_STORE_INSTALLER="${BVX_APP_STORE_INSTALLER:-}"
-PROVISION_PROFILE="${BVX_PROVISION_PROFILE:-}"
+TEAM_ID="${VBX_TEAM_ID:-}"
+BUNDLE_ID="${VBX_BUNDLE_ID:-com.qjam.vbx}"
+DEVELOPER_ID_APP="${VBX_DEVELOPER_ID_APP:-}"
+NOTARY_PROFILE="${VBX_NOTARY_PROFILE:-}"
+APP_STORE_APP="${VBX_APP_STORE_APP:-}"
+APP_STORE_INSTALLER="${VBX_APP_STORE_INSTALLER:-}"
+PROVISION_PROFILE="${VBX_PROVISION_PROFILE:-}"
 
 # ---------------------------------------------------------------------------
 # redact — the reason this script is safe to run with its output visible
@@ -291,13 +291,13 @@ check_config() {
   if [[ $dmg_ready -eq 1 ]]; then
     say "  --dmg          ready"
   else
-    say "  --dmg          not ready (needs BVX_DEVELOPER_ID_APP and a usable BVX_NOTARY_PROFILE)"
+    say "  --dmg          not ready (needs VBX_DEVELOPER_ID_APP and a usable VBX_NOTARY_PROFILE)"
   fi
   if [[ $store_ready -eq 1 ]]; then
     say "  --app-store    ready"
   else
-    say "  --app-store    not configured (needs BVX_TEAM_ID, BVX_APP_STORE_APP," \
-        "BVX_APP_STORE_INSTALLER, BVX_PROVISION_PROFILE)"
+    say "  --app-store    not configured (needs VBX_TEAM_ID, VBX_APP_STORE_APP," \
+        "VBX_APP_STORE_INSTALLER, VBX_PROVISION_PROFILE)"
   fi
 
   [[ $problems -eq 0 ]] || fail "configuration is incomplete"
@@ -328,7 +328,7 @@ if [[ -f "$APP_IN/Contents/Info.plist" ]]; then
     "$APP_IN/Contents/Info.plist" 2>/dev/null || echo 0.0.0)"
 fi
 
-APP="$STAGE/bvx.app"
+APP="$STAGE/vbx.app"
 
 stage_app() {
   say "==> Staging a copy (the input bundle is left untouched)"
@@ -352,7 +352,7 @@ stage_app() {
 # ---------------------------------------------------------------------------
 
 sign_developer_id() {
-  require_config BVX_DEVELOPER_ID_APP "$DEVELOPER_ID_APP"
+  require_config VBX_DEVELOPER_ID_APP "$DEVELOPER_ID_APP"
 
   local entitlements="$ROOT/Resources/entitlements/developer-id.entitlements"
   [[ -f "$entitlements" ]] || fail "missing $entitlements"
@@ -362,9 +362,9 @@ sign_developer_id() {
   # Inside out: nested code first, the bundle last. `--deep` is the documented
   # wrong answer — it re-signs nested code with the *bundle's* entitlements and
   # skips anything it does not recognise.
-  if [[ -f "$APP/Contents/MacOS/bvx-cli" ]]; then
+  if [[ -f "$APP/Contents/MacOS/vbx-cli" ]]; then
     run codesign --force --timestamp --options runtime \
-      --sign "$DEVELOPER_ID_APP" "$APP/Contents/MacOS/bvx-cli"
+      --sign "$DEVELOPER_ID_APP" "$APP/Contents/MacOS/vbx-cli"
   fi
   run codesign --force --timestamp --options runtime \
     --entitlements "$entitlements" \
@@ -381,9 +381,9 @@ notarize() {
     return 0
   fi
   if [[ "$DEVELOPER_ID_APP" == "-" ]]; then
-    fail "an ad-hoc signature cannot be notarized. Add --no-notarize for a local build, or configure BVX_DEVELOPER_ID_APP."
+    fail "an ad-hoc signature cannot be notarized. Add --no-notarize for a local build, or configure VBX_DEVELOPER_ID_APP."
   fi
-  require_config BVX_NOTARY_PROFILE "$NOTARY_PROFILE"
+  require_config VBX_NOTARY_PROFILE "$NOTARY_PROFILE"
 
   say "==> Notarizing (this waits on Apple; minutes, occasionally longer)"
   run xcrun notarytool submit "$target" \
@@ -397,7 +397,7 @@ notarize() {
 }
 
 make_dmg() {
-  local dmg="$DIST/bvx-$APP_VERSION.dmg"
+  local dmg="$DIST/vbx-$APP_VERSION.dmg"
   say "==> Building ${dmg#"$ROOT"/}"
   if [[ $DRY_RUN -eq 0 ]]; then rm -f "$dmg"; fi
 
@@ -407,11 +407,11 @@ make_dmg() {
   if [[ $DRY_RUN -eq 0 ]]; then
     rm -rf "$root"
     mkdir -p "$root"
-    cp -R "$APP" "$root/bvx.app"
+    cp -R "$APP" "$root/vbx.app"
     ln -s /Applications "$root/Applications"
   fi
 
-  run hdiutil create -volname "bvx $APP_VERSION" -srcfolder "$root" \
+  run hdiutil create -volname "vbx $APP_VERSION" -srcfolder "$root" \
     -ov -format UDZO "$dmg"
 
   # The disk image is signed and notarized in its own right: the ticket the
@@ -455,10 +455,10 @@ expand_app_store_entitlements() {
 }
 
 sign_app_store() {
-  require_config BVX_TEAM_ID "$TEAM_ID"
-  require_config BVX_APP_STORE_APP "$APP_STORE_APP"
-  require_config BVX_APP_STORE_INSTALLER "$APP_STORE_INSTALLER"
-  require_config BVX_PROVISION_PROFILE "$PROVISION_PROFILE"
+  require_config VBX_TEAM_ID "$TEAM_ID"
+  require_config VBX_APP_STORE_APP "$APP_STORE_APP"
+  require_config VBX_APP_STORE_INSTALLER "$APP_STORE_INSTALLER"
+  require_config VBX_PROVISION_PROFILE "$PROVISION_PROFILE"
   assert_identity "$APP_STORE_APP" "Apple Distribution"
   assert_identity "$APP_STORE_INSTALLER" "3rd Party Mac Developer Installer"
 
@@ -472,12 +472,12 @@ sign_app_store() {
   say "==> Preparing the App Store bundle"
   # The bundled CLI comes out. A sandboxed app cannot symlink it into
   # /usr/local/bin, so shipping it would add an unusable binary that App Review
-  # would reasonably ask about. `bvx-cli` stays a Developer ID feature.
+  # would reasonably ask about. `vbx-cli` stays a Developer ID feature.
   if [[ $DRY_RUN -eq 0 ]]; then
-    rm -f "$APP/Contents/MacOS/bvx-cli"
+    rm -f "$APP/Contents/MacOS/vbx-cli"
     cp "$PROVISION_PROFILE" "$APP/Contents/embedded.provisionprofile"
   else
-    say "  removing Contents/MacOS/bvx-cli (not usable from a sandbox)"
+    say "  removing Contents/MacOS/vbx-cli (not usable from a sandbox)"
     say "  copying the provisioning profile to Contents/embedded.provisionprofile"
   fi
 
@@ -489,7 +489,7 @@ sign_app_store() {
     --sign "$APP_STORE_APP" "$APP"
   run codesign --verify --deep --strict --verbose=2 "$APP"
 
-  local pkg="$DIST/bvx-$APP_VERSION.pkg"
+  local pkg="$DIST/vbx-$APP_VERSION.pkg"
   say "==> Building ${pkg#"$ROOT"/} for App Store Connect"
   run productbuild --component "$APP" /Applications \
     --sign "$APP_STORE_INSTALLER" "$pkg"

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>bvx — Feature Parity Matrix</title>
+<title>vbx — Feature Parity Matrix</title>
 <style>
 :root {
   --bg: #ffffff;
@@ -187,12 +187,12 @@ pre.mermaid svg { max-width: 100%; height: auto; }
 <a class="skip" href="#content">Skip to content</a>
 <div class="shell">
   <aside class="nav">
-    <div class="brand"><span class="dot"></span> bvx docs</div>
-    <nav><a href="README.html">bvx Documentation</a><a href="BVX_DESIGN.html">bvx — Design Document</a><a href="FEATURE_PARITY.html" class="current">bvx — Feature Parity Matrix</a></nav>
+    <div class="brand"><span class="dot"></span> vbx docs</div>
+    <nav><a href="README.html">vbx Documentation</a><a href="VBX_DESIGN.html">vbx — Design Document</a><a href="FEATURE_PARITY.html" class="current">vbx — Feature Parity Matrix</a></nav>
     <div class="toc-head">On this page</div>
     <nav class="toc"><div class="toc">
 <ul>
-<li><a href="#bvx-feature-parity-matrix">bvx — Feature Parity Matrix</a><ul>
+<li><a href="#vbx-feature-parity-matrix">vbx — Feature Parity Matrix</a><ul>
 <li><a href="#implementation-status">Implementation status</a></li>
 <li><a href="#1-data-loading">1. Data Loading</a></li>
 <li><a href="#2-graph-analysis">2. Graph Analysis</a></li>
@@ -212,7 +212,7 @@ pre.mermaid svg { max-width: 100%; height: auto; }
   </aside>
   <main id="content" class="page">
     <article class="prose">
-<h1 id="bvx-feature-parity-matrix"><a class="toclink" href="#bvx-feature-parity-matrix">bvx — Feature Parity Matrix</a></h1>
+<h1 id="vbx-feature-parity-matrix"><a class="toclink" href="#vbx-feature-parity-matrix">vbx — Feature Parity Matrix</a></h1>
 <div class="table-wrap"><table>
 <thead>
 <tr>
@@ -235,9 +235,9 @@ pre.mermaid svg { max-width: 100%; height: auto; }
 </tr>
 </tbody>
 </table></div>
-<p>Companion to the <a href="BVX_DESIGN.html">bvx Design Document</a>. Every capability of <code>bv</code> is listed
-here with the <code>bvx</code> surface that delivers it, the mechanism, and the delivery phase from
-<a href="BVX_DESIGN.html#18-delivery-plan">§18 of the design doc</a>.</p>
+<p>Companion to the <a href="VBX_DESIGN.html">vbx Design Document</a>. Every capability of <code>bv</code> is listed
+here with the <code>vbx</code> surface that delivers it, the mechanism, and the delivery phase from
+<a href="VBX_DESIGN.html#18-delivery-plan">§18 of the design doc</a>.</p>
 <h2 id="implementation-status"><a class="toclink" href="#implementation-status">Implementation status</a></h2>
 <p>As of 2026-08-20 every capability tracked in this matrix is <strong>built and
 tested</strong>: JSONL and SQLite loading with discovery fallback, Phase-1 and Phase-2
@@ -248,18 +248,18 @@ Inspector, filters, fuzzy and hybrid search, bv's single-key bindings, live
 reload via FSEvents, Markdown and static-site export, git correlation with a
 History view, time travel with diff badges, recipes, alerts and drift with
 baselines, the sprint dashboard, multi-repository workspaces, App Intents, the
-<code>bvx://</code> URL scheme, Spotlight indexing, the tutorial, and <code>bvx-cli</code> speaking
+<code>vbx://</code> URL scheme, Spotlight indexing, the tutorial, and <code>vbx-cli</code> speaking
 the robot protocol with TOON output.</p>
-<p><strong>Verified rather than asserted.</strong> <code>scripts/parity-check.py</code> runs <code>bvx-cli</code> and
+<p><strong>Verified rather than asserted.</strong> <code>scripts/parity-check.py</code> runs <code>vbx-cli</code> and
 <code>bv</code> over the same workspace and diffs them command by command, stripping only
 an enumerated list of volatile fields — timestamps, wall-clock durations,
 absolute paths and build identity. It reports commands bv does not have and
-commands bvx has not implemented as coverage gaps rather than skipping them
+commands vbx has not implemented as coverage gaps rather than skipping them
 silently, and exits non-zero when any comparable command differs.</p>
 <p>Two known non-comparisons are declared in the harness rather than hidden:
 <code>--robot-insights</code>, because bv inlines <code>analysis.Insights</code>' untagged PascalCase
 fields at the top level, and <code>--robot-label-attention</code>, because bv projects a
-ranked subset where bvx returns the full result.</p>
+ranked subset where vbx returns the full result.</p>
 <p>The Phase numbers in the tables below are the original delivery plan and have
 not been re-sequenced; treat them as intent, not as a claim about what exists.</p>
 <p><strong>Mechanism legend</strong></p>
@@ -295,7 +295,7 @@ not been re-sequenced; treat them as intent, not as a claim about what exists.</
 <thead>
 <tr>
 <th><code>bv</code> capability</th>
-<th><code>bvx</code> surface</th>
+<th><code>vbx</code> surface</th>
 <th>Mechanism</th>
 <th>Phase</th>
 </tr>
@@ -413,12 +413,12 @@ not been re-sequenced; treat them as intent, not as a claim about what exists.</
 </table></div>
 <hr />
 <h2 id="2-graph-analysis"><a class="toclink" href="#2-graph-analysis">2. Graph Analysis</a></h2>
-<p>All nine metrics are computed by the engine. <code>bvx</code> never reimplements one.</p>
+<p>All nine metrics are computed by the engine. <code>vbx</code> never reimplements one.</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
 <th>Metric</th>
-<th><code>bvx</code> surface</th>
+<th><code>vbx</code> surface</th>
 <th>Mechanism</th>
 <th>Phase</th>
 </tr>
@@ -516,7 +516,7 @@ not been re-sequenced; treat them as intent, not as a claim about what exists.</
 <thead>
 <tr>
 <th><code>bv</code> capability</th>
-<th><code>bvx</code> surface</th>
+<th><code>vbx</code> surface</th>
 <th>Mechanism</th>
 <th>Phase</th>
 </tr>
@@ -656,7 +656,7 @@ not been re-sequenced; treat them as intent, not as a claim about what exists.</
 <thead>
 <tr>
 <th><code>bv</code> capability</th>
-<th><code>bvx</code> surface</th>
+<th><code>vbx</code> surface</th>
 <th>Mechanism</th>
 <th>Phase</th>
 </tr>
@@ -736,7 +736,7 @@ not been re-sequenced; treat them as intent, not as a claim about what exists.</
 </tr>
 <tr>
 <td>Incremental per-commit disk caches</td>
-<td>Transparent, under <code>~/Library/Caches/bvx</code></td>
+<td>Transparent, under <code>~/Library/Caches/vbx</code></td>
 <td>Engine</td>
 <td>5</td>
 </tr>
@@ -760,7 +760,7 @@ not been re-sequenced; treat them as intent, not as a claim about what exists.</
 <thead>
 <tr>
 <th><code>bv</code> view</th>
-<th><code>bvx</code> surface</th>
+<th><code>vbx</code> surface</th>
 <th>Mechanism</th>
 <th>Phase</th>
 </tr>
@@ -1004,13 +1004,13 @@ not been re-sequenced; treat them as intent, not as a claim about what exists.</
 </table></div>
 <hr />
 <h2 id="6-robot-protocol-and-outputs"><a class="toclink" href="#6-robot-protocol-and-outputs">6. Robot Protocol and Outputs</a></h2>
-<p>Every <code>--robot-*</code> command is available from <code>bvx-cli</code> with byte-identical output, verified by
+<p>Every <code>--robot-*</code> command is available from <code>vbx-cli</code> with byte-identical output, verified by
 the parity suite. The table marks where the GUI additionally surfaces the same data.</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
 <th><code>bv</code> command</th>
-<th><code>bvx-cli</code></th>
+<th><code>vbx-cli</code></th>
 <th>GUI surface</th>
 <th>Phase</th>
 </tr>
@@ -1192,7 +1192,7 @@ the parity suite. The table marks where the GUI additionally surfaces the same d
 </tr>
 <tr>
 <td>—</td>
-<td><code>bvx://</code> URL scheme deep links</td>
+<td><code>vbx://</code> URL scheme deep links</td>
 <td><strong>New</strong></td>
 <td>6</td>
 </tr>
@@ -1204,7 +1204,7 @@ the parity suite. The table marks where the GUI additionally surfaces the same d
 <thead>
 <tr>
 <th><code>bv</code> capability</th>
-<th><code>bvx</code> surface</th>
+<th><code>vbx</code> surface</th>
 <th>Mechanism</th>
 <th>Phase</th>
 </tr>
@@ -1272,7 +1272,7 @@ the parity suite. The table marks where the GUI additionally surfaces the same d
 </tr>
 <tr>
 <td>Hooks around export phases</td>
-<td>Full support in <code>bvx-cli</code>; in the sandboxed app via user-approved tasks</td>
+<td>Full support in <code>vbx-cli</code>; in the sandboxed app via user-approved tasks</td>
 <td>Engine + Native</td>
 <td>7</td>
 </tr>
@@ -1296,7 +1296,7 @@ the parity suite. The table marks where the GUI additionally surfaces the same d
 <thead>
 <tr>
 <th><code>bv</code> environment variable</th>
-<th><code>bvx</code> equivalent</th>
+<th><code>vbx</code> equivalent</th>
 <th>Notes</th>
 </tr>
 </thead>
@@ -1358,14 +1358,14 @@ the parity suite. The table marks where the GUI additionally surfaces the same d
 </tr>
 <tr>
 <td><code>~/.config/bv/config.yaml</code></td>
-<td>Read for compatibility; <code>bvx</code> writes its own <code>UserDefaults</code></td>
+<td>Read for compatibility; <code>vbx</code> writes its own <code>UserDefaults</code></td>
 <td>Shared workspace/recipe files stay canonical</td>
 </tr>
 </tbody>
 </table></div>
 <hr />
 <h2 id="9-deliberate-divergences"><a class="toclink" href="#9-deliberate-divergences">9. Deliberate Divergences</a></h2>
-<p>These are the only places <code>bvx</code> intentionally differs from <code>bv</code>. Each is a considered
+<p>These are the only places <code>vbx</code> intentionally differs from <code>bv</code>. Each is a considered
 decision, not an omission.</p>
 <div class="table-wrap"><table>
 <thead>
@@ -1381,11 +1381,11 @@ decision, not an omission.</p>
 </tr>
 <tr>
 <td>No background-mode toggle</td>
-<td><code>bvx</code> is always asynchronous; the flag exists in <code>bv</code> because Bubble Tea is single-threaded</td>
+<td><code>vbx</code> is always asynchronous; the flag exists in <code>bv</code> because Bubble Tea is single-threaded</td>
 </tr>
 <tr>
 <td>Terminal single-key shortcuts are opt-out, not the only binding</td>
-<td>macOS users expect menu-driven <code>⌘</code> shortcuts; both are provided (<a href="BVX_DESIGN.html#103-keyboard-model">design doc §10.3</a>)</td>
+<td>macOS users expect menu-driven <code>⌘</code> shortcuts; both are provided (<a href="VBX_DESIGN.html#103-keyboard-model">design doc §10.3</a>)</td>
 </tr>
 <tr>
 <td>Correlation reads the git object store directly in the sandboxed app</td>
@@ -1397,7 +1397,7 @@ decision, not an omission.</p>
 </tr>
 <tr>
 <td>Shell hooks restricted under the sandbox</td>
-<td>Sandbox policy; <code>bvx-cli</code> retains full behaviour</td>
+<td>Sandbox policy; <code>vbx-cli</code> retains full behaviour</td>
 </tr>
 <tr>
 <td>ASCII sparklines and heatmaps become real charts</td>
@@ -1406,7 +1406,7 @@ decision, not an omission.</p>
 </tbody>
 </table></div>
     </article>
-    <footer class="foot">Generated from <code>docs/FEATURE_PARITY.md</code> &middot; bvx design documentation</footer>
+    <footer class="foot">Generated from <code>docs/FEATURE_PARITY.md</code> &middot; vbx design documentation</footer>
   </main>
 </div>
 <script src="assets/mermaid.min.js"></script>
@@ -1414,7 +1414,7 @@ decision, not an omission.</p>
 (function () {
   var root = document.documentElement;
   var stored = null;
-  try { stored = localStorage.getItem('bvx-theme'); } catch (e) {}
+  try { stored = localStorage.getItem('vbx-theme'); } catch (e) {}
   if (stored) root.setAttribute('data-theme', stored);
 
   function isDark() {
@@ -1448,7 +1448,7 @@ decision, not an omission.</p>
   if (btn) btn.addEventListener('click', function () {
     var next = isDark() ? 'light' : 'dark';
     root.setAttribute('data-theme', next);
-    try { localStorage.setItem('bvx-theme', next); } catch (e) {}
+    try { localStorage.setItem('vbx-theme', next); } catch (e) {}
     initMermaid();
   });
 

@@ -12,7 +12,7 @@ Found-and-fixed issues, with the regression test that locks each fix in.
 value". None of them did.
 
 **Cause:** the scan took every value in the config file longer than eight
-characters. `BVX_BUNDLE_ID=com.qjam.bvx` is one of them — and it is committed
+characters. `VBX_BUNDLE_ID=com.qjam.vbx` is one of them — and it is committed
 in `Info.plist`, the scripts and the Swift sources, deliberately. A partly
 filled config also still holds the template's placeholders, which by definition
 match the template.
@@ -176,7 +176,7 @@ so "a file appeared" would have passed throughout.
 
 ## 2026-08-19 — Inspector reported "Unblocks 0" for a bead that unblocks six
 
-**Symptom:** `bvx-3` showed Blocks 7, Unblocks 0.
+**Symptom:** `vbx-3` showed Blocks 7, Unblocks 0.
 
 **Cause:** the count was fetched in a `.task`, which never runs in a static
 render and flashes 0 in the live app before resolving.
@@ -187,7 +187,7 @@ render "—", never 0.
 
 **Prevention:** `UnblocksCacheTests`, including that nil and `[]` stay
 distinguishable, and that unblocks (6) is not conflated with blocks (7) —
-`bvx-6` also waits on `bvx-12`, so closing `bvx-3` alone would not free it.
+`vbx-6` also waits on `vbx-12`, so closing `vbx-3` alone would not free it.
 
 ---
 
@@ -239,9 +239,9 @@ the tests are run from, worktree or not.
 
 **A second bug hid the first.** The fix appeared not to work: the Go tests
 passed and the Swift ones kept failing with the old message. SwiftPM does not
-treat `libbvxengine.a` as a build input, so rebuilding the engine alone does
+treat `libvbxengine.a` as a build input, so rebuilding the engine alone does
 *not* trigger a relink — `swift test` kept running the previous archive.
-`build-engine.sh` now touches `Sources/BVXEngine/BeadsEngine.swift` after a
+`build-engine.sh` now touches `Sources/VBXEngine/BeadsEngine.swift` after a
 successful build to force it. Worth remembering whenever a Go-side change seems
 to have no effect on the Swift side.
 
@@ -250,7 +250,7 @@ to have no effect on the Swift side.
 ## 2026-08-20 — Two tests fought over the fixture's `.bv` directory
 
 **Symptom:** the recipe save/delete test failed with `no project recipe named
-"bvx-test-recipe"` — but only sometimes, and only when the whole suite ran. The
+"vbx-test-recipe"` — but only sometimes, and only when the whole suite ran. The
 recipe was demonstrably saved a moment earlier, and the listing still showed it.
 
 **Cause:** Swift Testing runs tests in parallel. The alerts test wrote a
@@ -276,7 +276,7 @@ test run at all, which is worth having on its own.
 **Symptom:** every Swift link printed, once per object file:
 
 ```
-ld: warning: object file (libbvxengine.a[...]) was built for newer 'macOS'
+ld: warning: object file (libvbxengine.a[...]) was built for newer 'macOS'
     version (26.0) than being linked (14.0)
 ```
 

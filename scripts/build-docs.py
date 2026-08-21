@@ -29,7 +29,7 @@ MERMAID_URL = "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"
 MERMAID_LOCAL = ASSETS / "mermaid.min.js"
 
 # Order of the nav sidebar; anything else is appended alphabetically.
-NAV_ORDER = ["README.md", "BVX_DESIGN.md", "FEATURE_PARITY.md"]
+NAV_ORDER = ["README.md", "VBX_DESIGN.md", "FEATURE_PARITY.md"]
 
 MERMAID_FENCE = re.compile(
     r"^[ \t]*```mermaid[ \t]*\n(.*?)^[ \t]*```[ \t]*$",
@@ -52,7 +52,7 @@ def extract_mermaid(text: str) -> tuple[str, list[str]]:
 
     def sub(match: re.Match[str]) -> str:
         blocks.append(match.group(1))
-        return f"\n\nBVXMERMAIDPLACEHOLDER{len(blocks) - 1}ENDPLACEHOLDER\n\n"
+        return f"\n\nVBXMERMAIDPLACEHOLDER{len(blocks) - 1}ENDPLACEHOLDER\n\n"
 
     return MERMAID_FENCE.sub(sub, text), blocks
 
@@ -60,7 +60,7 @@ def extract_mermaid(text: str) -> tuple[str, list[str]]:
 def restore_mermaid(rendered: str, blocks: list[str]) -> str:
     for i, block in enumerate(blocks):
         needle = re.compile(
-            r"<p>\s*BVXMERMAIDPLACEHOLDER" + str(i) + r"ENDPLACEHOLDER\s*</p>"
+            r"<p>\s*VBXMERMAIDPLACEHOLDER" + str(i) + r"ENDPLACEHOLDER\s*</p>"
         )
         figure = (
             '<div class="mermaid-wrap">'
@@ -70,7 +70,7 @@ def restore_mermaid(rendered: str, blocks: list[str]) -> str:
         rendered, n = needle.subn(lambda _m: figure, rendered, count=1)
         if n == 0:  # placeholder survived outside a <p> (e.g. inside a list)
             rendered = rendered.replace(
-                f"BVXMERMAIDPLACEHOLDER{i}ENDPLACEHOLDER", figure, 1
+                f"VBXMERMAIDPLACEHOLDER{i}ENDPLACEHOLDER", figure, 1
             )
     return rendered
 
@@ -109,7 +109,7 @@ PAGE = """<!DOCTYPE html>
 <a class="skip" href="#content">Skip to content</a>
 <div class="shell">
   <aside class="nav">
-    <div class="brand"><span class="dot"></span> bvx docs</div>
+    <div class="brand"><span class="dot"></span> vbx docs</div>
     <nav>{nav}</nav>
     <div class="toc-head">On this page</div>
     <nav class="toc">{toc}</nav>
@@ -119,7 +119,7 @@ PAGE = """<!DOCTYPE html>
     <article class="prose">
 {body}
     </article>
-    <footer class="foot">Generated from <code>docs/{source}</code> &middot; bvx design documentation</footer>
+    <footer class="foot">Generated from <code>docs/{source}</code> &middot; vbx design documentation</footer>
   </main>
 </div>
 <script src="assets/mermaid.min.js"></script>
@@ -127,7 +127,7 @@ PAGE = """<!DOCTYPE html>
 (function () {{
   var root = document.documentElement;
   var stored = null;
-  try {{ stored = localStorage.getItem('bvx-theme'); }} catch (e) {{}}
+  try {{ stored = localStorage.getItem('vbx-theme'); }} catch (e) {{}}
   if (stored) root.setAttribute('data-theme', stored);
 
   function isDark() {{
@@ -161,7 +161,7 @@ PAGE = """<!DOCTYPE html>
   if (btn) btn.addEventListener('click', function () {{
     var next = isDark() ? 'light' : 'dark';
     root.setAttribute('data-theme', next);
-    try {{ localStorage.setItem('bvx-theme', next); }} catch (e) {{}}
+    try {{ localStorage.setItem('vbx-theme', next); }} catch (e) {{}}
     initMermaid();
   }});
 

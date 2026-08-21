@@ -4,7 +4,7 @@ Project configuration and references. Never secrets.
 
 ## What this is
 
-`bvx` — a native macOS app for beads issue graphs, implementing
+`vbx` — a native macOS app for beads issue graphs, implementing
 [`bv`](https://github.com/Dicklesworthstone/beads_viewer) with a SwiftUI front
 end over bv's own Go analysis engine.
 
@@ -14,8 +14,8 @@ end over bv's own Go analysis engine.
 |---|---|
 | `README.md` | Build, run, test; what works today |
 | `docs/README.md` | Docs index and reading order |
-| `docs/BVX_DESIGN.md` | Architecture and design specification |
-| `docs/FEATURE_PARITY.md` | Every bv capability mapped to a bvx surface |
+| `docs/VBX_DESIGN.md` | Architecture and design specification |
+| `docs/FEATURE_PARITY.md` | Every bv capability mapped to a vbx surface |
 | `docs/project_notes/BUGS.md` | Bug log with regression tests |
 | `docs/project_notes/DECISIONS.md` | ADRs |
 | `docs/project_notes/KEY_FACTS.md` | This file |
@@ -41,7 +41,7 @@ formatted with `gofmt`.
 ./scripts/build-engine.sh --check   # Go archive + C ABI smoke test
 ./scripts/build-icon.sh --check     # committed .icns + README PNG are intact
 ./scripts/build-icon.sh             # regenerate the icon (needs rsvg-convert)
-./scripts/build-app.sh --run        # bvx.app, opened on the demo fixture
+./scripts/build-app.sh --run        # vbx.app, opened on the demo fixture
 swift test                          # Swift suite
 cd Engine/bridge && go test ./...   # Go suite
 python3 scripts/test-packaging.py   # signing config, redaction, leak guard
@@ -54,10 +54,10 @@ Distribution:
 ./scripts/package-app.sh --check              # what is configured, what is ready
 ./scripts/build-app.sh --release --dmg        # Developer ID, notarized, stapled
 ./scripts/build-app.sh --release --app-store  # sandboxed .pkg for App Store Connect
-BVX_DEVELOPER_ID_APP=- ./scripts/build-app.sh --dmg --no-notarize   # ad-hoc, local only
+VBX_DEVELOPER_ID_APP=- ./scripts/build-app.sh --dmg --no-notarize   # ad-hoc, local only
 ```
 
-`BVX_SNAPSHOT_DIR=/tmp/bvx-snaps swift test --filter BVXUITests` keeps rendered
+`VBX_SNAPSHOT_DIR=/tmp/vbx-snaps swift test --filter VBXUITests` keeps rendered
 view snapshots for inspection.
 
 ## Layout
@@ -65,18 +65,18 @@ view snapshots for inspection.
 | Path | Contents |
 |---|---|
 | `Engine/bridge/engine` | Go session wrapper over bv's `pkg/*`, plus a SQLite reader |
-| `Engine/bridge/cbridge` | C ABI (`bvx_open` / `bvx_call` / `bvx_close` / `bvx_free` / `bvx_probe`) |
+| `Engine/bridge/cbridge` | C ABI (`vbx_open` / `vbx_call` / `vbx_close` / `vbx_free` / `vbx_probe`) |
 | `Engine/smoke` | C ABI smoke test |
 | `Engine/build` | Generated archive — **gitignored**, rebuild with the script |
-| `Sources/BVXCore` | Value types, filtering, fuzzy search, graph layout |
-| `Sources/BVXEngine` | async/await facade over the C ABI |
-| `Sources/BVXAppCore` | `ProjectStore`, `FileWatchService` |
-| `Sources/BVXUI` | SwiftUI views |
-| `Sources/bvx`, `Sources/bvx-cli` | App shell and CLI |
+| `Sources/VBXCore` | Value types, filtering, fuzzy search, graph layout |
+| `Sources/VBXEngine` | async/await facade over the C ABI |
+| `Sources/VBXAppCore` | `ProjectStore`, `FileWatchService` |
+| `Sources/VBXUI` | SwiftUI views |
+| `Sources/vbx`, `Sources/vbx-cli` | App shell and CLI |
 | `Fixtures/demo` | 18-bead workspace used by tests and demos |
-| `Resources` | App icon: generated `bvx-icon.svg` and the committed `bvx.icns` |
+| `Resources` | App icon: generated `vbx-icon.svg` and the committed `vbx.icns` |
 | `Resources/entitlements` | Developer ID entitlements, plus the App Store *template* |
-| `docs/images` | `bvx-icon.png`, the same artwork at 512px for the README |
+| `docs/images` | `vbx-icon.png`, the same artwork at 512px for the README |
 | `scripts/signing.env` | Signing configuration — **gitignored**, from `signing.env.example` |
 
 ## Gotchas
@@ -85,18 +85,18 @@ view snapshots for inspection.
   clone must run `./scripts/build-engine.sh` before `swift build`. The generated
   *header* is committed, because the Swift C target needs it to compile.
 - **The app icon is generated, and the `.icns` is committed.** Edit the
-  control points in `scripts/make-icon.py`, never `Resources/bvx-icon.svg`.
+  control points in `scripts/make-icon.py`, never `Resources/vbx-icon.svg`.
   Unlike the engine archive the `.icns` *is* committed, because rasterising it
   needs `rsvg-convert` (`brew install librsvg`) and `build-app.sh` must be able
   to bundle an icon without it. The same run also emits
-  `docs/images/bvx-icon.png` for the README, so the two cannot drift — a test
+  `docs/images/vbx-icon.png` for the README, so the two cannot drift — a test
   asserts they are pixel-identical. `scripts/make-icon.py <dir> --variants`
   re-renders the palettes that were considered. See ADR-008.
-- **This repo's own `.beads` store is empty** (0 issues). Point bvx at
+- **This repo's own `.beads` store is empty** (0 issues). Point vbx at
   `Fixtures/demo` for anything with a real dependency graph.
 - **Swift Testing exports its own `Issue` type**, which collides with the model.
-  Test files alias it: `private typealias Bead = BVXCore.Issue`.
-- **The remote is `origin` (github.com/michel-onstein/bvx)**; work lands on a
+  Test files alias it: `private typealias Bead = VBXCore.Issue`.
+- **The remote is `origin` (github.com/michel-onstein/vbx)**; work lands on a
   branch and is integrated by PR, never pushed to `main` directly.
 - **GUI rendering of the live window is unverified** — `screencapture`, the
   accessibility API and `CGWindowList` are permission-gated for background
@@ -104,7 +104,7 @@ view snapshots for inspection.
 - **App Intents are not discoverable from a `swift build`.** Shortcuts finds
   intents through a metadata bundle produced by Xcode's
   `appintentsmetadataprocessor`. SwiftPM does not run it, so the intents in
-  `Sources/bvx/Intents.swift` compile and execute correctly but are only *listed*
+  `Sources/vbx/Intents.swift` compile and execute correctly but are only *listed*
   in Shortcuts when the app is built through Xcode, or when that step is added
   to `scripts/build-app.sh`.
 - **`CSSearchableIndex.default()` and `UNUserNotificationCenter.current()` both
@@ -124,15 +124,15 @@ view snapshots for inspection.
   get pasted into issues. `scripts/test-packaging.py` asserts all three, and
   scans tracked files for the values configured locally. See ADR-009.
 - **The two channels ship different apps.** `--dmg` is unsandboxed and keeps
-  `bvx-cli`; `--app-store` is sandboxed and removes it, because a sandboxed app
+  `vbx-cli`; `--app-store` is sandboxed and removes it, because a sandboxed app
   cannot symlink it into `/usr/local/bin`. See ADR-010.
-- **`BVX_DEVELOPER_ID_APP=-` signs ad-hoc**, which makes the whole packaging
+- **`VBX_DEVELOPER_ID_APP=-` signs ad-hoc**, which makes the whole packaging
   path runnable with no certificates. It produces nothing distributable and
   says so; notarizing it is refused rather than attempted.
 - **Discovery does not walk upwards.** bv's `GetBeadsDir` checks `<path>/.beads`
   and, for a linked checkout, the main repository's — nothing else. A folder
   *below* a project root is therefore not openable, which is why the Open
-  panel's guard asks `bvx_probe` rather than testing for `.beads` itself: the
+  panel's guard asks `vbx_probe` rather than testing for `.beads` itself: the
   set of openable paths is wider in one direction (a workspace root holds
   `.bv/workspace.yaml` and no `.beads`) and narrower in another.
 - **Tests that write into a workspace must use `Fixture.writableStore()`**,
