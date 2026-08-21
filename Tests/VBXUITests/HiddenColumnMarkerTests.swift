@@ -6,6 +6,11 @@ import Testing
 
 @testable import VBXUI
 
+/// A top-left-origin container, matching how the overlay is really hosted.
+private final class FlippedContainer: NSView {
+    override var isFlipped: Bool { true }
+}
+
 /// The accent rule that shows where columns were hidden.
 ///
 /// Serialized because every case here seeds `UserDefaults.standard` — the store
@@ -163,5 +168,39 @@ struct HiddenColumnMarkerTests {
         let view = HiddenColumnMarkerView()
         view.frame = CGRect(x: 0, y: 0, width: 400, height: 200)
         #expect(view.hitTest(NSPoint(x: 200, y: 100)) == nil, "empty overlay captured a click")
+    }
+
+    @Test("The accent rule is the height of the header, not the whole column")
+    func ruleStopsBelowTheHeader() async throws {
+        let (table, overlay, store) = try await hostedTable(hiding: [.status])
+
+        let header = HiddenColumnMarkerView.headerHeight(of: table, relativeTo: overlay)
+        #expect(header > 0, "no header measured, so the rule would not draw at all")
+        // Running the rule the full height turned it into a wall through the
+        // rows; below the header the boundary is an ordinary hairline.
+        #expect(
+            header < overlay.bounds.height / 2,
+            "header measured at \(header) of \(overlay.bounds.height) — that is not a header")
+
+        await cleanUp(store)
+    }
+
+    @Test("Clicks below the header reach the rows")
+    func rowsUnderTheRuleStayClickable() {
+        // The rule sits in the header, so the overlay must stop intercepting
+        // below it. Otherwise a row lying under the boundary would simply not
+        // select, with nothing on screen explaining why.
+        // Inside a parent, because `hitTest` takes a point in the *superview's*
+        // coordinates — testing it detached measures the conversion rather than
+        // the behaviour, and a flipped view detached inverts y.
+        let parent = FlippedContainer(frame: CGRect(x: 0, y: 0, width: 400, height: 300))
+        let view = HiddenColumnMarkerView()
+        view.frame = parent.bounds
+        parent.addSubview(view)
+        view.setMarkersForTesting([.init(x: 200, titles: ["Status"])], headerHeight: 28)
+
+        #expect(view.hitTest(NSPoint(x: 200, y: 10)) === view, "the rule itself is not clickable")
+        #expect(view.hitTest(NSPoint(x: 200, y: 150)) == nil, "the overlay swallowed a row click")
+        #expect(view.hitTest(NSPoint(x: 50, y: 10)) == nil, "the header away from the rule was captured")
     }
 }

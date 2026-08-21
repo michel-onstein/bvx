@@ -150,6 +150,10 @@ public final class ProjectStore: ObservableObject {
     /// instead of racing a real interval.
     var navigationClock: () -> Date = Date.init
 
+    /// Workspaces opened recently, for the File menu. Written by
+    /// ``open(path:)`` once a load has actually succeeded.
+    @Published public var recents = RecentWorkspaces()
+
     /// Every selected bead. Bound directly to the list's `Table`.
     ///
     /// A set rather than a single id, because the table supports shift- and
@@ -518,6 +522,10 @@ public final class ProjectStore: ObservableObject {
             // Positions name beads, and the previous workspace's beads do not
             // exist in this one.
             resetNavigationHistory()
+            // Recorded only once the open has succeeded: a path that failed to
+            // load is not somewhere the user has been, and offering it again
+            // in the menu would just reproduce the error.
+            recents.record(path)
             startWatching()
             if !skipPhase2 { await computePhase2() }
         } catch {
