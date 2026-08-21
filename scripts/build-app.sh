@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Assembles bvx.app from the SwiftPM executable.
+# Assembles vbx.app from the SwiftPM executable.
 #
 #   ./scripts/build-app.sh              # debug build
 #   ./scripts/build-app.sh --release    # optimised
@@ -44,29 +44,29 @@ fi
 
 cd "$ROOT"
 
-if [[ ! -f Engine/build/libbvxengine.a ]]; then
+if [[ ! -f Engine/build/libvbxengine.a ]]; then
   echo "==> Engine archive missing; building it first"
   ./scripts/build-engine.sh
 fi
 
-echo "==> Building bvx ($CONFIG)"
-swift build -c "$CONFIG" --product bvx
-swift build -c "$CONFIG" --product bvx-cli
+echo "==> Building vbx ($CONFIG)"
+swift build -c "$CONFIG" --product vbx
+swift build -c "$CONFIG" --product vbx-cli
 
 BIN_DIR="$ROOT/.build/$CONFIG"
-APP="$ROOT/.build/bvx.app"
+APP="$ROOT/.build/vbx.app"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-cp "$BIN_DIR/bvx" "$APP/Contents/MacOS/bvx"
-cp "$BIN_DIR/bvx-cli" "$APP/Contents/MacOS/bvx-cli"
+cp "$BIN_DIR/vbx" "$APP/Contents/MacOS/vbx"
+cp "$BIN_DIR/vbx-cli" "$APP/Contents/MacOS/vbx-cli"
 
-if [[ -f "$ROOT/Resources/bvx.icns" ]]; then
-  cp "$ROOT/Resources/bvx.icns" "$APP/Contents/Resources/bvx.icns"
+if [[ -f "$ROOT/Resources/vbx.icns" ]]; then
+  cp "$ROOT/Resources/vbx.icns" "$APP/Contents/Resources/vbx.icns"
 else
   # Without the icon the app still runs; it just gets the generic Dock tile.
-  echo "  (no Resources/bvx.icns — run ./scripts/build-icon.sh)"
+  echo "  (no Resources/vbx.icns — run ./scripts/build-icon.sh)"
 fi
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
@@ -74,18 +74,22 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key>            <string>bvx</string>
-    <key>CFBundleDisplayName</key>     <string>bvx</string>
-    <key>CFBundleIdentifier</key>      <string>com.qjam.bvx</string>
-    <key>CFBundleExecutable</key>      <string>bvx</string>
-    <key>CFBundleIconFile</key>        <string>bvx</string>
+    <!-- The product is "Visual Beads"; `vbx` is the short form that names the
+         executable, the CLI, the bundle identifier and the URL scheme.
+         CFBundleName is what the menu bar shows, so it carries the real name
+         rather than the abbreviation. -->
+    <key>CFBundleName</key>            <string>Visual Beads</string>
+    <key>CFBundleDisplayName</key>     <string>Visual Beads</string>
+    <key>CFBundleIdentifier</key>      <string>com.qjam.vbx</string>
+    <key>CFBundleExecutable</key>      <string>vbx</string>
+    <key>CFBundleIconFile</key>        <string>vbx</string>
     <key>CFBundlePackageType</key>     <string>APPL</string>
     <key>CFBundleShortVersionString</key> <string>0.1.0</string>
     <key>CFBundleVersion</key>         <string>1</string>
     <key>LSMinimumSystemVersion</key>  <string>14.0</string>
     <!-- Required for an App Store submission, and harmless otherwise. -->
     <key>LSApplicationCategoryType</key> <string>public.app-category.developer-tools</string>
-    <!-- bvx uses no encryption beyond what macOS itself provides; declaring it
+    <!-- vbx uses no encryption beyond what macOS itself provides; declaring it
          here is what skips the export-compliance questionnaire on every
          upload rather than answering it identically each time. -->
     <key>ITSAppUsesNonExemptEncryption</key> <false/>
@@ -94,8 +98,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleURLTypes</key>
     <array>
         <dict>
-            <key>CFBundleURLName</key>    <string>bvx workspace</string>
-            <key>CFBundleURLSchemes</key> <array><string>bvx</string></array>
+            <key>CFBundleURLName</key>    <string>Visual Beads workspace</string>
+            <key>CFBundleURLSchemes</key> <array><string>vbx</string></array>
         </dict>
     </array>
 </dict>

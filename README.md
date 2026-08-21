@@ -1,20 +1,25 @@
 <p align="center">
-  <img src="docs/images/bvx-icon.png" alt="" width="128" height="128">
+  <img src="docs/images/vbx-icon.png" alt="" width="128" height="128">
 </p>
 
-# bvx
+# vbx — Visual Beads
 
-A native macOS app for [beads](https://github.com/steveyegge/beads) issue graphs — a
-SwiftUI implementation of [`bv`](https://github.com/Dicklesworthstone/beads_viewer).
+**Visual Beads for macOS.** A native app for
+[beads](https://github.com/steveyegge/beads) issue graphs — a SwiftUI
+implementation of [`bv`](https://github.com/Dicklesworthstone/beads_viewer).
 
-See [docs/BVX_DESIGN.md](docs/BVX_DESIGN.md) for the architecture and
+`vbx` is the short form: it names the executable, the CLI, the bundle
+identifier and the `vbx://` URL scheme. The app itself shows as **Visual
+Beads**.
+
+See [docs/VBX_DESIGN.md](docs/VBX_DESIGN.md) for the architecture and
 [docs/FEATURE_PARITY.md](docs/FEATURE_PARITY.md) for the capability map.
 
 ## The idea in one paragraph
 
 `bv` is ~85k lines of Go: about 34k of Bubble Tea terminal UI and ~50k of
 platform-neutral engine (tolerant loading, a two-phase graph analyser computing
-nine metrics with per-metric deadlines, git correlation, search, export). `bvx`
+nine metrics with per-metric deadlines, git correlation, search, export). `vbx`
 **reuses that engine unmodified** — compiled with `go build -buildmode=c-archive`
 behind a small C ABI — and replaces only the UI with native Swift. Metrics are
 therefore identical to upstream by construction, and tracking a new `bv` release
@@ -27,11 +32,11 @@ flowchart LR
     classDef bridge fill:#fffbeb,stroke:#fcd34d,stroke-width:2px,color:#92400e,rx:6
     classDef data fill:#f0fdf4,stroke:#86efac,stroke-width:2px,color:#166534,rx:6
 
-    V["SwiftUI views<br/>BVXUI"]:::ui
-    S["ProjectStore<br/>BVXAppCore"]:::core
-    E["BeadsEngine actor<br/>BVXEngine"]:::core
-    C["C ABI<br/>CBVXEngine"]:::bridge
-    G["Go engine<br/>libbvxengine.a"]:::bridge
+    V["SwiftUI views<br/>VBXUI"]:::ui
+    S["ProjectStore<br/>VBXAppCore"]:::core
+    E["BeadsEngine actor<br/>VBXEngine"]:::core
+    C["C ABI<br/>CVBXEngine"]:::bridge
+    G["Go engine<br/>libvbxengine.a"]:::bridge
     D[".beads store"]:::data
 
     V --> S --> E --> C --> G --> D
@@ -43,17 +48,17 @@ Requires Go 1.25+, Swift 6 / Xcode 16+, macOS 14+.
 
 ```bash
 ./scripts/build-engine.sh --check   # build the Go archive, run the C ABI smoke test
-./scripts/build-app.sh --run        # build bvx.app and open the demo fixture
+./scripts/build-app.sh --run        # build vbx.app and open the demo fixture
 ```
 
-`build-app.sh` assembles `.build/bvx.app`. Open it directly, or point it at a
+`build-app.sh` assembles `.build/vbx.app`. Open it directly, or point it at a
 workspace:
 
 ```bash
-open -a .build/bvx.app --args ~/src/my-project
+open -a .build/vbx.app --args ~/src/my-project
 ```
 
-With no argument the app uses `$BVX_WORKSPACE`, then the current directory.
+With no argument the app uses `$VBX_WORKSPACE`, then the current directory.
 
 ## Distribution builds
 
@@ -79,7 +84,7 @@ do. Everything the scripts print is masked, because `codesign -dvvv`,
 end up in public issues.
 
 The two channels are not the same app. Developer ID is unsandboxed and keeps
-the bundled `bvx-cli` and shell hooks; the App Store build is sandboxed and
+the bundled `vbx-cli` and shell hooks; the App Store build is sandboxed and
 drops the CLI, because a sandboxed app cannot install it. See
 [ADR-010](docs/project_notes/DECISIONS.md); the secrets design above is
 [ADR-009](docs/project_notes/DECISIONS.md).
@@ -88,7 +93,7 @@ To try the packaging without certificates, sign ad-hoc — the result runs on
 this machine only:
 
 ```bash
-BVX_DEVELOPER_ID_APP=- ./scripts/build-app.sh --dmg --no-notarize
+VBX_DEVELOPER_ID_APP=- ./scripts/build-app.sh --dmg --no-notarize
 ```
 
 ### Notarization credentials
@@ -97,7 +102,7 @@ Store them once, interactively. It is deliberately not scripted, because it
 takes an app-specific password that must never reach a build script:
 
 ```bash
-xcrun notarytool store-credentials "bvx-notary" \
+xcrun notarytool store-credentials "vbx-notary" \
     --apple-id you@example.com --team-id ABCDE12345 --password <app-specific>
 ```
 
@@ -105,7 +110,7 @@ Two failures worth recognising, because neither error text points at its cause:
 
 - **`HTTP status code: 500. Internal Server Error`** — usually malformed input
   rather than an Apple outage. Check `--team-id` is the bare 10-character ID:
-  writing `--team-id BVX_TEAM_ID=ABCDE12345`, the `signing.env` form, produces
+  writing `--team-id VBX_TEAM_ID=ABCDE12345`, the `signing.env` form, produces
   exactly this.
 - **`HTTP status code: 403. A required agreement is missing or has expired`** —
   the team has not accepted the current Apple Developer Program License
@@ -117,17 +122,19 @@ Two failures worth recognising, because neither error text points at its cause:
 
 ## Command line
 
-`bvx-cli` links the same engine archive, so its output comes from exactly the
+`vbx-cli` links the same engine archive, so its output comes from exactly the
 code path the GUI uses.
 
 ```bash
-swift run bvx-cli summary --path Fixtures/demo --wait
-swift run bvx-cli doctor  --path Fixtures/demo    # end-to-end self check
-swift run bvx-cli metrics --path . --wait
-swift run bvx-cli unblocks --id bvx-3 --path Fixtures/demo
+swift run vbx-cli --robot-triage   --path Fixtures/demo --pretty
+swift run vbx-cli --robot-metrics  --path Fixtures/demo
+swift run vbx-cli --robot-unblocks --id vbx-3 --path Fixtures/demo
+swift run vbx-cli --robot-plan     --path Fixtures/demo --format toon
+swift run vbx-cli --help                       # the full command list
 ```
 
-`doctor` exits non-zero if any stage fails, which makes it usable as a CI gate.
+Every command is one of bv's `--robot-*` verbs, and
+`scripts/parity-check.py` compares the two implementations output by output.
 
 ## Tests
 
@@ -137,12 +144,12 @@ cd Engine/bridge && go test ./...   # 137 tests: loader, analysis dispatch, SQLi
 ./scripts/build-engine.sh --check   # C ABI: lifecycle, error paths, bad handles
 ./scripts/build-icon.sh --check     # the committed .icns and README PNG are intact
 python3 scripts/test-packaging.py   # signing config, output redaction, credential leak scan
-python3 scripts/parity-check.py     # bvx-cli against bv, command by command (needs `bv` on PATH)
+python3 scripts/parity-check.py     # vbx-cli against bv, command by command (needs `bv` on PATH)
 ```
 
 A fresh clone must run `./scripts/build-engine.sh` before `swift test` — the
 engine archive is deliberately not committed, and without it the link fails
-with `library 'bvxengine' not found`.
+with `library 'vbxengine' not found`.
 
 ## What works today
 
@@ -159,7 +166,7 @@ with `library 'bvxengine' not found`.
 | Filters (open/ready/closed/all), labels, sorting, fuzzy search | ✅ |
 | bv's single-key bindings alongside native menu shortcuts | ✅ |
 | Offscreen view snapshot tests (no screen-recording permission needed) | ✅ |
-| `bvx-cli` with JSON output for agents | ✅ Full robot-protocol coverage, checked against `bv` by `scripts/parity-check.py` |
+| `vbx-cli` with JSON output for agents | ✅ Full robot-protocol coverage, checked against `bv` by `scripts/parity-check.py` |
 | Git correlation and the history view | ✅ Reads the object store directly, so it works sandboxed (ADR-006) |
 | Markdown report export (Mermaid diagrams, bv-identical) | ✅ |
 | Time travel, recipes, sprint dashboard, static-site export | ✅ |
@@ -171,15 +178,15 @@ with `library 'bvxengine' not found`.
 
 ## View snapshots
 
-`swift test --filter BVXUITests` renders every view offscreen to PNG and asserts
+`swift test --filter VBXUITests` renders every view offscreen to PNG and asserts
 it actually drew something — ink coverage and colour variety, not just that a
 file appeared, since a view that lays out but paints nothing still produces a
-valid PNG. Set `BVX_SNAPSHOT_DIR` to keep the images somewhere you can look at
+valid PNG. Set `VBX_SNAPSHOT_DIR` to keep the images somewhere you can look at
 them; they default to a temporary directory.
 
 ```bash
-BVX_SNAPSHOT_DIR=/tmp/bvx-snaps swift test --filter BVXUITests
-open /tmp/bvx-snaps
+VBX_SNAPSHOT_DIR=/tmp/vbx-snaps swift test --filter VBXUITests
+open /tmp/vbx-snaps
 ```
 
 Two things worth knowing if you extend these:
@@ -207,11 +214,11 @@ Two things worth knowing if you extend these:
 ```
 Engine/bridge/       Go module: engine wrapper + C ABI (cbridge)
 Engine/smoke/        C ABI smoke test
-Sources/CBVXEngine/  C module exposing the generated header
-Sources/BVXCore/     Value types, filtering, fuzzy search, graph layout
-Sources/BVXEngine/   async/await facade over the C ABI
-Sources/BVXAppCore/  ProjectStore — the app's observable state
-Sources/bvx/         SwiftUI views
-Sources/bvx-cli/     Command line tool
+Sources/CVBXEngine/  C module exposing the generated header
+Sources/VBXCore/     Value types, filtering, fuzzy search, graph layout
+Sources/VBXEngine/   async/await facade over the C ABI
+Sources/VBXAppCore/  ProjectStore — the app's observable state
+Sources/vbx/         SwiftUI views
+Sources/vbx-cli/     Command line tool
 Fixtures/demo/       An 18-bead workspace used by tests and demos
 ```

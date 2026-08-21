@@ -1,18 +1,18 @@
-// Command cbridge exposes bvx's engine through a small C ABI so a native
+// Command cbridge exposes vbx's engine through a small C ABI so a native
 // macOS app can call bv's analysis code in-process.
 //
 // Build with:
 //
-//	go build -buildmode=c-archive -o libbvxengine.a ./cbridge
+//	go build -buildmode=c-archive -o libvbxengine.a ./cbridge
 //
 // ABI contract
 //
-//	bvx_open(config_json)          -> JSON envelope, caller frees with bvx_free
-//	bvx_call(handle, method, req)  -> JSON envelope, caller frees with bvx_free
-//	bvx_close(handle)              -> void
-//	bvx_free(ptr)                  -> void
-//	bvx_version()                  -> JSON envelope, caller frees with bvx_free
-//	bvx_probe(path)                -> JSON envelope, caller frees with bvx_free
+//	vbx_open(config_json)          -> JSON envelope, caller frees with vbx_free
+//	vbx_call(handle, method, req)  -> JSON envelope, caller frees with vbx_free
+//	vbx_close(handle)              -> void
+//	vbx_free(ptr)                  -> void
+//	vbx_version()                  -> JSON envelope, caller frees with vbx_free
+//	vbx_probe(path)                -> JSON envelope, caller frees with vbx_free
 //
 // Every entry point returns the same envelope shape, so the client has exactly
 // one error path to handle:
@@ -38,7 +38,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/qjam/bvx/engine/engine"
+	"github.com/qjam/vbx/engine/engine"
 )
 
 func main() {}
@@ -82,8 +82,8 @@ func recoverToError(err *error) {
 	}
 }
 
-//export bvx_open
-func bvx_open(configJSON *C.char) *C.char {
+//export vbx_open
+func vbx_open(configJSON *C.char) *C.char {
 	var err error
 	defer recoverToError(&err)
 
@@ -112,8 +112,8 @@ func bvx_open(configJSON *C.char) *C.char {
 	return envelope(nil, id, nil)
 }
 
-//export bvx_call
-func bvx_call(handle C.int64_t, method *C.char, req *C.char) *C.char {
+//export vbx_call
+func vbx_call(handle C.int64_t, method *C.char, req *C.char) *C.char {
 	var err error
 	defer recoverToError(&err)
 
@@ -142,8 +142,8 @@ func bvx_call(handle C.int64_t, method *C.char, req *C.char) *C.char {
 	return envelope(json.RawMessage(data), 0, nil)
 }
 
-//export bvx_close
-func bvx_close(handle C.int64_t) {
+//export vbx_close
+func vbx_close(handle C.int64_t) {
 	mu.Lock()
 	s, ok := sessions[int64(handle)]
 	delete(sessions, int64(handle))
@@ -153,15 +153,15 @@ func bvx_close(handle C.int64_t) {
 	}
 }
 
-//export bvx_free
-func bvx_free(p *C.char) {
+//export vbx_free
+func vbx_free(p *C.char) {
 	if p != nil {
 		C.free(unsafe.Pointer(p))
 	}
 }
 
-//export bvx_version
-func bvx_version() *C.char {
+//export vbx_version
+func vbx_version() *C.char {
 	info := map[string]string{"bridge": "1", "engine": "beads_viewer"}
 	if bi, ok := debug.ReadBuildInfo(); ok {
 		for _, d := range bi.Deps {

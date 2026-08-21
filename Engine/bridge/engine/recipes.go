@@ -19,7 +19,7 @@ import (
 // `pkg/recipe` loads and merges them, but the code that *applies* one lives in
 // `cmd/bv` and is not importable, so the filter and sort semantics are
 // reproduced here. They are reproduced exactly, quirks included, because a
-// recipe that selects different beads in bvx than in bv is worse than one that
+// recipe that selects different beads in vbx than in bv is worse than one that
 // does not work at all.
 
 // recipeLoader builds a loader scoped to the open workspace.
@@ -69,7 +69,7 @@ func (s *Session) recipes() ([]byte, error) {
 //
 // `<project>/.bv/recipes.yaml`, one file holding a map of them — bv's own
 // location and format, so a recipe written here is a recipe `bv --recipe` can
-// use. Writing to a bvx-specific path would have produced recipes only bvx
+// use. Writing to a vbx-specific path would have produced recipes only vbx
 // could see.
 func (s *Session) recipeFilePath() string {
 	dir := s.projectDir()

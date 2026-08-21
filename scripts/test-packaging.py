@@ -35,13 +35,13 @@ EXAMPLE = ROOT / "scripts" / "signing.env.example"
 # Fabricated, and deliberately distinctive: a substring that appears nowhere
 # else means an assertion that it is absent cannot pass by coincidence.
 FAKE = {
-    "BVX_TEAM_ID": "ZZ9PLURAL9",
-    "BVX_BUNDLE_ID": "com.qjam.bvx",
-    "BVX_DEVELOPER_ID_APP": "Developer ID Application: Nemo Nobody (ZZ9PLURAL9)",
-    "BVX_NOTARY_PROFILE": "test-notary-profile",
-    "BVX_APP_STORE_APP": "Apple Distribution: Nemo Nobody (ZZ9PLURAL9)",
-    "BVX_APP_STORE_INSTALLER": "3rd Party Mac Developer Installer: Nemo Nobody (ZZ9PLURAL9)",
-    "BVX_PROVISION_PROFILE": "/nowhere/secret-team.provisionprofile",
+    "VBX_TEAM_ID": "ZZ9PLURAL9",
+    "VBX_BUNDLE_ID": "com.qjam.vbx",
+    "VBX_DEVELOPER_ID_APP": "Developer ID Application: Nemo Nobody (ZZ9PLURAL9)",
+    "VBX_NOTARY_PROFILE": "test-notary-profile",
+    "VBX_APP_STORE_APP": "Apple Distribution: Nemo Nobody (ZZ9PLURAL9)",
+    "VBX_APP_STORE_INSTALLER": "3rd Party Mac Developer Installer: Nemo Nobody (ZZ9PLURAL9)",
+    "VBX_PROVISION_PROFILE": "/nowhere/secret-team.provisionprofile",
 }
 
 failures: list[str] = []
@@ -65,7 +65,7 @@ def run_package(*args: str, env_extra: dict[str, str] | None = None,
     env.update(FAKE)
     # Point at a config file that does not exist unless the test supplies one,
     # so a developer's real scripts/signing.env cannot influence the result.
-    env["BVX_SIGNING_CONFIG"] = str(config) if config else "/nonexistent/signing.env"
+    env["VBX_SIGNING_CONFIG"] = str(config) if config else "/nonexistent/signing.env"
     if env_extra:
         env.update(env_extra)
     return subprocess.run(
@@ -76,19 +76,19 @@ def run_package(*args: str, env_extra: dict[str, str] | None = None,
 
 # Which settings are actually secret.
 #
-# BVX_BUNDLE_ID is not: `com.qjam.bvx` is committed in Info.plist, in the
+# VBX_BUNDLE_ID is not: `com.qjam.vbx` is committed in Info.plist, in the
 # scripts and in the Swift sources, deliberately. Scanning for it flagged nine
 # tracked files the first time this ran against a real config — and a leak
 # detector that cries wolf on its first real use is one people learn to ignore.
 #
-# BVX_NOTARY_PROFILE is not secret either: it names a keychain profile, while
+# VBX_NOTARY_PROFILE is not secret either: it names a keychain profile, while
 # the credential it stores stays in the keychain.
 SECRET_KEYS = {
-    "BVX_TEAM_ID",
-    "BVX_DEVELOPER_ID_APP",
-    "BVX_APP_STORE_APP",
-    "BVX_APP_STORE_INSTALLER",
-    "BVX_PROVISION_PROFILE",
+    "VBX_TEAM_ID",
+    "VBX_DEVELOPER_ID_APP",
+    "VBX_APP_STORE_APP",
+    "VBX_APP_STORE_INSTALLER",
+    "VBX_PROVISION_PROFILE",
 }
 
 
@@ -144,7 +144,7 @@ def test_dry_runs_do_not_leak() -> None:
         check(f"{mode} --dry-run succeeds", result.returncode == 0,
               combined.strip()[-300:])
         check(f"{mode} --dry-run does not print the Team ID",
-              FAKE["BVX_TEAM_ID"] not in combined,
+              FAKE["VBX_TEAM_ID"] not in combined,
               "the Team ID appeared in the output")
         check(f"{mode} --dry-run does not print a certificate name",
               "Nemo Nobody" not in combined,
@@ -164,7 +164,7 @@ def test_redaction_covers_unrelated_identities() -> None:
     """
     print("\nRedaction of identities the build does not use")
     result = run_package("--sign", "--dry-run",
-                         env_extra={"BVX_DEVELOPER_ID_APP":
+                         env_extra={"VBX_DEVELOPER_ID_APP":
                                     "Developer ID Application: Someone Else (QQ1OTHER77)"})
     combined = result.stdout + result.stderr
     check("a differently-shaped identity is still masked",
@@ -186,8 +186,8 @@ def test_config_file_is_read_and_env_wins() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         config = Path(tmp) / "signing.env"
         config.write_text(
-            'BVX_TEAM_ID=FILE123456\n'
-            'BVX_DEVELOPER_ID_APP="Developer ID Application: From File (FILE123456)"\n'
+            'VBX_TEAM_ID=FILE123456\n'
+            'VBX_DEVELOPER_ID_APP="Developer ID Application: From File (FILE123456)"\n'
         )
         # Nothing in the environment: the file supplies the values.
         env = {k: "" for k in FAKE}
@@ -204,7 +204,7 @@ def test_config_file_is_read_and_env_wins() -> None:
         check("the environment overrides the file", result.returncode == 0)
         check("neither value leaks when both are present",
               "FILE123456" not in (result.stdout + result.stderr)
-              and FAKE["BVX_TEAM_ID"] not in (result.stdout + result.stderr))
+              and FAKE["VBX_TEAM_ID"] not in (result.stdout + result.stderr))
 
 
 def test_app_store_entitlements_are_generated_not_committed() -> None:
@@ -319,22 +319,22 @@ def test_the_leak_scan_still_detects() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         config = Path(tmp) / "signing.env"
         config.write_text(
-            "BVX_TEAM_ID=QQ1OTHER77\n"
-            "BVX_BUNDLE_ID=com.qjam.bvx\n"
-            "BVX_NOTARY_PROFILE=bvx-notary\n"
-            'BVX_DEVELOPER_ID_APP="Developer ID Application: Nemo Nobody (QQ1OTHER77)"\n'
+            "VBX_TEAM_ID=QQ1OTHER77\n"
+            "VBX_BUNDLE_ID=com.qjam.vbx\n"
+            "VBX_NOTARY_PROFILE=vbx-notary\n"
+            'VBX_DEVELOPER_ID_APP="Developer ID Application: Nemo Nobody (QQ1OTHER77)"\n'
         )
         secrets = dict(parse_config_secrets(config))
 
-        check("a real Team ID is scanned for", "BVX_TEAM_ID" in secrets)
+        check("a real Team ID is scanned for", "VBX_TEAM_ID" in secrets)
         check("a real certificate name is scanned for",
-              "BVX_DEVELOPER_ID_APP" in secrets)
-        # The false positive that started this: com.qjam.bvx is committed in
+              "VBX_DEVELOPER_ID_APP" in secrets)
+        # The false positive that started this: com.qjam.vbx is committed in
         # Info.plist, the scripts and the Swift sources, on purpose.
         check("the bundle id is not treated as a secret",
-              "BVX_BUNDLE_ID" not in secrets)
+              "VBX_BUNDLE_ID" not in secrets)
         check("the notary profile name is not treated as a secret",
-              "BVX_NOTARY_PROFILE" not in secrets)
+              "VBX_NOTARY_PROFILE" not in secrets)
 
     with tempfile.TemporaryDirectory() as tmp:
         # A config copied from the template and not yet filled in has nothing
@@ -350,7 +350,7 @@ def test_the_leak_scan_still_detects() -> None:
 def test_example_holds_only_placeholders() -> None:
     print("\nThe committed template")
     text = EXAMPLE.read_text()
-    check("the example exists and mentions the Team ID", "BVX_TEAM_ID" in text)
+    check("the example exists and mentions the Team ID", "VBX_TEAM_ID" in text)
     check("the example's Team ID is the documented placeholder",
           "ABCDE12345" in text)
     check("the example tells you the file is gitignored",
@@ -368,7 +368,7 @@ def test_short_values_are_not_masked() -> None:
     """
     print("\nShort values")
     result = run_package("--sign", "--dry-run",
-                         env_extra={"BVX_DEVELOPER_ID_APP": "-"})
+                         env_extra={"VBX_DEVELOPER_ID_APP": "-"})
     combined = result.stdout + result.stderr
     check("an ad-hoc identity leaves flags intact",
           "--force" in combined and "--timestamp" in combined,
@@ -382,11 +382,11 @@ def test_short_values_are_not_masked() -> None:
 def test_ad_hoc_cannot_be_notarized() -> None:
     print("\nAd-hoc guard rails")
     result = run_package("--dmg", "--dry-run",
-                         env_extra={"BVX_DEVELOPER_ID_APP": "-"})
+                         env_extra={"VBX_DEVELOPER_ID_APP": "-"})
     combined = result.stdout + result.stderr
     check("notarizing an ad-hoc signature is refused", result.returncode != 0)
     check("the refusal points at the fix",
-          "--no-notarize" in combined or "BVX_DEVELOPER_ID_APP" in combined,
+          "--no-notarize" in combined or "VBX_DEVELOPER_ID_APP" in combined,
           combined.strip()[-200:])
 
 
@@ -399,11 +399,11 @@ def test_real_app_store_run() -> None:
     assertions are about the artifacts, not the exit code.
     """
     print("\nApp Store build (ad-hoc, as far as it goes)")
-    app = ROOT / ".build" / "bvx.app"
+    app = ROOT / ".build" / "vbx.app"
     if not app.is_dir():
         # Said out loud rather than silently passing: a skipped check that
         # looks like a green one is worse than no check.
-        print("        (no .build/bvx.app — run ./scripts/build-app.sh first; "
+        print("        (no .build/vbx.app — run ./scripts/build-app.sh first; "
               "these checks did not run)")
         return
 
@@ -411,9 +411,9 @@ def test_real_app_store_run() -> None:
         profile = Path(tmp) / "fake.provisionprofile"
         profile.write_text("not a real profile")
         run_package("--app-store", env_extra={
-            "BVX_APP_STORE_APP": "-",
-            "BVX_APP_STORE_INSTALLER": "-",
-            "BVX_PROVISION_PROFILE": str(profile),
+            "VBX_APP_STORE_APP": "-",
+            "VBX_APP_STORE_INSTALLER": "-",
+            "VBX_PROVISION_PROFILE": str(profile),
         })
 
     entitlements = ROOT / ".build" / "dist" / "app-store.entitlements"
@@ -423,7 +423,7 @@ def test_real_app_store_run() -> None:
         check("no placeholder survived substitution",
               "__TEAM_ID__" not in text and "__BUNDLE_ID__" not in text)
         check("the Team ID was substituted in",
-              f"{FAKE['BVX_TEAM_ID']}.{FAKE['BVX_BUNDLE_ID']}" in text)
+              f"{FAKE['VBX_TEAM_ID']}.{FAKE['VBX_BUNDLE_ID']}" in text)
         check("the generated file is valid plist",
               subprocess.run(["plutil", "-lint", str(entitlements)],
                              capture_output=True).returncode == 0)
@@ -433,14 +433,14 @@ def test_real_app_store_run() -> None:
               (entitlements.stat().st_mode & 0o077) == 0,
               oct(entitlements.stat().st_mode))
 
-    staged = ROOT / ".build" / "dist" / "stage" / "bvx.app"
+    staged = ROOT / ".build" / "dist" / "stage" / "vbx.app"
     check("the App Store bundle drops the CLI",
-          not (staged / "Contents" / "MacOS" / "bvx-cli").exists(),
+          not (staged / "Contents" / "MacOS" / "vbx-cli").exists(),
           "a sandboxed app cannot install it, so shipping it invites review questions")
     check("the provisioning profile is embedded",
           (staged / "Contents" / "embedded.provisionprofile").exists())
     check("the input bundle was not mutated",
-          (app / "Contents" / "MacOS" / "bvx-cli").exists(),
+          (app / "Contents" / "MacOS" / "vbx-cli").exists(),
           "packaging must work on a copy")
 
 
@@ -463,12 +463,12 @@ def test_check_reports_per_channel() -> None:
     # real certificate name would have to be in this machine's keychain —
     # `--check` verifies that, which is the point of it.
     result = run_package("--check", "--no-notarize",
-                         env_extra={"BVX_NOTARY_PROFILE": "",
-                                    "BVX_DEVELOPER_ID_APP": "-"})
+                         env_extra={"VBX_NOTARY_PROFILE": "",
+                                    "VBX_DEVELOPER_ID_APP": "-"})
     check("a Developer ID identity alone is enough with --no-notarize",
           result.returncode == 0, (result.stdout + result.stderr).strip()[-200:])
     check("--check masks the values it reports",
-          FAKE["BVX_TEAM_ID"] not in (result.stdout + result.stderr))
+          FAKE["VBX_TEAM_ID"] not in (result.stdout + result.stderr))
     check("--check does not print the values, only whether they are set",
           "set" in result.stdout)
 

@@ -2,7 +2,7 @@
 // JSON request/response vocabulary.
 //
 // The vocabulary deliberately mirrors bv's robot protocol method names, so a
-// new bv capability becomes reachable from bvx without changing the C ABI.
+// new bv capability becomes reachable from vbx without changing the C ABI.
 // Everything here is plain Go with no cgo, so it is unit-testable directly;
 // the cgo layer in ../cbridge is a thin marshalling shim over Call.
 package engine
@@ -218,7 +218,7 @@ func timeNow() time.Time { return time.Now() }
 // robotNow is the clock *triage* reads.
 //
 // Deliberately not used by label health or attention: bv reads the real clock
-// there, and honouring the pin in one place but not the other would make bvx
+// there, and honouring the pin in one place but not the other would make vbx
 // disagree with bv rather than agree with it. Matching bv means matching where
 // it pins as well as that it pins.
 //
@@ -636,7 +636,7 @@ const triageHistoryTimeout = 10 * time.Second
 //
 // The git-history enrichment is not optional garnish: bv feeds a correlation
 // report into the scorer, and it moves the numbers. Skipping it would make
-// bvx's ranking quietly disagree with `bv --robot-triage` on the same data,
+// vbx's ranking quietly disagree with `bv --robot-triage` on the same data,
 // which is exactly the drift ADR-001 exists to prevent — and which the parity
 // harness caught.
 func (s *Session) triage() ([]byte, error) {

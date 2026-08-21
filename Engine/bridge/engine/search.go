@@ -23,7 +23,7 @@ import (
 // through bv's own scorer.
 //
 // The default embedder is `hash`, which is deterministic and needs no model.
-// That is what keeps bvx's default ranking identical to the CLI's: a better
+// That is what keeps vbx's default ranking identical to the CLI's: a better
 // embedder would give better results and *different* ones, so choosing it is
 // the caller's decision, never a default.
 

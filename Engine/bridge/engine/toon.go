@@ -14,7 +14,7 @@ import (
 //
 // bv does not contain an encoder: it shells out to the Rust `tru` binary
 // through a wrapper, and falls back to JSON with a warning when that binary is
-// not installed. That is a poor contract for bvx — a format that silently
+// not installed. That is a poor contract for vbx — a format that silently
 // becomes a different format depending on what happens to be on the machine —
 // so this is a pure-Go implementation of the same spec. No subprocess, no
 // external dependency, and the output does not depend on the host.

@@ -183,7 +183,7 @@ func (s *Session) recordFeedback(req []byte, verdict correlation.FeedbackType) (
 		return nil, fmt.Errorf("feedback requires a non-empty \"sha\" and \"bead_id\"")
 	}
 	if r.By == "" {
-		r.By = "bvx"
+		r.By = "vbx"
 	}
 
 	store, err := s.feedbackStore()
@@ -288,7 +288,7 @@ func (s *Session) causality(req []byte) ([]byte, error) {
 
 	issues, _, _ := s.snapshot()
 	opts := correlation.DefaultCausalityOptions()
-	// Blocker titles turn "waiting on bvx-8ou" into a sentence naming the
+	// Blocker titles turn "waiting on vbx-8ou" into a sentence naming the
 	// bead, which is the difference between a chain you can read and a list
 	// of identifiers.
 	opts.BlockerTitles = titlesByID(issues)

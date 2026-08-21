@@ -670,7 +670,7 @@ func (e *objectStoreExtractor) assemble(
 //   - explicit: the message names a bead. Ids are matched against the loaded
 //     workspace as well as bv's patterns, because bv's built-in patterns
 //     require a numeric suffix (`[A-Za-z]+-\d+`) and `br` mints alphanumeric
-//     tokens like `bvx-8ou`, which those patterns miss entirely.
+//     tokens like `vbx-8ou`, which those patterns miss entirely.
 //   - co-committed: the same commit edited the bead's record and some code.
 //
 // Temporal-author correlation is deliberately absent: it needs a repo-wide
@@ -795,7 +795,7 @@ func classifyMatch(message, id string) string {
 
 // containsToken reports whether `id` appears in `text` as a whole token.
 //
-// Substring matching would link `bvx-8` to a message naming `bvx-80`.
+// Substring matching would link `vbx-8` to a message naming `vbx-80`.
 func containsToken(text, id string) bool {
 	lower := strings.ToLower(text)
 	target := strings.ToLower(id)

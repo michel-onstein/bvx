@@ -1,8 +1,8 @@
-// Smoke test for the bvx engine C ABI. Not shipped; built by Scripts/build-engine.sh --check.
+// Smoke test for the vbx engine C ABI. Not shipped; built by Scripts/build-engine.sh --check.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "libbvxengine.h"
+#include "libvbxengine.h"
 
 static int fail = 0;
 
@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
     char config[4096];
     snprintf(config, sizeof(config), "{\"path\":\"%s\"}", argv[1]);
 
-    char *res = bvx_open(config);
+    char *res = vbx_open(config);
     printf("open  -> %.120s\n", res);
     expect("open reports ok", strstr(res, "\"ok\":true") != NULL);
 
@@ -29,46 +29,46 @@ int main(int argc, char **argv) {
     const char *h = strstr(res, "\"handle\":");
     if (h) handle = strtol(h + 9, NULL, 10);
     expect("handle is non-zero", handle != 0);
-    bvx_free(res);
+    vbx_free(res);
 
-    res = bvx_call(handle, "info", NULL);
+    res = vbx_call(handle, "info", NULL);
     printf("info  -> %.200s\n", res);
     expect("info ok", strstr(res, "\"ok\":true") != NULL);
-    bvx_free(res);
+    vbx_free(res);
 
-    res = bvx_call(handle, "metrics", NULL);
+    res = vbx_call(handle, "metrics", NULL);
     expect("metrics ok", strstr(res, "\"ok\":true") != NULL);
     expect("metrics has node_count", strstr(res, "node_count") != NULL);
-    bvx_free(res);
+    vbx_free(res);
 
-    res = bvx_call(handle, "wait_phase2", NULL);
+    res = vbx_call(handle, "wait_phase2", NULL);
     expect("phase2 ready", strstr(res, "\"phase2_ready\":true") != NULL);
     expect("pagerank present", strstr(res, "pagerank") != NULL);
-    bvx_free(res);
+    vbx_free(res);
 
-    res = bvx_call(handle, "plan", NULL);
+    res = vbx_call(handle, "plan", NULL);
     expect("plan ok", strstr(res, "\"ok\":true") != NULL);
-    bvx_free(res);
+    vbx_free(res);
 
     // Error paths must be envelopes, not crashes.
-    res = bvx_call(handle, "bogus_method", NULL);
+    res = vbx_call(handle, "bogus_method", NULL);
     printf("bogus -> %.120s\n", res);
     expect("unknown method errors", strstr(res, "\"ok\":false") != NULL);
-    bvx_free(res);
+    vbx_free(res);
 
-    res = bvx_call(999999, "info", NULL);
+    res = vbx_call(999999, "info", NULL);
     expect("bad handle errors", strstr(res, "\"ok\":false") != NULL);
-    bvx_free(res);
+    vbx_free(res);
 
-    res = bvx_call(handle, "unblocks", NULL);
+    res = vbx_call(handle, "unblocks", NULL);
     expect("missing arg errors", strstr(res, "\"ok\":false") != NULL);
-    bvx_free(res);
+    vbx_free(res);
 
-    bvx_close(handle);
+    vbx_close(handle);
 
-    res = bvx_call(handle, "info", NULL);
+    res = vbx_call(handle, "info", NULL);
     expect("closed handle errors", strstr(res, "\"ok\":false") != NULL);
-    bvx_free(res);
+    vbx_free(res);
 
     printf("\n%s\n", fail ? "SMOKE FAILED" : "SMOKE PASSED");
     return fail;

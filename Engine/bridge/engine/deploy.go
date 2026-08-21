@@ -132,8 +132,8 @@ func pushBundle(dir, remote, branch, message, token string) error {
 		// A generated site has no meaningful author; naming the tool is more
 		// honest than borrowing the user's identity.
 		Author: &object.Signature{
-			Name:  "bvx",
-			Email: "bvx@localhost",
+			Name:  "vbx",
+			Email: "vbx@localhost",
 			When:  time.Now(),
 		},
 		AllowEmptyCommits: true,
@@ -148,14 +148,14 @@ func pushBundle(dir, remote, branch, message, token string) error {
 	}
 
 	_, _ = repo.CreateRemote(&config.RemoteConfig{
-		Name: "bvx-deploy",
+		Name: "vbx-deploy",
 		URLs: []string{remote},
 	})
 
 	refspec := config.RefSpec(fmt.Sprintf(
 		"+%s:refs/heads/%s", head.Name().String(), branch))
 	err = repo.Push(&git.PushOptions{
-		RemoteName: "bvx-deploy",
+		RemoteName: "vbx-deploy",
 		RefSpecs:   []config.RefSpec{refspec},
 		Force:      true,
 		Auth: &githttp.BasicAuth{
@@ -251,7 +251,7 @@ func (c *githubClient) ensureRepository(owner, name string, private bool) (bool,
 	body := map[string]any{
 		"name":        name,
 		"private":     private,
-		"description": "Bead dashboard published by bvx",
+		"description": "Bead dashboard published by vbx",
 		"auto_init":   false,
 	}
 	if _, err := c.do(http.MethodPost, "/user/repos", body, nil); err != nil {

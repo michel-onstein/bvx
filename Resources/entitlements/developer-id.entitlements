@@ -4,7 +4,7 @@
     Entitlements for the Developer ID build — the .dmg channel.
 
     Deliberately *not* sandboxed. This is the channel that keeps the features a
-    sandbox would take away: the bundled `bvx-cli`, shell hooks around export
+    sandbox would take away: the bundled `vbx-cli`, shell hooks around export
     phases, and unrestricted access to repositories anywhere on disk. The App
     Store build gives those up and is signed with app-store.entitlements.
 

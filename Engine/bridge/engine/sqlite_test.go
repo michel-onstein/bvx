@@ -10,7 +10,7 @@ import (
 )
 
 // makeBeadsDB builds a store with the column shape a current beads.db has,
-// including the columns bvx does not read, so the projection logic is
+// including the columns vbx does not read, so the projection logic is
 // exercised against a realistic schema rather than a minimal one.
 func makeBeadsDB(t *testing.T, dir string) string {
 	t.Helper()
