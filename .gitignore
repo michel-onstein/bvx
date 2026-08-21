@@ -9,6 +9,16 @@
 # C target needs it to compile before the archive exists.
 Engine/build/
 
+# Claude Code's per-checkout state. Chiefly `.claude/worktrees/`, where each
+# concurrent session gets its own linked checkout — 840 MB at the time this
+# rule was added, and never something to commit.
+#
+# Ignoring the directory wholesale rather than just `worktrees/`, so a stray
+# local settings or transcript file cannot arrive as an untracked surprise. If
+# shared Claude configuration is ever wanted in the repo, negate the one path
+# it needs (`!.claude/settings.json`) rather than narrowing this rule.
+.claude/
+
 # macOS
 .DS_Store
 
