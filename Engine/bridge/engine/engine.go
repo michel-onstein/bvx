@@ -100,8 +100,20 @@ func resolveSource(path string) (src string, kind string, warnings []string, err
 		switch strings.ToLower(filepath.Ext(abs)) {
 		case ".db", ".sqlite", ".sqlite3":
 			return abs, "sqlite", nil, nil
-		default:
+		case ".jsonl":
 			return abs, "jsonl", nil, nil
+		default:
+			// Anything else is refused rather than assumed to be JSONL.
+			//
+			// The default used to be "jsonl" for *any* extension, which meant
+			// Probe answered yes for a README, a .swift file, even a binary
+			// .icns — so the Open panel greyed out no file at all and the
+			// choice failed later, in the loader. That is exactly the
+			// panel/loader disagreement Probe's header says it exists to
+			// design out.
+			return "", "", nil, fmt.Errorf(
+				"%s is not bead data: expected a .jsonl or .db file, or a folder holding .beads",
+				filepath.Base(abs))
 		}
 	}
 

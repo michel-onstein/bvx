@@ -5,6 +5,36 @@ store was empty until 2026-08-21, so earlier entries carry no id.
 
 ---
 
+## 2026-08-21 — Open panel navigation, and bead selection as navigation
+
+`vbx-kjh`, `vbx-8ea`.
+
+The panel fix is in BUGS.md. Worth repeating here: the guard's own doc comment
+stated the AppKit behaviour it depended on, and that statement was wrong. Both
+halves of the new rule are now asserted in pairs — enabled *and* refused on OK,
+files greyed *and* bead data still offered — because each half alone reads as a
+sensible thing to "simplify" later.
+
+**Selecting a bead now records a position** (`vbx-8ea`), reversing the choice
+made in `vbx-8lk` a few hours earlier. That choice — refresh the current
+position in place, because `j`/`k` browsing is not navigation — left back
+unable to return to the bead just read, which is the commonest thing to want
+back for.
+
+The objection behind it was still real: with a twenty-position cap, key repeat
+would evict every surface position within a screenful. So a *run* of selections
+inside `navigationCoalesceWindow` (0.5 s) collapses into the position it ends
+on, and back leaves the whole run in one step. Both behaviours are tested, and
+the clock is injectable so the run test is deterministic rather than racing a
+real interval.
+
+One robustness point found by that test: the window is a half-open range, not a
+bare `<`. A negative interval means the clock moved backwards — an NTP step, or
+a test installing its own clock — and treating that as "the same run" silently
+merges positions. Recording is the harmless reading.
+
+---
+
 ## 2026-08-21 — Filters reset on a workspace switch
 
 `vbx-ozd`. See BUGS.md. Opening a second workspace inherited the first one's

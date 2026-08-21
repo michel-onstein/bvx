@@ -19,10 +19,13 @@ import Foundation
 ///
 /// Two hooks, doing different jobs:
 ///
-///   - ``panel(_:shouldEnable:)`` greys out what cannot be opened. It is
-///     advisory: AppKit still lets the user navigate *into* a disabled
-///     directory, which is essential, because the folders on the way to a
-///     repository are themselves unopenable.
+///   - ``panel(_:shouldEnable:)`` greys out unopenable *files*, and leaves
+///     every directory enabled. This was written the other way round, on the
+///     belief that greying a directory was advisory and AppKit would still let
+///     the user navigate into it. It does not: a disabled directory cannot be
+///     entered, and since the folders on the way to a repository are
+///     themselves unopenable, the panel could not be navigated to a workspace
+///     at all unless it opened inside one.
 ///   - ``panel(_:validate:)`` is the actual gate. It runs on OK and throws, so a
 ///     folder that slips past the greying — typed into the Go-to-folder sheet,
 ///     say — is refused with a reason rather than opened into an error alert.
@@ -78,7 +81,29 @@ public final class OpenPanelGuard: NSObject, NSOpenSavePanelDelegate {
     // MARK: - NSOpenSavePanelDelegate
 
     public func panel(_ sender: Any, shouldEnable url: URL) -> Bool {
-        canOpen(url.path)
+        // Directories are always enabled, whether or not they can be opened.
+        //
+        // A disabled directory cannot be double-clicked into, so greying the
+        // unopenable ones made the panel unusable for its main job: `~/src`
+        // holds no `.beads` and none above it, so it was disabled, and there
+        // was no way to reach a repository underneath it. The user had to
+        // start already inside a workspace.
+        //
+        // Nothing is lost by enabling them. ``panel(_:validate:)`` is the
+        // actual gate — it runs on OK and refuses with a reason — so choosing
+        // an unopenable folder gets an explanation instead of a row that
+        // cannot be reached.
+        if isDirectory(url) { return true }
+        return canOpen(url.path)
+    }
+
+    /// Whether `url` is a directory, treating an unanswerable check as "yes".
+    ///
+    /// Erring towards a directory errs towards navigable: a wrong "yes" leaves
+    /// a file enabled that `validate` will refuse anyway, while a wrong "no"
+    /// recreates the dead end this exists to remove.
+    private func isDirectory(_ url: URL) -> Bool {
+        (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? true
     }
 
     public func panel(_ sender: Any, validate url: URL) throws {

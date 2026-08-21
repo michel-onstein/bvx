@@ -133,9 +133,22 @@ public final class ProjectStore: ObservableObject {
 
     /// True while ``select(id:)`` is deliberately jumping to a bead.
     ///
-    /// Suppresses the in-place refresh so the entry being left keeps the bead
-    /// it was recorded with, rather than being overwritten by the destination.
+    /// A jump always records a position of its own and never coalesces: two
+    /// bead links followed in quick succession are two deliberate moves, not
+    /// one run of browsing.
     var isJumpingToBead = false
+
+    /// When the last selection-driven position was recorded.
+    ///
+    /// Only used to decide whether a selection continues the previous run —
+    /// see ``noteFocusChanged()``.
+    var lastSelectionRecordedAt: Date?
+
+    /// The clock the coalescing window is measured against.
+    ///
+    /// Injected so tests can drive a run of selections deterministically
+    /// instead of racing a real interval.
+    var navigationClock: () -> Date = Date.init
 
     /// Every selected bead. Bound directly to the list's `Table`.
     ///
@@ -388,6 +401,9 @@ public final class ProjectStore: ObservableObject {
         selection = [id]
         isJumpingToBead = false
         recordNavigation()
+        // A jump ends any run of browsing: the next selection is a fresh move
+        // and records its own position rather than replacing this one.
+        lastSelectionRecordedAt = nil
         return true
     }
 
