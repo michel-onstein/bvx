@@ -4,6 +4,62 @@ Found-and-fixed issues, with the regression test that locks each fix in.
 
 ---
 
+## 2026-08-22 — Scrolling the bead list crashed the app
+
+**Symptom:** open a workspace with more beads than fit in the window, scroll the
+list, and vbx dies with `EXC_BREAKPOINT` on the main thread. The crash report
+names `PriorityCell.body` and
+`SwiftUICore/EnvironmentObject.swift:93: Fatal error: No ObservableObject of
+type ProjectStore found`. It reproduced on a 327-bead workspace and never on
+vbx's own 38, which made it look workspace-specific — a bad data row, or the
+engine — rather than a property of how many rows were on screen.
+
+**Cause:** `PriorityCell` read the store with `@EnvironmentObject`. It is the
+only table cell that is its own `View`; every other column's cell closure
+captures `IssueListView`'s store directly, so only this one depended on what the
+cell's environment contains. macOS `Table` bridges to `NSTableView` and builds a
+cell's subgraph when its row scrolls into view, and that subgraph does not carry
+the `environmentObject` injected around `ContentView` in `WorkspaceWindow`. So
+the lookup resolved for the rows laid out on the first pass and trapped on the
+first row created after it. A workspace small enough to fit on screen never
+creates one, which is exactly why the repo's own beads never showed it.
+
+The `SearchContentKey` frames in the report are incidental — that was merely the
+preference being combined during the layout pass that built the new cell. The
+search field is not involved.
+
+**Fix:** the store is handed in — `@ObservedObject var store` and
+`PriorityCell(store: store, issue:)` — which is what the other nine columns
+already do, made explicit because this cell is a separate type. Observation is
+unchanged; only the lookup is.
+
+**Checked, not assumed:** every other surface was swept for the same shape — a
+standalone `View` with `@EnvironmentObject` inside a container that builds
+children lazily. Board, Plan, Labels, Tree, Insights, Attention, Sprint, Alerts,
+History, Flow, Sidebar and Inspector were each hosted in a short window and
+scrolled past their content; all survived. `LazyVStack` and `LazyVGrid` stay in
+the same view graph and do inherit the environment. `Table` was the only
+container that loses it, and `PriorityCell` was its only environment-reading
+cell.
+
+**Prevention:** `PriorityCellTests` does both halves.
+`scrollingTheListCreatesCellsThatKeepTheirStore` hosts the real `IssueListView`
+in a 220pt window — short on purpose, so the fixture's rows cannot all lay out
+on the first pass — and scrolls past the content; it traps on the fixture's 18
+beads if the `@EnvironmentObject` returns, verified by reverting the fix.
+`rendersWithoutAnEnvironmentObjectAncestor` states the invariant directly by
+rendering the cell with no `environmentObject` anywhere above it. Both fail by
+trapping rather than by reporting, because `EnvironmentObject.error()` is a
+`fatalError` — the regression takes the process down, which is itself the
+signal.
+
+The general lesson is the one the sweep encodes: a view that renders correctly
+at full size proves nothing about the children a container builds later. The
+existing snapshot tests all render at a size where everything fits, which is the
+blind spot this slipped through.
+
+---
+
 ## 2026-08-21 — The Open panel could not be navigated to a workspace
 
 **Symptom:** folders without `.beads` could not be double-clicked to enter
