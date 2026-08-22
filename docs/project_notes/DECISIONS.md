@@ -445,3 +445,69 @@ brew install --cask vbx
   has never seen the build, confirming it launches without a Gatekeeper prompt,
   needs a published release and a clean Mac. `brew audit --cask` and
   `brew style` catch the mechanical problems first.
+
+---
+
+## ADR-013 — The version bump comes from a PR label, and the notes from the tags
+
+**Date:** 2026-08-22 · **Status:** Accepted
+
+**Context.** Every build vbx had ever produced claimed to be version 0.1.0,
+build 1: both were literals in `build-app.sh`'s plist heredoc, nothing bumped
+them, and there were no git tags at all. So there was no way to answer "which
+build is this?" — not from the About window, not from a `.dmg` filename, not
+from git. [ADR-012](#adr-012--distribution-ships-universal-and-the-cask-lives-in-a-personal-tap)
+made that urgent rather than untidy: a Homebrew cask cannot be written against a
+version a script carries as a literal.
+
+The obvious implementation reads Conventional Commits off the merge commit.
+**That does not work here.** This repository's subjects are deliberately prose —
+"Hand the priority cell its store, so scrolling the list cannot crash (#29)" —
+and a `feat:`/`fix:` parser classifies every one of the 38 commits as no bump.
+Adopting the prefixes would overwrite a house style the log has held from the
+beginning, for the convenience of a script.
+
+**Decision.**
+
+- **The bump level is a `semver:major` / `semver:minor` / `semver:patch` label
+  on the pull request.** Every change lands here squash-merged — every subject
+  ends in `(#N)` — so the PR is a reliable handle, and the label is set during
+  review, by someone who knows what the change is.
+- **A missing label defaults to patch, and the script says which rule fired.**
+- **Before 1.0.0 a breaking change bumps MINOR.** Promoting to 1.0.0 is a
+  decision about the software being finished, not one a label should make.
+- **The label is read once and written into the annotated tag.** Everything
+  downstream reads git alone.
+- **`docs/RELEASES.md` is generated** from those tags, newest first, grouped
+  into Features and Fixes.
+
+**Why the tag carries the label.** It is what makes `--check` offline. A check
+that reached GitHub would fail on a plane and pass in CI, which is worse than
+not having one — and every other script here (`build-engine.sh`,
+`build-icon.sh`, `build-notices.py`) has a `--check` that belongs in the verify
+block. Recording the decision at the moment it is made also means a later
+relabelling cannot silently rewrite history.
+
+**Considered and rejected.**
+
+- **A commit trailer (`Semver: minor`).** Survives outside GitHub, but has to be
+  remembered at commit time and cannot be corrected during review, which is
+  exactly when the level is actually known.
+- **Adopting Conventional Commits.** Cheapest to automate, and it costs the
+  thing the log is for. CLAUDE.md's own guidance is that a subject should say
+  what changed and why.
+
+**Consequences.**
+
+- **`RELEASES.md` must not become a fourth copy.** `BUGS.md` keeps a bug and its
+  regression test; `WORK_LOG.md` keeps dated engineering work. `RELEASES.md` is
+  the user-facing view and says nothing about implementation.
+- **The bump has to be idempotent**, because pushing the release-notes commit
+  re-triggers the workflow that made it. A commit that is already tagged is a
+  no-op, which is the whole of the loop guard.
+- **The labels do not exist yet.** `semver:major`, `semver:minor` and
+  `semver:patch` need creating on the repository; until they do, every release
+  is a patch and the script says so on every run.
+- **This is the repository's first GitHub Actions workflow.** It only tags and
+  records; nothing is built, signed or published on a runner, because no runner
+  here holds the signing identity.

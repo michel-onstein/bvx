@@ -1,0 +1,58 @@
+# Advances the version on every merge to main.
+#
+# This is the "on merge to main" half of the versioning arrangement; the whole
+# of the logic is in scripts/version-bump.sh, so the same thing can be run by
+# hand and produce the same result. A workflow that reimplements its script is a
+# second answer waiting to disagree with the first.
+#
+# Two things make it safe to leave running:
+#
+#   - It is idempotent. Pushing the release-notes commit below re-triggers this
+#     workflow, and the second run finds HEAD already tagged and exits without
+#     doing anything. That is the loop that would otherwise cut a version per
+#     version.
+#   - It only ever adds a tag and one commit recording it. Nothing is built,
+#     signed or published here — scripts/release.sh does that, deliberately from
+#     a machine that holds the signing identity, which no CI runner here does.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+# The bump pushes a tag and the release-notes commit; reading the PR's
+# semver:* label needs pull-requests.
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  # Never two bumps at once: they would compute the same next version from the
+  # same last tag and the second push would be rejected.
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Tags, and the full history the notes are generated from.
+          fetch-depth: 0
+
+      - name: Identify the committer
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump the version and record it
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/version-bump.sh
+
+      - name: Push the tag and the notes
+        run: |
+          # --follow-tags pushes the annotated tag along with the commit, and
+          # nothing at all when the bump was a no-op.
+          git push --follow-tags origin main

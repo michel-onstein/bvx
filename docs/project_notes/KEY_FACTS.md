@@ -62,6 +62,9 @@ VBX_DEVELOPER_ID_APP=- ./scripts/build-app.sh --dmg --no-notarize   # ad-hoc, lo
 Release:
 
 ```bash
+./scripts/version-bump.sh --dry-run # what the next version would be, and why
+./scripts/version-bump.sh           # tag from the PR's semver:* label, record it
+python3 scripts/release-notes.py    # regenerate docs/RELEASES.md from the tags
 ./scripts/version.sh                # the version, from the git tag
 ./scripts/release.sh --dry-run      # rehearse: preflight, build, render the cask
 ./scripts/release.sh --tag v0.2.0   # tag, build universal, notarize, print the cask
@@ -146,6 +149,19 @@ view snapshots for inspection.
   `vX.Y.Z` to `CFBundleShortVersionString` and the commit count to
   `CFBundleVersion`. An untagged checkout reports `0.0.0`, which sorts below
   every real tag; `--check` refuses a dirty tree or a HEAD past its tag.
+- **The bump level is a `semver:*` PR label, not the commit subject.** Prose
+  subjects are the house style, so a Conventional Commits parser reads every
+  commit here as no bump. `version-bump.sh` reads the label once and writes it
+  into the annotated tag, so `release-notes.py` and its `--check` read git alone
+  and work offline. A missing label is patch, announced. Before 1.0.0 a breaking
+  change bumps MINOR. See ADR-013.
+- **The `semver:major` / `semver:minor` / `semver:patch` labels do not exist
+  yet** on the GitHub repository. Until someone creates them every release is a
+  patch, and the script says so on every run.
+- **`.github/workflows/release.yml` is the repository's only workflow.** It tags
+  and records; it builds, signs and publishes nothing, because no runner holds
+  the signing identity. It is idempotent because pushing its own release-notes
+  commit re-triggers it.
 - **Nothing has been released.** `scripts/release.sh` and
   `packaging/homebrew/vbx.rb.template` produce a cask ready to paste, but there
   is no tagged release, no published `.dmg` and no `homebrew-tap` repository, so

@@ -15,6 +15,7 @@ box, the README title.
 |---|---|---|---|
 | [VBX_DESIGN.md](docs/VBX_DESIGN.md) | ADR-001 | Architecture: engine reuse, C ABI bridge, data model, UI, distribution | Built |
 | [FEATURE_PARITY.md](docs/FEATURE_PARITY.md) | — | Every bv capability mapped to a vbx surface and delivery phase | Living |
+| [RELEASES.md](docs/RELEASES.md) | ADR-013 | User-facing changes per release — generated from the git tags, never edited | Generated |
 | [project_notes/BUGS.md](docs/project_notes/BUGS.md) | — | Bug log with the regression test locking each fix in | Living |
 | [project_notes/DECISIONS.md](docs/project_notes/DECISIONS.md) | ADR-001…011 | Architectural decisions and their trade-offs | Living |
 | [project_notes/KEY_FACTS.md](docs/project_notes/KEY_FACTS.md) | — | Toolchain, commands, layout, gotchas | Living |
@@ -67,6 +68,14 @@ them.
   becomes `CFBundleVersion`. Three things have to agree — the app, the `.dmg`
   filename and a Homebrew cask's `version` — and a cask that disagrees with what
   the app reports cannot be upgraded.
+- **The bump level comes from a `semver:*` PR label, not the commit subject.**
+  Subjects here are prose, so a Conventional Commits parser reads every one of
+  them as "no bump". `scripts/version-bump.sh` reads the label once, records it
+  in the annotated tag, and everything downstream reads git alone — which is why
+  `release-notes.py --check` is offline enough for the verify block. A missing
+  label defaults to patch **and says which rule fired**; a silent default is how
+  a feature ships as a patch. Before 1.0.0, a breaking change bumps MINOR. See
+  ADR-013.
 - **Every distribution build is universal**, implied by `--dmg`, `--app-store`
   and `--sign` just as they already imply `--release`. Check the *artefact*, not
   the flag: `lipo -archs` on both binaries in the bundle, the same distinction
@@ -90,6 +99,7 @@ them.
 ./scripts/build-icon.sh --check     # committed .icns + README PNG are intact
 python3 scripts/build-notices.py --check  # every dependency is acknowledged
 python3 scripts/test-packaging.py   # signing, redaction, universal, version, cask
+python3 scripts/release-notes.py --check  # docs/RELEASES.md matches the tags
 swift test                          # Swift suite
 cd Engine/bridge && go test ./...   # Go suite
 gofmt -l Engine/bridge              # must print nothing

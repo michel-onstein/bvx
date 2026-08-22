@@ -108,6 +108,17 @@ The version is the git tag, not a literal: `scripts/version.sh` maps `vX.Y.Z` to
 `CFBundleShortVersionString` and the commit count to `CFBundleVersion`, so the
 app, the `.dmg` filename and a Homebrew cask cannot disagree.
 
+The tag itself advances on merge to `main`, from a `semver:major` /
+`semver:minor` / `semver:patch` label on the pull request — not from the commit
+subject, which is prose here by house style. A missing label is a patch, and the
+script says which rule fired. [`docs/RELEASES.md`](docs/RELEASES.md) is
+generated from the tags; see [ADR-013](docs/project_notes/DECISIONS.md).
+
+```bash
+./scripts/version-bump.sh --dry-run   # what the next version would be, and why
+python3 scripts/release-notes.py      # regenerate docs/RELEASES.md
+```
+
 A release runs the whole path in one pass, and prints the cask ready to paste:
 
 ```bash

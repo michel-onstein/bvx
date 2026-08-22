@@ -5,6 +5,32 @@ store was empty until 2026-08-21, so earlier entries carry no id.
 
 ---
 
+## 2026-08-22 — Versions advance from a PR label, and the notes generate themselves
+
+`vbx-xi1`. Picked up after the session that filed it left no worktree and no
+branch. It overlaps the version work above deliberately: `scripts/version.sh`
+had already made the tag the single source, so what was left was deciding the
+next tag and turning the tags into something a user can read.
+
+The decision that shaped it: the bump level cannot come from the commit
+subject. Subjects here are prose by house style, and a Conventional Commits
+parser reads all 38 of them as no bump. So the level is a `semver:*` label on
+the PR — set during review, when the person setting it knows what the change is
+— read once by `scripts/version-bump.sh` and written into the annotated tag.
+Everything after that reads git alone, which is what lets
+`release-notes.py --check` sit in the verify block without reaching the network.
+
+A missing label is a patch *and a printed line saying so*; a silent default is
+how a feature ships as a patch. Before 1.0.0 a breaking change bumps MINOR.
+
+`docs/RELEASES.md` is generated, user-facing, and deliberately not a fourth copy
+of BUGS.md and WORK_LOG.md. `.github/workflows/release.yml` — this repository's
+first workflow — runs the bump on merge and nothing else; it is idempotent
+because pushing its own release-notes commit re-triggers it. The `semver:*`
+labels still need creating on GitHub. See ADR-013.
+
+---
+
 ## 2026-08-22 — Universal builds, a version from the tag, and a cask to paste
 
 `vbx-ttx`, `vbx-j3o`. Two beads that turned out to be one piece of work: a

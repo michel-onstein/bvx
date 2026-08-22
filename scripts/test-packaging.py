@@ -36,6 +36,8 @@ BUILD_ENGINE = ROOT / "scripts" / "build-engine.sh"
 RELEASE = ROOT / "scripts" / "release.sh"
 VERSION = ROOT / "scripts" / "version.sh"
 CASK_TEMPLATE = ROOT / "packaging" / "homebrew" / "vbx.rb.template"
+BUMP = ROOT / "scripts" / "version-bump.sh"
+NOTES = ROOT / "scripts" / "release-notes.py"
 
 # Fabricated, and deliberately distinctive: a substring that appears nowhere
 # else means an assertion that it is absent cannot pass by coincidence.
@@ -684,6 +686,151 @@ def test_cask_and_release_script() -> None:
           result.returncode != 0 and "Building" not in result.stdout)
 
 
+GIT_ENV = {
+    "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "test@example.invalid",
+    "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "test@example.invalid",
+}
+
+
+def bump_repo(directory: Path) -> None:
+    """A throwaway repo carrying both versioning scripts, so the bump can run.
+
+    No remote, so `gh pr view` cannot answer and the default path is exercised —
+    which is the one that matters, since the default is what fires when nobody
+    labelled the PR.
+    """
+    (directory / "scripts").mkdir(parents=True)
+    for script in (BUMP, NOTES):
+        target = directory / "scripts" / script.name
+        target.write_bytes(script.read_bytes())
+        target.chmod(0o755)
+    (directory / "docs").mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=directory, check=True,
+                   capture_output=True, env={**os.environ, **GIT_ENV})
+
+
+def commit(directory: Path, subject: str) -> None:
+    (directory / "work").write_text(subject)
+    env = {**os.environ, **GIT_ENV}
+    subprocess.run(["git", "add", "."], cwd=directory, check=True,
+                   capture_output=True, env=env)
+    subprocess.run(["git", "commit", "-qm", subject], cwd=directory, check=True,
+                   capture_output=True, env=env)
+
+
+def run_bump(directory: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(directory / "scripts" / "version-bump.sh"), *args],
+        cwd=directory, capture_output=True, text=True,
+        env={**os.environ, **GIT_ENV})
+
+
+def test_version_bump() -> None:
+    """The version advances from what merged, and never twice for one commit."""
+    print("\nVersion bump")
+    check("version-bump.sh is executable", os.access(BUMP, os.X_OK))
+    syntax = subprocess.run(["bash", "-n", str(BUMP)], capture_output=True, text=True)
+    check("version-bump.sh parses", syntax.returncode == 0, syntax.stderr.strip())
+
+    result = subprocess.run([str(BUMP), "--nonsense"], capture_output=True, text=True)
+    check("an unknown flag is rejected", result.returncode == 2)
+
+    text = BUMP.read_text()
+    check("a breaking change before 1.0.0 bumps minor",
+          "major on a 0.x version bumps MINOR" in text)
+
+    with tempfile.TemporaryDirectory() as raw:
+        first = Path(raw) / "first"
+        bump_repo(first)
+        commit(first, "Do the first thing")
+        result = run_bump(first, "--dry-run")
+        check("the first release starts from 0.0.0",
+              "0.0.0 -> 0.0.1 (patch)" in result.stdout, result.stdout.strip())
+        # A silent default is how a feature ships as a patch and nobody notices.
+        check("the default level says which rule fired",
+              "no-labels" in result.stdout or "no-pr-reference" in result.stdout)
+        check("a dry run creates no tag",
+              subprocess.run(["git", "tag"], cwd=first, capture_output=True,
+                             text=True).stdout.strip() == "")
+
+        again = Path(raw) / "again"
+        bump_repo(again)
+        commit(again, "Do a thing")
+        result = run_bump(again)
+        check("a real run tags", result.returncode == 0 and "Tagged v0.0.1" in result.stdout,
+              result.stdout.strip() + result.stderr.strip())
+        check("the notes list the release",
+              "## 0.0.1" in (again / "docs" / "RELEASES.md").read_text())
+        check("a patch lands under Fixes",
+              "### Fixes" in (again / "docs" / "RELEASES.md").read_text())
+
+        # Re-running on the same commit — a retried workflow job — must not cut
+        # a second version for no change.
+        result = run_bump(again)
+        check("a second run on the same commit is a no-op",
+              "nothing to bump" in result.stdout, result.stdout.strip())
+        tags = subprocess.run(["git", "tag"], cwd=again, capture_output=True,
+                              text=True).stdout.split()
+        check("...and leaves exactly one tag", tags == ["v0.0.1"], str(tags))
+
+        # Nothing landed since the tag: also nothing to bump, but for a
+        # different reason, and it should say so rather than cut an empty patch.
+        empty = Path(raw) / "empty"
+        bump_repo(empty)
+        commit(empty, "Do a thing")
+        run_bump(empty)
+        result = run_bump(empty, "--dry-run")
+        check("a run with nothing new is a no-op", "nothing to bump" in result.stdout)
+
+
+def test_release_notes() -> None:
+    """The notes are generated from the tags, and --check is offline."""
+    print("\nRelease notes")
+    check("release-notes.py is executable", os.access(NOTES, os.X_OK))
+    text = NOTES.read_text()
+    # The verify block runs offline; a --check that reaches GitHub would fail on
+    # a plane and pass in CI, which is worse than not having it.
+    check("the notes are read from git, not GitHub",
+          "gh " not in text and "Change:" in text)
+
+    result = subprocess.run(["python3", str(NOTES), "--check"],
+                            cwd=ROOT, capture_output=True, text=True)
+    check("the committed notes are up to date", result.returncode == 0,
+          result.stderr.strip())
+
+    with tempfile.TemporaryDirectory() as raw:
+        stale = Path(raw) / "stale"
+        bump_repo(stale)
+        commit(stale, "Do a thing")
+        run_bump(stale)
+        notes = stale / "docs" / "RELEASES.md"
+        notes.write_text(notes.read_text() + "\nhand-edited\n")
+        result = subprocess.run(["python3", str(stale / "scripts" / "release-notes.py"),
+                                 "--check"], capture_output=True, text=True)
+        check("a hand-edited file is caught", result.returncode != 0)
+        check("...and says how to fix it", "release-notes.py" in result.stderr)
+
+
+def test_release_workflow() -> None:
+    """The workflow delegates rather than reimplementing the bump."""
+    print("\nRelease workflow")
+    workflow = ROOT / ".github" / "workflows" / "release.yml"
+    check("the workflow exists", workflow.exists())
+    if not workflow.exists():
+        return
+    text = workflow.read_text()
+    check("it runs the script rather than its own logic",
+          "version-bump.sh" in text and "git tag -a" not in text)
+    check("it fetches the tags the bump reads", "fetch-depth: 0" in text)
+    check("two bumps cannot race", "concurrency:" in text)
+    check("it can read the semver label", "pull-requests: read" in text)
+    # Nothing is signed on a runner that holds no identity.
+    steps = "\n".join(
+        line for line in text.splitlines() if not line.lstrip().startswith("#"))
+    check("it does not build or publish",
+          "release.sh" not in steps and "notarytool" not in steps)
+
+
 def main() -> int:
     print("Packaging and signing tests")
     check("package-app.sh is executable", os.access(PACKAGE, os.X_OK))
@@ -708,6 +855,9 @@ def main() -> int:
     test_universal_is_implied_and_verified()
     test_version_comes_from_the_tag()
     test_cask_and_release_script()
+    test_version_bump()
+    test_release_notes()
+    test_release_workflow()
 
     print()
     if failures:
