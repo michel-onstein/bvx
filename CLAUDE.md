@@ -58,6 +58,19 @@ them.
   file-exists check. Use `NSHostingView`, and assert on ink coverage.
 - **`.task` and `.onAppear` do not run in a snapshot.** Prefer data the store
   already holds; that constraint is why the unblocks cache exists.
+- **A gesture on a `Table` cell never fires.** macOS bridges `Table` to
+  `NSTableView`, which consumes clicks for row selection, so
+  `onTapGesture(count: 2)` inside a cell is dead code. Priority editing shipped
+  this way — present, and unreachable. Row actions go through
+  `contextMenu(forSelectionType:)`, which is `Table`'s own mechanism.
+- **One `Text` holding a large string is seconds of layout.** SwiftUI lays a
+  `Text` out in full before drawing any of it: the 227 KB acknowledgements took
+  **7.1 s**, with a spinning cursor throughout. Split across a `LazyVStack` it
+  is 0.01 s. Text selection is not the factor — disabling it changed nothing.
+- **The demo fixture must stay writable by `br`.** Its preflight validates every
+  dependency row and requires `created_at` on each, and it rejects the *whole*
+  workspace when one is missing. That is why no test caught the priority bug:
+  every real write against the fixture had always failed.
 - **`Bundle.main` in a test process is SwiftPM's helper binary**, not the app —
   so `CFBundleShortVersionString`, `CFBundleVersion` and the bundle identifier
   are all absent. Anything reading them renders empty in every snapshot. Take

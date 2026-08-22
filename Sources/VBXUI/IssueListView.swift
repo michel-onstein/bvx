@@ -359,6 +359,30 @@ struct IssueListView: View {
                     systemImage: "doc.on.doc")
             }
 
+            Divider()
+
+            // The only working way to change a priority.
+            //
+            // `PriorityCell` offers a double-click, and inside a `Table` that
+            // gesture never arrives: macOS bridges the table to `NSTableView`,
+            // which consumes clicks for row selection, so the cell's
+            // `onTapGesture(count: 2)` does not fire. Synthesising a
+            // double-click on the cell opens no popover — see
+            // `PriorityCellTests`. The context menu goes through
+            // `contextMenu(forSelectionType:)`, which is `Table`'s own
+            // mechanism rather than a gesture layered over it.
+            //
+            // It is also the more discoverable of the two: the double-click
+            // had no affordance at all, on a 30pt column.
+            Menu {
+                priorityItems(for: ids)
+            } label: {
+                Label(
+                    ids.count == 1 ? "Priority" : "Priority of \(ids.count) Beads",
+                    systemImage: "flag")
+            }
+            .disabled(!store.canEditBeads)
+
             if ids.count == 1, let id = ids.first {
                 Divider()
                 Button {
@@ -366,6 +390,32 @@ struct IssueListView: View {
                     store.surface = .history
                 } label: {
                     Label("Show History", systemImage: "clock.arrow.circlepath")
+                }
+            }
+        }
+    }
+
+    /// P0…P4 — bv's range; `br` rejects anything beyond it.
+    @ViewBuilder
+    private func priorityItems(for ids: Set<Issue.ID>) -> some View {
+        if let reason = store.editingUnavailableReason {
+            // A disabled menu with no explanation is the state this app
+            // deliberately avoids elsewhere; say why rather than just refuse.
+            Text(reason)
+        } else {
+            ForEach(0...4, id: \.self) { value in
+                Button {
+                    Task { await store.setPriority(value, for: ids) }
+                } label: {
+                    // A checkmark only when every selected bead already agrees;
+                    // a mixed selection has no single current value to tick.
+                    let current = Set(
+                        store.issues.filter { ids.contains($0.id) }.map(\.priority))
+                    if current == [value] {
+                        Label("P\(value)", systemImage: "checkmark")
+                    } else {
+                        Text("P\(value)")
+                    }
                 }
             }
         }

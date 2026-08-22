@@ -908,6 +908,39 @@ public final class ProjectStore: ObservableObject {
         }
     }
 
+    /// Sets the priority of every bead in `ids`, through `br`.
+    ///
+    /// Sequential rather than concurrent: `br` owns the database, and several
+    /// processes writing it at once is how a sqlite lock error becomes a
+    /// half-applied change. One reload at the end rather than one per bead,
+    /// because reloading is the expensive part and the intermediate states are
+    /// not worth rendering.
+    ///
+    /// Returns the ids it could not write. An empty set is complete success;
+    /// a partial failure still reloads, because the beads that did change are
+    /// on disk and the list must not keep showing their old values.
+    @discardableResult
+    public func setPriority(_ priority: Int, for ids: Set<Issue.ID>) async -> Set<Issue.ID> {
+        guard canEditBeads, let workspace = workspaceDirectory else { return ids }
+        var failed: Set<Issue.ID> = []
+        var lastError: String?
+        for id in ids.sorted() {
+            do {
+                try await writer.setPriority(priority, for: id, in: workspace)
+            } catch {
+                failed.insert(id)
+                lastError = error.localizedDescription
+            }
+        }
+        await reload(force: true)
+        if let lastError {
+            loadError = failed.count == 1
+                ? lastError
+                : "\(failed.count) of \(ids.count) beads could not be updated: \(lastError)"
+        }
+        return failed
+    }
+
     /// The directory `br` should run in — the workspace, not the data file.
     var workspaceDirectory: String? {
         guard let source = info?.source else { return nil }
