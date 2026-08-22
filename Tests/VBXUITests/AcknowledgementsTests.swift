@@ -162,6 +162,77 @@ struct AcknowledgementsTests {
         #expect(AboutView.versionLine(from: ["CFBundleVersion": "42"]).isEmpty)
     }
 
+    // MARK: - Notices layout
+    //
+    // 227 KB as a single `Text` took 7.1 s to lay out, with a spinning cursor
+    // for all of it, because SwiftUI lays a Text out in full before drawing
+    // any of it. Chunking into a LazyVStack brought the same content to
+    // 0.01 s. What the chunker must not do is change the text: these notices
+    // are carried under licence terms that require them verbatim.
+
+    @Test("Chunking the notices loses nothing")
+    func chunkingIsLossless() throws {
+        let text = try Self.notices()
+        let chunks = AboutView.chunk(text)
+        #expect(chunks.count > 1, "227 KB should not be one chunk")
+        // The assertion that matters: byte-for-byte round trip. A chunker that
+        // dropped or duplicated a line would be a licence problem, not a
+        // display bug.
+        #expect(chunks.joined(separator: "\n") == text)
+    }
+
+    @Test("Chunking handles the edges without inventing or losing lines")
+    func chunkingEdgeCases() {
+        // Shorter than one chunk: returned whole, not padded or split.
+        #expect(AboutView.chunk("one\ntwo", linesPerChunk: 200) == ["one\ntwo"])
+        #expect(AboutView.chunk("", linesPerChunk: 200) == [""])
+
+        // An exact multiple must not produce a trailing empty chunk.
+        let four = "a\nb\nc\nd"
+        #expect(AboutView.chunk(four, linesPerChunk: 2) == ["a\nb", "c\nd"])
+
+        // Trailing newline is a real line and has to survive.
+        let trailing = "a\nb\n"
+        #expect(AboutView.chunk(trailing, linesPerChunk: 2).joined(separator: "\n") == trailing)
+    }
+
+    @Test("The notices pane lays out quickly enough to open on a click")
+    func noticesLayOutQuickly() throws {
+        // A timing assertion, which the repo has none of elsewhere — justified
+        // because the bug *was* the timing and nothing else distinguishes the
+        // fixed code from the broken code. The bound is deliberately loose: the
+        // measured figures were 7.1 s before and 0.01 s after, so 3 s cannot
+        // flake on a loaded machine yet still catches a return to one `Text`.
+        let text = try Self.notices()
+        let chunks = AboutView.chunk(text)
+
+        let size = CGSize(width: 620, height: 380)
+        let pane = ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(chunks.enumerated()), id: \.offset) { _, chunk in
+                    Text(chunk)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(16)
+        }
+        .frame(width: size.width, height: size.height)
+
+        let host = NSHostingView(rootView: AnyView(pane))
+        host.frame = CGRect(origin: .zero, size: size)
+        let window = NSWindow(
+            contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = host
+
+        let start = Date()
+        host.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        let elapsed = Date().timeIntervalSince(start)
+        #expect(elapsed < 3.0, "the notices pane took \(elapsed)s to lay out")
+    }
+
     @Test("The header still draws when the version is absent")
     func headerDrawsWithoutAVersion() throws {
         // The state every test process is in: no bundle, so no version. What

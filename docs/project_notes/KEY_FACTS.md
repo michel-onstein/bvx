@@ -122,6 +122,16 @@ view snapshots for inspection.
   `Sources/vbx/Intents.swift` compile and execute correctly but are only *listed*
   in Shortcuts when the app is built through Xcode, or when that step is added
   to `scripts/build-app.sh`.
+- **`Table` cells do not receive gestures.** `onTapGesture` inside a
+  `TableColumn`'s content never fires — `NSTableView` takes the click for row
+  selection. Use `contextMenu(forSelectionType:)` for row actions.
+  `PriorityCellTests` pins this with a synthesised double-click that opens
+  nothing; if it ever starts working, that test fails and should be deleted.
+- **The demo fixture's dependency rows need `created_at`.** `br`'s preflight
+  requires it and refuses the entire workspace without it — `br update` on the
+  fixture reported "Found 13 invalid issue record(s)", which was exactly the 13
+  records carrying dependencies. Real `br` exports include it (along with
+  `created_by`, `metadata`, `thread_id`); the hand-written fixture did not.
 - **`Bundle.main` in the test process is SwiftPM's helper binary** —
   `…/XcodeDefault.xctoolchain/usr/libexec/swift/pm`, measured, not assumed. It
   has no `CFBundleShortVersionString` and no `CFBundleVersion`, so the About

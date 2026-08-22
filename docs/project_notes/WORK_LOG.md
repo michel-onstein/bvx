@@ -5,6 +5,35 @@ store was empty until 2026-08-21, so earlier entries carry no id.
 
 ---
 
+## 2026-08-22 — Two bugs found by running the app, and a third underneath
+
+Both reported from a real build: priority editing missing, and the About window
+taking 5+ seconds to open.
+
+Priority editing was present and unreachable. `br` was found and `canEditBeads`
+was true, so the gate was not the problem — the double-click was. A gesture on a
+`Table` cell never fires, because macOS hands the click to `NSTableView` for row
+selection. Moved to the row context menu, which is `Table`'s own mechanism, and
+which is where a macOS user looks anyway; the double-click had no affordance at
+all on a 30pt column.
+
+The About window was 227 KB of licence text in a single `Text`. Measured at
+7.1 s of layout; chunked into a `LazyVStack`, 0.01 s. Text selection was not the
+cause, which was worth checking before rewriting anything.
+
+The third bug is the one that explains the first. No test had ever exercised a
+real write, and none could have: `br update` against the demo fixture fails
+because 13 of its records carry dependency rows without `created_at`, which
+`br`'s preflight requires — and it rejects the whole workspace over it. The
+fixture's rows now have it, which is what made the end-to-end priority test
+possible.
+
+Both fixes were confirmed to fail before they passed: the timing assertion by
+forcing the notices back to one chunk, the double-click test by the fact that it
+passes at all. See BUGS.md.
+
+---
+
 ## 2026-08-22 — The About box's version, actually verified
 
 Asked whether the build version shows in the About window. It does in the real

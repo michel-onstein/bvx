@@ -4,6 +4,98 @@ Found-and-fixed issues, with the regression test that locks each fix in.
 
 ---
 
+## 2026-08-22 — Priority editing was in the build and could not be reached
+
+**Symptom:** reported from a real build — "the editing of Priority is not in
+this build". It was in the build. Double-clicking the priority cell did nothing.
+
+**Cause:** `PriorityCell` offers editing through `onTapGesture(count: 2)`, and
+inside a `Table` that gesture never arrives. macOS bridges `Table` to
+`NSTableView`, which consumes clicks for row selection, so the cell's subgraph
+never sees the double-click. Synthesising one on the cell opens no popover — the
+window count is unchanged before and after.
+
+The obvious explanation was ruled out first: `br` **was** found, at
+`~/.cargo/bin/br`, and the store reported `canEditBeads == true` with
+`editingUnavailableReason == nil`. The gate was open; the door was painted on.
+
+Two things made it invisible. The only affordance was a double-click on an
+unmarked 30pt column — nothing on screen said the cell was editable. And the row
+context menu, the place a macOS user looks for a row action, offered only Copy ID
+and Show History.
+
+**Why no test caught it — a second bug underneath.** Nothing had ever exercised a
+real write. `BeadWriterTests` injects a fake runner and asserts the *command
+vbx sends*, which is the right test for that layer but proves nothing about the
+UI reaching it. And an end-to-end write was impossible anyway: `br update`
+against the demo fixture fails with
+
+```
+Preflight checks failed:
+  - json_valid: Found 13 invalid issue record(s): line 2: missing field `created_at`
+```
+
+Exactly 13 of the fixture's 18 records carry `dependencies`, and `br` validates
+every dependency row and requires `created_at` on each. Real `br` exports have
+it; the hand-written fixture's rows had only `issue_id`, `depends_on_id` and
+`type`. So the fixture rejected every write, and the one test that would have
+caught the UI bug could not have been written.
+
+**Fix:** priority moved to the row context menu, through
+`contextMenu(forSelectionType:)` — `Table`'s own mechanism rather than a gesture
+layered over it. It handles a multi-bead selection, ticks the current value only
+when the whole selection agrees, and explains itself when editing is
+unavailable rather than being silently disabled. `ProjectStore.setPriority(_:for:)`
+gained a set-taking form that writes sequentially — `br` owns the database, and
+concurrent writers are how a lock error becomes a half-applied change — reloads
+once at the end, and returns the ids it could not write.
+
+The fixture's dependency rows gained `created_at`, which is what makes a real
+write testable at all.
+
+**Prevention:** four tests. That `br` is found and nothing blocks a write, so a
+future failure points at the UI rather than the environment. That a synthesised
+double-click still opens nothing — pinned deliberately, so removing the context
+menu in favour of "the double-click already does this" fails here instead of in
+someone's hands. That setting a priority across a two-bead selection really
+writes both, read back through `br`. And that a refused edit reports the ids it
+did not apply rather than failing silently.
+
+---
+
+## 2026-08-22 — Opening About froze the app for seven seconds
+
+**Symptom:** the About window took 5+ seconds to appear, with the spinning
+cursor for all of it.
+
+**Cause:** the notices pane rendered all 227 KB of `ACKNOWLEDGEMENTS.md` as a
+single `Text`. SwiftUI lays a `Text` out in full before it can draw any of it,
+and at that size it takes **7.1 s** — measured, not estimated.
+
+Text selection was the obvious suspect and is not the cause: with
+`.textSelection(.disabled)` it was 7.14 s. Size alone is the factor — the same
+pane with the first 4 KB laid out in 0.01 s.
+
+**Fix:** the notices are split on line boundaries and rendered in a
+`LazyVStack`, so only the chunks on screen are laid out. Same content, **0.01 s**
+— 700× faster. An `NSTextView` was the other candidate at 0.17 s; chunking is
+faster and keeps the pane in SwiftUI.
+
+**The constraint on the chunker:** these are licence notices that several
+dependencies require be carried verbatim, and beads_viewer's rider must travel
+unmodified. A chunker that dropped or duplicated a line would be a licence
+problem, not a display bug.
+
+**Prevention:** a byte-for-byte round-trip assertion — the chunks rejoined must
+equal the source exactly — plus edge cases (shorter than one chunk, an exact
+multiple, a trailing newline). And a timing assertion, the only one in the repo,
+because the bug *was* the timing and nothing else distinguishes the fixed code
+from the broken code. Its bound is 3 s against measurements of 7.1 s and 0.01 s,
+so it cannot flake yet still catches a return to one `Text`; it was confirmed to
+fail when forced back to a single chunk.
+
+---
+
 ## 2026-08-22 — The About window's version line was untested, and drew a blank row
 
 **Symptom:** rendering `AboutView` offscreen produced a header with the app name,
