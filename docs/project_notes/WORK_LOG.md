@@ -5,6 +5,26 @@ store was empty until 2026-08-21, so earlier entries carry no id.
 
 ---
 
+## 2026-08-22 — The bead list crashed when scrolled
+
+Reported as "vbx crashes when opening workspace of1". It was not about that
+workspace, and not about opening: of1 has 327 beads where vbx's own has 38, so
+of1 was simply the first list long enough to scroll. `PriorityCell` read its
+store with `@EnvironmentObject`, and macOS `Table` builds a cell's subgraph when
+the row scrolls into view — a subgraph that does not carry the
+`environmentObject` injected around `ContentView`. Every row created after the
+first layout pass trapped.
+
+Reproduced in a hosting-view harness before touching anything, which is what
+turned an intermittent user-visible crash into a two-line fix: the store is now
+handed in, matching what the other nine columns already do.
+
+Swept every other surface for the same shape and found none —
+`LazyVStack`/`LazyVGrid` inherit the environment, `Table` is the one container
+that does not. See BUGS.md for the sweep and the two regression tests.
+
+---
+
 ## 2026-08-22 — An About window carrying the licence notices
 
 `vbx-x18`. The default About panel showed a name and a version while the engine

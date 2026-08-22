@@ -9,7 +9,17 @@ import SwiftUI
 /// first time vbx changes bead data at all, so the states where it must refuse
 /// are as much of the design as the states where it works.
 struct PriorityCell: View {
-    @EnvironmentObject var store: ProjectStore
+    /// Handed in rather than read from the environment, and that is load-bearing.
+    ///
+    /// `Table` builds a cell's subgraph when the row scrolls into view, and
+    /// that subgraph does not carry the `environmentObject` injected around
+    /// `ContentView` — so an `@EnvironmentObject` here resolves for the rows
+    /// present at first layout and traps on the first row created afterwards.
+    /// It looked fine on any workspace small enough to fit on screen and
+    /// crashed on the first scroll of one that did not. Every other column
+    /// captures ``IssueListView``'s store in its cell closure; this is the same
+    /// thing, made explicit because the cell is its own `View`.
+    @ObservedObject var store: ProjectStore
     let issue: Issue
 
     @State private var isPicking = false

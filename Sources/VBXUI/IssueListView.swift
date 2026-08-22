@@ -151,7 +151,7 @@ struct IssueListView: View {
         .disabledCustomizationBehavior(.all)
 
         TableColumn("P", value: \.priority) { row in
-            PriorityCell(issue: row.issue)
+            PriorityCell(store: store, issue: row.issue)
         }
         .width(30)
         .customizationID(SortColumn.priority.rawValue)
