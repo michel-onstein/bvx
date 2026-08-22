@@ -58,11 +58,20 @@ them.
   file-exists check. Use `NSHostingView`, and assert on ink coverage.
 - **`.task` and `.onAppear` do not run in a snapshot.** Prefer data the store
   already holds; that constraint is why the unblocks cache exists.
-- **A gesture on a `Table` cell never fires.** macOS bridges `Table` to
-  `NSTableView`, which consumes clicks for row selection, so
-  `onTapGesture(count: 2)` inside a cell is dead code. Priority editing shipped
-  this way — present, and unreachable. Row actions go through
-  `contextMenu(forSelectionType:)`, which is `Table`'s own mechanism.
+- **Do not put a row action behind a gesture on `Table` cell content.**
+  Priority editing shipped as an `onTapGesture(count: 2)` on a cell and did
+  nothing in the running app, with `br` present and `canEditBeads` true. Use
+  `contextMenu(forSelectionType:)`, which is `Table`'s own mechanism, or
+  `primaryAction:` for a row-level double-click.
+  **`Table` does support interactive cell content** — a `TextField` in a cell is
+  a real editable `NSTextField`, one per row — so this is about gestures layered
+  over `Text`, not about the widget being unable to edit.
+- **A synthetic click cannot activate anything inside a `Table`.** It presses a
+  plain SwiftUI `Button` in a hosting view, but inside a `Table` it neither
+  focuses a known-editable `TextField` nor fires `primaryAction`. So a headless
+  "the click did nothing" result is a fact about the harness, not the app — a
+  test asserting it passes either way. One was written and deleted for exactly
+  that.
 - **One `Text` holding a large string is seconds of layout.** SwiftUI lays a
   `Text` out in full before drawing any of it: the 227 KB acknowledgements took
   **7.1 s**, with a spinning cursor throughout. Split across a `LazyVStack` it
