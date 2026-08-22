@@ -25,6 +25,12 @@ struct VBXApp: App {
         }
         .defaultSize(width: 860, height: 600)
 
+        // One window for the app, not one per workspace: it names the app.
+        Window("About Visual Beads", id: "about") {
+            AboutView()
+        }
+        .windowResizability(.contentSize)
+
         Settings {
             SettingsWindow()
         }
@@ -222,6 +228,12 @@ struct VBXCommands: Commands {
             Button("Compute Full Metrics") { Task { await store?.computePhase2() } }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
                 .disabled(store?.metrics.hasPhase2Values != false || store?.isLoaded != true)
+        }
+
+        // Replaces the standard About panel, whose credits field is a poor
+        // place for several thousand lines of licence text.
+        CommandGroup(replacing: .appInfo) {
+            Button("About Visual Beads") { openWindow(id: "about") }
         }
 
         CommandGroup(replacing: .help) {

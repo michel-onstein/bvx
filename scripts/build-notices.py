@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+"""Collect the licences vbx is obliged to ship, into one file the app displays.
+
+    ./scripts/build-notices.py            # regenerate Resources/ACKNOWLEDGEMENTS.md
+    ./scripts/build-notices.py --check    # verify the committed file, rewriting nothing
+
+The engine links 66 Go modules. Most are MIT or BSD-3 and want their notice
+carried; a few want more than that, and one — beads_viewer — carries a rider
+that must travel unmodified in any distribution, with breach terminating the
+licence to the engine vbx is built on. None of that reaches a user from a
+hand-maintained file that nobody updates when a dependency moves.
+
+Generated, and the result committed, for the same reason as the app icon:
+regenerating needs a populated Go module cache, and `build-app.sh` has to be
+able to bundle a shippable app on a bare clone. `--check` needs only the
+committed file plus go.mod, so the verify block can prove the two still agree
+without the cache.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+GOMOD = ROOT / "Engine" / "bridge" / "go.mod"
+OUTPUT = ROOT / "Resources" / "ACKNOWLEDGEMENTS.md"
+VBX_LICENCE = ROOT / "LICENSE"
+
+# Modules whose licence cannot simply be read off a single file. Each is a real
+# case in this dependency graph, and a generator that took the first licence
+# file it found would get the second and third wrong.
+SPECIAL_CASES = {
+    # Three licence files: a summary, and one per licence. The summary is the
+    # one that explains the split, so it is what belongs in the notices.
+    "github.com/cyphar/filepath-securejoin": {
+        "files": ["COPYING.md", "LICENSE.BSD", "LICENSE.MPL-2.0"],
+        "note": (
+            "BSD-3-Clause AND MPL-2.0. MPL-2.0 is per-file copyleft: the files it "
+            "covers are unmodified here, and their source is available upstream at "
+            "https://github.com/cyphar/filepath-securejoin"
+        ),
+    },
+    # Dual-licensed. Which arm is taken has to be stated, or a reader assumes
+    # the GPL one applies to a closed distribution.
+    "github.com/golang/freetype": {
+        "files": ["LICENSE", "licenses/ftl.txt"],
+        "note": (
+            "Dual-licensed: the FreeType Licence or GPLv2. vbx takes the FreeType "
+            "Licence, which is BSD-style with a credit requirement — portions of "
+            "this software are copyright The FreeType Project (www.freetype.org)."
+        ),
+    },
+    # No licence file at all; the README is the only statement of terms.
+    "github.com/mattn/go-localereader": {
+        "files": ["README.md"],
+        "note": (
+            "Ships no LICENSE file. Its README states MIT; that README is "
+            "reproduced here because it is the only statement of terms the module "
+            "carries."
+        ),
+    },
+}
+
+
+def module_cache() -> Path:
+    """Where Go unpacks modules."""
+    for name in ("GOMODCACHE", "GOPATH"):
+        value = os.environ.get(name)
+        if value:
+            path = Path(value)
+            return path if name == "GOMODCACHE" else path / "pkg" / "mod"
+    return Path.home() / "go" / "pkg" / "mod"
+
+
+def escaped(module: str) -> str:
+    """Go escapes capitals in cache paths as !lowercase."""
+    return re.sub(r"([A-Z])", lambda m: "!" + m.group(1).lower(), module)
+
+
+def modules() -> list[tuple[str, str]]:
+    """Every module in go.mod, with its version, in declaration order."""
+    found: list[tuple[str, str]] = []
+    for line in GOMOD.read_text().splitlines():
+        if line.strip().startswith("//"):
+            continue
+        match = re.match(r"\s*([\w./~-]+\.[\w./~-]+)\s+(v[\w.+-]+)", line)
+        if match:
+            found.append((match.group(1), match.group(2)))
+    return found
+
+
+def licence_files(module: str, version: str) -> list[Path]:
+    """The licence texts to reproduce for one module."""
+    directory = module_cache() / f"{escaped(module)}@{version}"
+    if not directory.is_dir():
+        raise FileNotFoundError(f"{module}@{version} is not in the module cache")
+
+    if module in SPECIAL_CASES:
+        paths = [directory / name for name in SPECIAL_CASES[module]["files"]]
+        missing = [p for p in paths if not p.is_file()]
+        if missing:
+            raise FileNotFoundError(f"{module}: expected {missing}")
+        return paths
+
+    candidates = sorted(
+        entry
+        for entry in directory.iterdir()
+        if entry.is_file() and entry.name.lower().startswith(("license", "licence", "copying"))
+    )
+    if not candidates:
+        raise FileNotFoundError(
+            f"{module}@{version} has no licence file and no special case describing it"
+        )
+    return candidates
+
+
+def render() -> str:
+    """The whole notices document."""
+    out: list[str] = []
+    out.append("# Acknowledgements")
+    out.append("")
+    out.append(
+        "Generated by `scripts/build-notices.py`. Do not edit by hand — "
+        "`--check` will fail and the change will be lost on the next run."
+    )
+    out.append("")
+    out.append("## Visual Beads")
+    out.append("")
+    out.append("```")
+    out.append(VBX_LICENCE.read_text().strip())
+    out.append("```")
+    out.append("")
+    out.append("## Third-party components")
+    out.append("")
+    out.append(
+        "The analysis engine is built from the Go modules below. Their terms, "
+        "not vbx's, govern that code."
+    )
+    out.append("")
+
+    for module, version in modules():
+        out.append(f"### {module}")
+        out.append("")
+        out.append(f"Version {version}")
+        out.append("")
+        special = SPECIAL_CASES.get(module)
+        if special:
+            out.append(f"**{special['note']}**")
+            out.append("")
+        for path in licence_files(module, version):
+            out.append("```")
+            out.append(path.read_text(errors="replace").strip())
+            out.append("```")
+            out.append("")
+
+    return "\n".join(out).rstrip() + "\n"
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="verify the committed file matches what would be generated",
+    )
+    args = parser.parse_args()
+
+    if args.check:
+        if not OUTPUT.is_file():
+            print(f"missing {OUTPUT.relative_to(ROOT)}; run build-notices.py", file=sys.stderr)
+            return 1
+        text = OUTPUT.read_text()
+        # Checked against go.mod rather than by regenerating: --check has to work
+        # on a clone with no module cache, which is most of the point of
+        # committing the file.
+        listed = set(modules())
+        missing = [name for name, _ in listed if f"### {name}\n" not in text]
+        if missing:
+            print(
+                "these modules are in go.mod but not in the notices: "
+                + ", ".join(sorted(missing)),
+                file=sys.stderr,
+            )
+            print("run ./scripts/build-notices.py", file=sys.stderr)
+            return 1
+        # The obligation with teeth: bv's rider must travel unmodified.
+        if "ADDITIONAL RIDER / RESTRICTION" not in text:
+            print("beads_viewer's licence rider is missing from the notices", file=sys.stderr)
+            return 1
+        print(f"==> notices check ok ({len(listed)} modules, rider present)")
+        return 0
+
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    OUTPUT.write_text(render())
+    print(f"==> wrote {OUTPUT.relative_to(ROOT)} ({len(modules())} modules)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
