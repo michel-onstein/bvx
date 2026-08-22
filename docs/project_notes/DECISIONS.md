@@ -332,3 +332,55 @@ Packaging never mutates its input bundle — it copies to `.build/dist/stage`
 first. Otherwise an `--app-store` run would silently delete `vbx-cli` from the
 developer's own build, and the next `build-app.sh --run` would launch a bundle
 that had quietly lost a binary.
+
+---
+
+## ADR-011 — One edition, with every feature; no paid tier
+
+**Date:** 2026-08-22 · **Status:** Accepted
+
+**Context.** A closed-source paid edition — Visual Beads Pro, differentiated by
+editing — was investigated on 2026-08-21 and written up in a plan outside this
+repository. Around the same time, priority editing landed in the open app
+(`vbx-z8a`), which would have been that edition's differentiator. The two could
+not both stand: either editing came out of the open app, or Pro needed a
+different pitch.
+
+**Decision.** There is one vbx. Every feature ships in it, under the licence
+this repository already carries. No paid tier, no closed fork, no feature gates
+held back for one.
+
+**Consequences.**
+
+- **Nothing to un-build.** Editing shipped ungated, so the code already matches
+  this. Had it been gated behind a flag "just in case", that flag would now be
+  dead weight nobody dared delete.
+- **No open-core seam is needed.** The plan called for extracting an
+  action-provider protocol so a closed module could inject edit affordances
+  into open views. That work is not needed, and the seam should not be built
+  speculatively — an abstraction with one implementation is a cost with no
+  payer.
+- **`br` stays a hard runtime dependency for editing.** With no paid edition to
+  carry the burden of an in-process writer, delegating writes to `br` is simply
+  the design, not a stepping stone.
+- **The identifier collisions never happen.** Bundle id, the `vbx://` scheme,
+  the `vbx-cli` symlink, the Spotlight domain and the preferences suite were all
+  going to need splitting so two editions could coexist. One edition, one of
+  each.
+
+**What survives from the Pro investigation.** The licence diligence, which was
+never about Pro:
+
+- All 66 Go modules were classified — 33 MIT, 22 BSD-3, 7 Apache-2.0, plus
+  freetype (FreeType *or* GPLv2, choose FTL), `filepath-securejoin` (BSD-3 +
+  MPL-2.0) and `ajstarks/svgo` (CC-BY-4.0). Nothing is GPL-only. A third-party
+  notices screen is still owed, and is still best generated from `go.mod` rather
+  than maintained by hand.
+- **bv's licence rider still applies**, and this decision neither triggers nor
+  resolves it. It forbids making the software or any derivative available to
+  OpenAI or Anthropic, and a public repository already does that — so the
+  position is exactly what it was before Pro was considered, which is to say
+  unchanged and still worth a written clarification from bv's author.
+
+Not selling the software removes the sharpest version of that exposure — a
+purchase we could not refuse — but not the question itself.
