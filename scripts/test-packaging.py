@@ -922,6 +922,46 @@ def test_cask_lint() -> None:
           (result.stdout + result.stderr).strip()[-300:])
 
 
+def test_built_bundle_carries_the_tag() -> None:
+    """The plist a built app actually carries must match scripts/version.sh.
+
+    This is the hop the Swift tests cannot reach: they run in a process whose
+    `Bundle.main` is SwiftPM's helper binary, with no version keys at all. So
+    the formatting is asserted over there and the stamping is asserted here,
+    against a real bundle.
+
+    Skipped rather than passed when no bundle has been built — a check that
+    silently passes on a missing artefact is worse than one that says it did
+    not run, which is the same reason parity-check.py reports skips.
+    """
+    print("\nBuilt bundle version")
+    plist = ROOT / ".build" / "vbx.app" / "Contents" / "Info.plist"
+    if not plist.exists():
+        print("  skip  no .build/vbx.app — run ./scripts/build-app.sh")
+        return
+
+    def key(name: str) -> str:
+        return subprocess.run(
+            ["/usr/libexec/PlistBuddy", "-c", f"Print :{name}", str(plist)],
+            capture_output=True, text=True).stdout.strip()
+
+    expected = subprocess.run([str(VERSION)], capture_output=True, text=True,
+                              cwd=ROOT).stdout.strip()
+    expected_build = subprocess.run([str(VERSION), "--build"], capture_output=True,
+                                    text=True, cwd=ROOT).stdout.strip()
+
+    check("the bundle's marketing version is the tag",
+          key("CFBundleShortVersionString") == expected,
+          f"plist {key('CFBundleShortVersionString')!r} != version.sh {expected!r}")
+    check("the bundle's build number is the commit count",
+          key("CFBundleVersion") == expected_build,
+          f"plist {key('CFBundleVersion')!r} != version.sh {expected_build!r}")
+    # The literal that used to be here shipped as 0.1.0 in every build ever made.
+    check("it is not the old hardcoded version",
+          key("CFBundleShortVersionString") != "0.1.0"
+          or expected == "0.1.0")
+
+
 def main() -> int:
     print("Packaging and signing tests")
     check("package-app.sh is executable", os.access(PACKAGE, os.X_OK))
@@ -952,6 +992,7 @@ def main() -> int:
     test_release_workflow()
     test_stale_prefix_is_named()
     test_cask_lint()
+    test_built_bundle_carries_the_tag()
 
     print()
     if failures:

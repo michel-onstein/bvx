@@ -5,6 +5,28 @@ store was empty until 2026-08-21, so earlier entries carry no id.
 
 ---
 
+## 2026-08-22 — The About box's version, actually verified
+
+Asked whether the build version shows in the About window. It does in the real
+app — a built bundle carries `0.0.1 (42)`, stamped from the tag — but the
+offscreen render showed a blank row where it belongs, and probing confirmed why:
+in a test process `Bundle.main` is SwiftPM's helper binary and has no version
+keys at all.
+
+The gap that mattered was not the blank row. The version had just become
+dynamic, travelling five hops from the git tag to the About box, and nothing
+tested the last two. The test whose name promised it did asserted something
+else entirely.
+
+`versionLine(from:)` now takes the info dictionary so the formatting is
+testable, the header omits the row when there is nothing to show, and the
+stamping hop is asserted in the packaging suite against a real bundle. Both new
+checks were made to fail first. `inkCoverage(in:)` gained a region so the header
+could be measured without the notices pane below it clearing the threshold on
+its own. See BUGS.md.
+
+---
+
 ## 2026-08-22 — Versions advance from a PR label, and the notes generate themselves
 
 `vbx-xi1`. Picked up after the session that filed it left no worktree and no

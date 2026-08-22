@@ -80,7 +80,9 @@ enum Snapshot {
         let url = outputDirectory.appendingPathComponent("\(name).png")
         try png.write(to: url)
 
-        return RenderResult(name: name, url: url, image: cgImage, bytes: png.count)
+        return RenderResult(
+            name: name, url: url, image: cgImage, bytes: png.count,
+            pointWidth: size.width, pointHeight: size.height)
     }
 
     enum SnapshotError: Error, CustomStringConvertible {
@@ -106,12 +108,31 @@ struct RenderResult {
     var width: Int { image.width }
     var height: Int { image.height }
 
+    /// The size the view was asked for, in points. Recorded so a region can be
+    /// given in the same units the caller used.
+    let pointWidth: CGFloat
+    let pointHeight: CGFloat
+
     /// Fraction of pixels differing from the modal (background) colour.
     ///
     /// This is the substance check: a view that lays out but draws nothing
     /// still produces a valid PNG, so asserting on file size alone would pass
     /// for a blank canvas.
     func inkCoverage() -> Double {
+        inkCoverage(in: nil)
+    }
+
+    /// Ink coverage within `region`, in **points** from the top-left, or the
+    /// whole image when nil.
+    ///
+    /// Points rather than pixels so a caller can use the same numbers it passed
+    /// to ``Snapshot/render(_:name:size:scale:)`` without knowing the scale.
+    ///
+    /// The whole-image figure cannot answer "did *this part* draw". For a view
+    /// whose scrolling pane fills most of the frame, the pane's own text pushes
+    /// coverage past any threshold on its own — so a header that vanished
+    /// entirely would still pass.
+    func inkCoverage(in region: CGRect?) -> Double {
         guard let data = image.dataProvider?.data,
             let ptr = CFDataGetBytePtr(data)
         else { return 0 }
@@ -120,13 +141,26 @@ struct RenderResult {
         let bytesPerRow = image.bytesPerRow
         guard bytesPerPixel >= 3 else { return 0 }
 
+        // The image is rendered at `scale`, so a region given in points has to
+        // be multiplied up. Derived from the image rather than passed, so the
+        // two cannot disagree.
+        var minX = 0, minY = 0, maxX = width, maxY = height
+        if let region {
+            let scale = CGFloat(width) / CGFloat(pointWidth)
+            minX = max(0, Int(region.minX * scale))
+            minY = max(0, Int(region.minY * scale))
+            maxX = min(width, Int(region.maxX * scale))
+            maxY = min(height, Int(region.maxY * scale))
+            guard minX < maxX, minY < maxY else { return 0 }
+        }
+
         // Sample on a grid; a full scan of a 2x-scaled view is needless work.
-        let step = max(1, min(width, height) / 120)
+        let step = max(1, min(maxX - minX, maxY - minY) / 120)
         var histogram: [UInt32: Int] = [:]
         var sampled = 0
 
-        for y in stride(from: 0, to: height, by: step) {
-            for x in stride(from: 0, to: width, by: step) {
+        for y in stride(from: minY, to: maxY, by: step) {
+            for x in stride(from: minX, to: maxX, by: step) {
                 let offset = y * bytesPerRow + x * bytesPerPixel
                 let r = UInt32(ptr[offset])
                 let g = UInt32(ptr[offset + 1])

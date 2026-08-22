@@ -122,6 +122,12 @@ view snapshots for inspection.
   `Sources/vbx/Intents.swift` compile and execute correctly but are only *listed*
   in Shortcuts when the app is built through Xcode, or when that step is added
   to `scripts/build-app.sh`.
+- **`Bundle.main` in the test process is SwiftPM's helper binary** —
+  `…/XcodeDefault.xctoolchain/usr/libexec/swift/pm`, measured, not assumed. It
+  has no `CFBundleShortVersionString` and no `CFBundleVersion`, so the About
+  window's version line renders empty in every snapshot. `AboutView` takes the
+  info dictionary as a parameter for exactly this reason; the stamped values are
+  asserted against a real bundle in `test-packaging.py` instead.
 - **`CSSearchableIndex.default()` and `UNUserNotificationCenter.current()` both
   raise in a process with no bundle identifier** — which is how the test suite
   and the CLI run. Availability is checked before the call, never around it,

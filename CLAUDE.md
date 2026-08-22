@@ -58,6 +58,15 @@ them.
   file-exists check. Use `NSHostingView`, and assert on ink coverage.
 - **`.task` and `.onAppear` do not run in a snapshot.** Prefer data the store
   already holds; that constraint is why the unblocks cache exists.
+- **`Bundle.main` in a test process is SwiftPM's helper binary**, not the app —
+  so `CFBundleShortVersionString`, `CFBundleVersion` and the bundle identifier
+  are all absent. Anything reading them renders empty in every snapshot. Take
+  the info dictionary as a parameter and default it to `Bundle.main`, or the
+  code is untestable and quietly stays that way.
+- **Ink coverage is whole-image unless you scope it.** `inkCoverage(in:)` takes
+  a region in points; use it whenever a scrolling pane dominates the frame,
+  because the pane's own text clears any threshold on its own and a header that
+  vanished would still pass.
 - **Swift Testing exports its own `Issue` type.** Test files alias the model:
   `private typealias Bead = VBXCore.Issue`.
 - **Tests that write into a workspace use `Fixture.writableStore()`**, which
