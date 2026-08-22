@@ -76,6 +76,29 @@ struct ViewSnapshotTests {
             "pill not visibly distinct from text (pill \(pill.inkCoverage()) vs \(bare.inkCoverage()))")
     }
 
+    @Test("A filtered label pill is visibly distinct from an unfiltered one")
+    func filteredPillIsShaded() throws {
+        // Compared against the plain pill rather than a fixed threshold, for
+        // the same reason as the test above: the neutral fill was once set to
+        // a value that rendered and could not be seen, and only a comparison
+        // catches that.
+        let size = CGSize(width: 90, height: 28)
+        let plain = try Snapshot.render(
+            LabelPill(label: "engine").padding(4),
+            name: "label-pill-plain",
+            size: size
+        )
+        let shaded = try Snapshot.render(
+            LabelPill(label: "engine", isFiltered: true).padding(4),
+            name: "label-pill-filtered",
+            size: size
+        )
+
+        #expect(
+            shaded.distinctColors() > plain.distinctColors(),
+            "shaded pill adds no colour (\(shaded.distinctColors()) vs \(plain.distinctColors()))")
+    }
+
     @Test("Board renders columns and cards")
     func board() async throws {
         let store = await Fixture.loadedStore()

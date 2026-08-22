@@ -5,6 +5,64 @@ store was empty until 2026-08-21, so earlier entries carry no id.
 
 ---
 
+## 2026-08-22 — Six beads: columns, label filters, and the first write path
+
+`vbx-zu2`, `vbx-lmj`, `vbx-ce2`, `vbx-s0k`, `vbx-jg8`, `vbx-z8a`.
+
+**A Created column** (`vbx-zu2`). Only Created was missing — `Updated` had been
+there since the list was built, and `IssueRow.createdKey` plus
+`SortColumn.created` already existed, so this was the header nobody had added.
+
+Adding it broke the build in a way worth recording: `@TableColumnBuilder`
+accepts **at most ten columns**, and this was the eleventh. The columns are now
+split across three builder properties, which also fixed a type-check that had
+grown past what the compiler would solve in reasonable time.
+
+**`disabledCustomizationBehavior` does not enforce anything** (`vbx-lmj`). It
+governs the menu affordance only. A stored layout marking `id` hidden really
+did hide the identifier — measured, not theorised — so the customization is now
+sanitised on the way in and out, forcing the protected columns visible. The
+menu entry and the enforcement are separate problems and needed separate fixes.
+
+**Filtered label pills are shaded, and double-clicking a pill toggles the
+filter** (`vbx-ce2`, `vbx-s0k`). Toggling clears an active recipe: a recipe
+writes `query` wholesale, so a filter edited by hand is no longer the recipe's,
+and leaving it active would keep the sidebar claiming a recipe that no longer
+describes the screen.
+
+**Bead links get a pointer and a tooltip** (`vbx-jg8`). The attributes set in
+`vbx-tdk` never arrived: `.link`, colour and underline cross into the backing
+`SelectionTextField`, while `appKit.cursor` and `appKit.toolTip` are dropped —
+so the tooltip had been silently broken since it was written. `BeadLinkCursors`
+adds real cursor and tooltip rects, deriving the ranges from the field's own
+`.link` attribute rather than re-deriving them alongside the renderer. A test
+asserts the cursor attribute is still absent, so if SwiftUI ever starts
+honouring it the overlay can be deleted.
+
+**Priority editing — vbx's first write to bead data** (`vbx-z8a`). It goes
+through `br update <id> --priority <n> --json`, run in the workspace directory,
+followed by a reload; nothing here touches the JSONL, for the whole-file-export
+reason in `BeadWriter`'s header. Editing refuses in two states, each explained
+rather than silently inert: `br` not installed, and time travel, where an edit
+would write today's data from a view of last week's.
+
+Two findings from validating it against the real binary:
+
+- **`br` cannot operate on the bundled demo fixture at all.** Its records have
+  no `created_at`, and `br`'s preflight rejects them — so editing works against
+  real workspaces and not against `Fixtures/demo`. The same gap is why the new
+  Created column shows an em dash for every fixture bead, which at least
+  exercises the missing-date path.
+- **The command must run in the workspace root**, not `<workspace>/.beads`:
+  `br` discovers `.beads` from its working directory.
+
+`br` is now a runtime dependency for editing, and `BeadWriter.locateBR` checks
+the usual install locations as well as `PATH`, because a GUI app launched from
+Finder inherits a minimal `PATH` that holds none of them — without which
+editing would work from a terminal launch and mysteriously not from the Dock.
+
+---
+
 ## 2026-08-21 — Rule confined to the header, and a recents menu
 
 **The hidden-column rule now marks the header only.** Run the full height of
