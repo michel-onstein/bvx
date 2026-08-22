@@ -152,7 +152,11 @@ public final class ProjectStore: ObservableObject {
 
     /// Workspaces opened recently, for the File menu. Written by
     /// ``open(path:)`` once a load has actually succeeded.
-    @Published public var recents = RecentWorkspaces()
+    ///
+    /// Defaults to the shared list because the menu is app-wide: every window
+    /// contributes to one history. Tests substitute their own so they never
+    /// write into real preferences.
+    @Published public var recents = RecentWorkspaces.shared
 
     /// The only thing that writes bead data. See ``BeadWriter`` for why it
     /// goes through `br` rather than touching the JSONL.

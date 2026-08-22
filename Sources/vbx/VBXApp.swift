@@ -7,73 +7,173 @@ import SwiftUI
 
 @main
 struct VBXApp: App {
-    @StateObject private var store = ProjectStore()
-    @State private var showingExportWizard = false
-
     var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .environmentObject(store)
-                .frame(minWidth: 1000, minHeight: 620)
-                .task { await store.openInitialWorkspace() }
-                // vbx://open?workspace=...&bead=... - the same shape the
-                // inspector's inline bead links use, so one handler serves
-                // links from inside and outside the app.
-                .onOpenURL { url in
-                    Task { await store.open(url: url) }
-                }
-                // A bead opened from Spotlight.
-                .onContinueUserActivity(CSSearchableItemActionType) { activity in
-                    guard let info = activity.userInfo else { return }
-                    _ = store.openSpotlightItem(info)
-                }
-                .sheet(isPresented: $showingExportWizard) {
-                    ExportWizard().environmentObject(store)
-                }
+        // Keyed on the workspace path, which does three things at once: each
+        // window gets its own identity for state restoration, `openWindow`
+        // raises the window already showing a path instead of making a second
+        // one, and a window remembers which workspace it had across launches.
+        WindowGroup(for: String.self) { $path in
+            WorkspaceWindow(path: $path)
         }
         .windowToolbarStyle(.unified)
-        .commands {
-            VBXCommands(
-                store: store, recents: store.recents,
-                showingExportWizard: $showingExportWizard)
-        }
+        .commands { VBXCommands() }
 
         // Its own window rather than a sheet: the tutorial is meant to be read
         // beside the app, not instead of it.
         WindowGroup(id: "tutorial", for: String.self) { $section in
-            TutorialView(initialSection: section)
-                .environmentObject(store)
+            TutorialWindow(section: section)
         }
         .defaultSize(width: 860, height: 600)
 
         Settings {
-            SettingsView().environmentObject(store)
+            SettingsWindow()
         }
     }
 }
 
+/// One window, one workspace.
+///
+/// The store lives here rather than on the `App` — that is the whole of what
+/// makes several workspaces open at once. `WindowGroup` already made multiple
+/// windows; they were simply all rendering one store, so opening a folder in
+/// either changed both.
+///
+/// ``ProjectStore`` was already shaped for this: it is documented as state for
+/// *one* workspace and holds nothing static, so nothing had to be untangled to
+/// give each window its own.
+struct WorkspaceWindow: View {
+    /// The workspace this window shows. Written back so the scene remembers it.
+    @Binding var path: String?
+
+    @StateObject private var store = ProjectStore()
+    @State private var showingExportWizard = false
+
+    var body: some View {
+        ContentView()
+            .environmentObject(store)
+            .frame(minWidth: 1000, minHeight: 620)
+            // Publishes this window's store to the menu bar. The menu is
+            // app-wide but its commands are not: every one of them acts on the
+            // key window's workspace, and a menu item that silently acted on
+            // the wrong window would be worse than one that is disabled.
+            .focusedSceneValue(\.projectStore, store)
+            .task {
+                if let path {
+                    await store.open(path: path)
+                } else {
+                    await store.openInitialWorkspace()
+                    // Record what the window landed on, so reopening it later
+                    // returns to the same workspace.
+                    path = store.info.map { workspaceRoot(of: $0.source) } ?? nil
+                }
+            }
+            // vbx://open?workspace=...&bead=... — the same shape the inspector's
+            // inline bead links use, so one handler serves links from inside and
+            // outside the app.
+            .onOpenURL { url in
+                Task { await store.open(url: url) }
+            }
+            .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                guard let info = activity.userInfo else { return }
+                _ = store.openSpotlightItem(info)
+            }
+            .sheet(isPresented: $showingExportWizard) {
+                ExportWizard().environmentObject(store)
+            }
+            .focusedSceneValue(\.exportWizardPresented, $showingExportWizard)
+    }
+
+    /// `<workspace>/.beads/issues.jsonl` → `<workspace>`.
+    private func workspaceRoot(of source: String) -> String {
+        URL(fileURLWithPath: source)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .path
+    }
+}
+
+/// The tutorial, with a store of its own.
+///
+/// It reads `surface` to highlight the section matching the current view. With
+/// per-window stores there is no single "the" workspace to read that from, and
+/// a tutorial that follows whichever window was last focused would jump around
+/// while being read. Its own store keeps it still.
+struct TutorialWindow: View {
+    let section: String?
+    @StateObject private var store = ProjectStore()
+
+    var body: some View {
+        TutorialView(initialSection: section)
+            .environmentObject(store)
+    }
+}
+
+/// Settings act on the key window's workspace.
+///
+/// Both toggles are stored per workspace today, so with several windows open
+/// they need a subject. The focused window is that subject; with none, the form
+/// says so rather than binding to nothing.
+struct SettingsWindow: View {
+    @FocusedValue(\.projectStore) private var store: ProjectStore?
+
+    var body: some View {
+        if let store {
+            SettingsView().environmentObject(store)
+        } else {
+            Text("Open a workspace window to change its settings.")
+                .foregroundStyle(.secondary)
+                .frame(width: 460, height: 260)
+        }
+    }
+}
+
+// MARK: - Focused values
+
+/// The key window's store, for the menu bar to act on.
+private struct ProjectStoreKey: FocusedValueKey {
+    typealias Value = ProjectStore
+}
+
+/// The key window's export-wizard presentation, so File ▸ Export opens the
+/// sheet on the window the user is looking at.
+private struct ExportWizardKey: FocusedValueKey {
+    typealias Value = Binding<Bool>
+}
+
+extension FocusedValues {
+    var projectStore: ProjectStore? {
+        get { self[ProjectStoreKey.self] }
+        set { self[ProjectStoreKey.self] = newValue }
+    }
+
+    var exportWizardPresented: Binding<Bool>? {
+        get { self[ExportWizardKey.self] }
+        set { self[ExportWizardKey.self] = newValue }
+    }
+}
+
 /// Menu-bar commands. Every action lives here first so it gets a real macOS
-/// key equivalent and shows up in Help search; the vim-style single-key
-/// bindings in `TerminalKeys` are an additive layer on top.
+/// shortcut, and the UI calls the same store methods.
+///
+/// Everything acts on ``FocusedValues/projectStore`` — the key window's store —
+/// rather than a captured one, because the menu bar is app-wide while the
+/// workspaces are not.
 struct VBXCommands: Commands {
-    @ObservedObject var store: ProjectStore
-    /// Observed separately from `store`: a nested `ObservableObject` publishes
-    /// its own changes, and without watching it here the menu would keep
-    /// showing the list as it was when the window opened.
-    @ObservedObject var recents: RecentWorkspaces
-    @Binding var showingExportWizard: Bool
+    @FocusedValue(\.projectStore) private var store: ProjectStore?
+    @FocusedValue(\.exportWizardPresented) private var exportWizardPresented: Binding<Bool>?
+    @ObservedObject private var recents = RecentWorkspaces.shared
     @Environment(\.openWindow) private var openWindow
 
     /// The last few workspaces, most recent first.
     ///
-    /// Titled without an ellipsis: the convention is that "…" promises a dialog,
-    /// and this opens a submenu. "Clear Menu" is the wording the rest of macOS
-    /// uses for the same action, so it needs no explaining.
+    /// App-wide rather than per-window: where you have been is a property of
+    /// the person, not of one window, and the list is backed by a single
+    /// preferences key. Opening one raises the window already showing it.
     @ViewBuilder
     private var recentWorkspacesMenu: some View {
         Menu("Recent Workspaces") {
             ForEach(recents.entries) { entry in
-                Button(entry.name) { Task { await store.open(path: entry.path) } }
+                Button(entry.name) { openWindow(value: entry.path) }
                     .help(entry.path)
             }
             Divider()
@@ -85,19 +185,23 @@ struct VBXCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button("Open Workspace…") { store.presentOpenPanel() }
+            // A window with no workspace yet; it opens the panel itself.
+            Button("New Window") { openWindow(value: String?.none) }
+                .keyboardShortcut("n", modifiers: .command)
+            Button("Open Workspace…") { store?.presentOpenPanel() }
                 .keyboardShortcut("o", modifiers: .command)
+                .disabled(store == nil)
             recentWorkspacesMenu
-            Button("Reload") { Task { await store.reload(force: true) } }
+            Button("Reload") { Task { await store?.reload(force: true) } }
                 .keyboardShortcut("r", modifiers: .command)
-                .disabled(!store.isLoaded)
+                .disabled(store?.isLoaded != true)
             Divider()
-            Button("Export Markdown Report…") { Task { await store.exportMarkdown() } }
+            Button("Export Markdown Report…") { Task { await store?.exportMarkdown() } }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
-                .disabled(!store.isLoaded)
-            Button("Export Static Site…") { showingExportWizard = true }
+                .disabled(store?.isLoaded != true)
+            Button("Export Static Site…") { exportWizardPresented?.wrappedValue = true }
                 .keyboardShortcut("e", modifiers: [.command, .option])
-                .disabled(!store.isLoaded)
+                .disabled(store?.isLoaded != true || exportWizardPresented == nil)
             Divider()
             Button("Install Command Line Tool…") { installCommandLineTool() }
                 .disabled(!CommandLineTool.isAvailable)
@@ -105,17 +209,19 @@ struct VBXCommands: Commands {
 
         CommandMenu("View") {
             ForEach(ViewSurface.allCases) { surface in
-                Button(surface.displayName) { store.surface = surface }
+                Button(surface.displayName) { store?.surface = surface }
                     .keyboardShortcut(surface.keyEquivalent, modifiers: .command)
+                    .disabled(store == nil)
             }
             Divider()
             ForEach(IssueFilter.allCases) { filter in
-                Button("Filter: \(filter.displayName)") { store.query.filter = filter }
+                Button("Filter: \(filter.displayName)") { store?.query.filter = filter }
+                    .disabled(store == nil)
             }
             Divider()
-            Button("Compute Full Metrics") { Task { await store.computePhase2() } }
+            Button("Compute Full Metrics") { Task { await store?.computePhase2() } }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
-                .disabled(store.metrics.hasPhase2Values || !store.isLoaded)
+                .disabled(store?.metrics.hasPhase2Values != false || store?.isLoaded != true)
         }
 
         CommandGroup(replacing: .help) {

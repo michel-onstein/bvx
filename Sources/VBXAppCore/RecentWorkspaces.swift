@@ -13,6 +13,15 @@ public final class RecentWorkspaces: ObservableObject {
     /// the length at which a menu is still scannable without reading.
     public static let limit = 5
 
+    /// The list the File menu shows.
+    ///
+    /// App-wide rather than per-window: where you have been is a property of
+    /// the person, not of one window, and every window writes to the same
+    /// preferences key. Without a shared instance, two windows would each hold
+    /// their own copy, and a workspace opened in one would be missing from the
+    /// menu until the other happened to reload it.
+    public static let shared = RecentWorkspaces()
+
     /// One remembered workspace.
     public struct Entry: Identifiable, Equatable, Sendable {
         public let path: String

@@ -83,6 +83,17 @@ public struct ContentView: View {
         }
     }
 
+    /// One tooltip per view-switcher segment, in declaration order.
+    ///
+    /// Built from ``ViewSurface`` rather than written out, so the tooltip, the
+    /// sidebar row and the View menu cannot drift apart — they are all the same
+    /// `displayName`. The shortcut rides along because the enum already carries
+    /// it, and naming it teaches the key at the moment someone is reaching for
+    /// the mouse instead.
+    static let surfaceTooltips: [String] = ViewSurface.allCases.map { surface in
+        "\(surface.displayName) (⌘\(surface.keyEquivalent.character))"
+    }
+
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         // Declared before the view picker so they sit at the leading end of
@@ -117,7 +128,11 @@ public struct ContentView: View {
             }
             .pickerStyle(.segmented)
             .labelStyle(.iconOnly)
-            .help("Switch view")
+            // Each segment names its own view. `.help` on the labels inside the
+            // picker does not reach the segments — see ``SegmentTooltips`` —
+            // and with `.iconOnly` the glyph is otherwise the only clue what a
+            // segment does.
+            .background { SegmentTooltips(tooltips: Self.surfaceTooltips) }
         }
 
         ToolbarItem {
