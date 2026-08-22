@@ -66,6 +66,7 @@ Release:
 ./scripts/version-bump.sh           # tag from the PR's semver:* label, record it
 python3 scripts/release-notes.py    # regenerate docs/RELEASES.md from the tags
 ./scripts/version.sh                # the version, from the git tag
+./scripts/release.sh --lint-cask    # brew style the rendered cask, build nothing
 ./scripts/release.sh --dry-run      # rehearse: preflight, build, render the cask
 ./scripts/release.sh --tag v0.2.0   # tag, build universal, notarize, print the cask
 ./scripts/release.sh --publish      # ...and push the tag + create the GitHub release
@@ -162,6 +163,17 @@ view snapshots for inspection.
   and records; it builds, signs and publishes nothing, because no runner holds
   the signing identity. It is idempotent because pushing its own release-notes
   commit re-triggers it.
+- **A signing config written before the bvx → vbx rename is dead, silently.**
+  Every `BVX_*` key is unrecognised, so `package-app.sh --check` reported "no
+  distribution channel is configured" — which reads as "not set up yet" while a
+  complete config sat in the file. The real `scripts/signing.env` had been dead
+  that way since #13. `--check` now names the stale prefix and prints the
+  one-line `sed` that fixes it.
+- **`brew style` is the local gate for the cask; `brew audit` is not.** Audit
+  takes a cask *name*, which only resolves for an installed tap, and installing
+  one is more than a linter should do — it belongs to the tap repository's CI.
+  `./scripts/release.sh --lint-cask` renders the template with a placeholder
+  checksum and styles it; it caught four real offences the first time it ran.
 - **Nothing has been released.** `scripts/release.sh` and
   `packaging/homebrew/vbx.rb.template` produce a cask ready to paste, but there
   is no tagged release, no published `.dmg` and no `homebrew-tap` repository, so

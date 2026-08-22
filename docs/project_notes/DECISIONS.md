@@ -441,10 +441,17 @@ brew install --cask vbx
   state and caches, but the deploy credentials in `com.qjam.vbx` need
   `security delete-generic-password`. The cask's `caveats` say so rather than
   leaving an uninstall quietly incomplete.
-- **The last check cannot be run here.** `brew install --cask` on a machine that
-  has never seen the build, confirming it launches without a Gatekeeper prompt,
-  needs a published release and a clean Mac. `brew audit --cask` and
-  `brew style` catch the mechanical problems first.
+- **The last check cannot be run here.** `brew install --cask` on a machine
+  that has never seen the build, confirming it launches without a Gatekeeper
+  prompt, needs a published release and a clean Mac.
+- **`brew style` is what can be run, and it earns its place.**
+  `./scripts/release.sh --lint-cask` renders the template with a placeholder
+  checksum and styles it; on its first run it rejected four things: a missing
+  frozen-string comment, the word "macOS" in a cask description (every cask is
+  macOS), mis-grouped stanzas, and an unsorted `zap` array. None needed a build
+  to find. `brew audit` is *not* run: it takes a cask name, which only resolves
+  for an installed tap, and installing one inside a linter writes into the
+  user's Homebrew prefix. It belongs to the tap repository's own CI.
 
 ---
 

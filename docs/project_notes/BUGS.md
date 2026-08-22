@@ -4,6 +4,40 @@ Found-and-fixed issues, with the regression test that locks each fix in.
 
 ---
 
+## 2026-08-22 — The signing config had been dead since the rename, and said nothing
+
+**Symptom:** `./scripts/package-app.sh --check` reported *"no distribution
+channel is configured. Copy scripts/signing.env.example to scripts/signing.env,
+or export the settings."* — with a complete, filled-in `scripts/signing.env`
+sitting right there, all seven keys set.
+
+**Cause:** the project was renamed from bvx to vbx in #13. The scripts were
+renamed with it; the local config file was not. Every key in it was still
+`BVX_TEAM_ID`, `BVX_DEVELOPER_ID_APP` and so on, and nothing reads those. The
+file is `source`d, so the assignments succeeded — they just landed on variables
+no one looks at.
+
+What made it survive so long is the *wording of the failure*. "No distribution
+channel is configured" reads as "you have not set this up yet", so the natural
+response is to go and set it up, find the file already correct, and conclude the
+check is about something else. A message can be accurate and still point away
+from the cause.
+
+It also made a real capability look absent: with the prefix fixed, `--check`
+reports **"Developer ID cert — in the keychain"**. The certificate had been
+there the whole time.
+
+**Fix:** the config loader greps for `^BVX_` and refuses with the actual
+diagnosis and the one-line `sed` that repairs it, rather than falling through to
+the generic "unconfigured" path. The local `signing.env` was repaired with that
+exact command (original kept as `signing.env.bvx-backup`).
+
+**Prevention:** `test-packaging.py` drives `--check` with a fabricated `BVX_`
+config and asserts it is rejected *by name* — and with a `VBX_` one, asserting
+it is not flagged, so the guard cannot start firing on a correct file.
+
+---
+
 ## 2026-08-22 — The first host build after a universal one refused to run
 
 **Symptom:** `./scripts/build-engine.sh` failed with

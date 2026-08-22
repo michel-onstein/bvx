@@ -122,6 +122,7 @@ python3 scripts/release-notes.py      # regenerate docs/RELEASES.md
 A release runs the whole path in one pass, and prints the cask ready to paste:
 
 ```bash
+./scripts/release.sh --lint-cask    # brew style the rendered cask, build nothing
 ./scripts/release.sh --dry-run      # rehearse it: preflight, build, render the cask
 ./scripts/release.sh --tag v0.2.0   # tag, build universal, notarize, staple, checksum
 ./scripts/release.sh --publish      # ...and push the tag + create the GitHub release

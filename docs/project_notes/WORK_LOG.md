@@ -58,6 +58,20 @@ tap repository, so `brew install --cask vbx` does not work yet. That is
 deliberate and it is written down in the design doc's status rather than implied
 by the presence of the script. See ADR-012.
 
+Chased the remaining blockers afterwards rather than leaving them as a list.
+`--lint-cask` runs `brew style` on the rendered cask without a build, and found
+four real offences the first time: a missing frozen-string comment, "macOS" in a
+cask description, mis-grouped stanzas, an unsorted `zap` array. `brew audit`
+deliberately is not run — it takes a cask name, which needs an installed tap.
+
+And the reason `package-app.sh --check` reported nothing configured turned out
+not to be a missing certificate: `scripts/signing.env` still used the pre-rename
+`BVX_` prefix and had been inert since #13. Repaired, with a check that names
+the stale prefix instead of falling through to "unconfigured". The Developer ID
+certificate was in the keychain all along. What is genuinely still missing is
+the notary profile — `xcrun notarytool store-credentials` needs an Apple ID —
+and the tap repository.
+
 ---
 
 ## 2026-08-22 — Launch stopped opening onto an error

@@ -6,6 +6,7 @@
 #   ./scripts/release.sh --tag v0.2.0        # tag, build, package, render cask
 #   ./scripts/release.sh                     # same, for the tag HEAD already has
 #   ./scripts/release.sh --publish           # ...and push the tag + GitHub release
+#   ./scripts/release.sh --lint-cask         # brew style + audit the cask, build nothing
 #
 # What this exists to prevent is a cask that cannot work. A cask points at one
 # versioned URL with one checksum, and three separate things have to line up
@@ -34,13 +35,15 @@ TEMPLATE="$ROOT/packaging/homebrew/vbx.rb.template"
 TAG=""
 DRY_RUN=0
 PUBLISH=0
+LINT_CASK=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tag) TAG="${2-}"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     --publish) PUBLISH=1; shift ;;
-    -h|--help) sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --lint-cask) LINT_CASK=1; shift ;;
+    -h|--help) sed -n '2,29p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -49,6 +52,72 @@ cd "$ROOT"
 
 say() { echo "$@"; }
 fail() { echo "error: $*" >&2; exit 1; }
+
+# Derived from the remote so a fork does not publish a cask pointing at this
+# repository's releases.
+cask_repo() {
+  local remote
+  remote="$(git remote get-url origin 2>/dev/null || true)"
+  printf '%s' "$remote" | sed -E 's#^.*github\.com[:/]##; s#\.git$##'
+}
+
+# render_cask <version> <sha256> <destination>
+render_cask() {
+  local version="$1" sha="$2" dest="$3" repo homepage url
+  repo="$(cask_repo)"
+  [[ -n "$repo" ]] || fail "could not read owner/repo from the origin remote"
+  homepage="https://github.com/$repo"
+  url="$homepage/releases/download/v$version/vbx-$version.dmg"
+  mkdir -p "$(dirname "$dest")"
+  sed -e "s|@VERSION@|$version|g" \
+      -e "s|@SHA256@|$sha|g" \
+      -e "s|@URL@|$url|g" \
+      -e "s|@REPO@|$repo|g" \
+      -e "s|@HOMEPAGE@|$homepage|g" \
+      "$TEMPLATE" > "$dest"
+}
+
+# ---------------------------------------------------------------------------
+# --lint-cask: the mechanical checks, without a release
+# ---------------------------------------------------------------------------
+#
+# `brew install --cask` on a clean Mac is the check that matters and it cannot
+# be run here — it needs a published release and a machine that has never seen
+# the build. `brew style` and `brew audit` are what catch the problems that can
+# be caught early, and they caught four on the first run: a missing
+# frozen-string comment, "macOS" in a cask description, mis-grouped stanzas and
+# an unsorted `zap` array. None of those needed a build to find, so this does
+# not require one.
+#
+# The checksum is a placeholder: the linters check the file's shape, and a real
+# checksum would mean building a real disk image to compute it.
+if [[ $LINT_CASK -eq 1 ]]; then
+  command -v brew >/dev/null 2>&1 || fail "brew is not on the PATH"
+  [[ -f "$TEMPLATE" ]] || fail "missing $TEMPLATE"
+
+  LINT_VERSION="$("$ROOT/scripts/version.sh")"
+  LINT_SHA="$(printf '0%.0s' {1..64})"
+  # A tap-shaped directory: Homebrew picks its cask-specific cops from the
+  # Casks/ path, and a file outside one is linted as plain Ruby.
+  LINT_TAP="$DIST/lint/homebrew-tap"
+  rm -rf "$LINT_TAP"
+  render_cask "$LINT_VERSION" "$LINT_SHA" "$LINT_TAP/Casks/vbx.rb"
+
+  say "==> brew style"
+  brew style "$LINT_TAP/Casks/vbx.rb"
+
+  say ""
+  say "Linted ${LINT_TAP#"$ROOT"/}/Casks/vbx.rb (version $LINT_VERSION, placeholder checksum)."
+  say ""
+  say "brew audit is not run here: it takes a cask *name*, which only resolves"
+  say "for an installed tap, and installing one is more than a linter should do."
+  say "It belongs to the tap repository, once the cask is in it:"
+  say "  brew audit --cask --new michel-onstein/tap/vbx"
+  say ""
+  say "The check that cannot be run anywhere but a clean Mac, after a release:"
+  say "  brew install --cask vbx && open -a vbx"
+  exit 0
+fi
 run() {
   if [[ $DRY_RUN -eq 1 ]]; then
     say "  would run: $*"
@@ -156,22 +225,16 @@ fi
 # The cask
 # ---------------------------------------------------------------------------
 
-# Derived from the remote so a fork does not publish a cask pointing at this
-# repository's releases.
-REMOTE="$(git remote get-url origin 2>/dev/null || true)"
-REPO="$(printf '%s' "$REMOTE" | sed -E 's#^.*github\.com[:/]##; s#\.git$##')"
-[[ -n "$REPO" ]] || fail "could not read owner/repo from the origin remote"
-HOMEPAGE="https://github.com/$REPO"
-URL="$HOMEPAGE/releases/download/v$VERSION/vbx-$VERSION.dmg"
-
 CASK="$DIST/vbx.rb"
-mkdir -p "$DIST"
-sed -e "s|@VERSION@|$VERSION|g" \
-    -e "s|@SHA256@|$SHA256|g" \
-    -e "s|@URL@|$URL|g" \
-    -e "s|@REPO@|$REPO|g" \
-    -e "s|@HOMEPAGE@|$HOMEPAGE|g" \
-    "$TEMPLATE" > "$CASK"
+render_cask "$VERSION" "$SHA256" "$CASK"
+
+# Linted here too, not only under --lint-cask: this is the copy that gets
+# pasted into the tap, and a cask that fails `brew style` is one the tap's own
+# CI will reject after the release has already been published.
+if command -v brew >/dev/null 2>&1 && [[ $DRY_RUN -eq 0 ]]; then
+  say "==> brew style"
+  brew style "$CASK" || fail "the rendered cask fails brew style"
+fi
 
 say ""
 say "==> Cask written to ${CASK#"$ROOT"/}"

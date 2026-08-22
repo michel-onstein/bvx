@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -831,6 +832,67 @@ def test_release_workflow() -> None:
           "release.sh" not in steps and "notarytool" not in steps)
 
 
+def test_stale_prefix_is_named() -> None:
+    """A config from before the bvx -> vbx rename must say so, not read as unset.
+
+    Every BVX_ key is simply unrecognised, so the scripts reported "no
+    distribution channel is configured" — which reads as "you have not set this
+    up yet" while a complete, correct config sat in the file. The real one in
+    this checkout had been dead that way since the rename in #13.
+    """
+    print("\nStale config prefix")
+    with tempfile.NamedTemporaryFile("w", suffix=".env", delete=False) as handle:
+        handle.write("BVX_DEVELOPER_ID_APP=\"Developer ID Application: Nobody (X)\"\n")
+        handle.write("BVX_NOTARY_PROFILE=old-profile\n")
+        stale = handle.name
+    try:
+        result = subprocess.run(
+            [str(PACKAGE), "--check"], capture_output=True, text=True,
+            env={**os.environ, "VBX_SIGNING_CONFIG": stale})
+        check("a BVX_ config is rejected", result.returncode != 0)
+        check("...by name, not as 'unconfigured'",
+              "BVX_" in result.stderr and "VBX_" in result.stderr,
+              result.stderr.strip()[:200])
+        check("...with the one-line fix", "sed" in result.stderr)
+    finally:
+        os.unlink(stale)
+
+    # And the reverse: a VBX_ config must not trip the check.
+    with tempfile.NamedTemporaryFile("w", suffix=".env", delete=False) as handle:
+        handle.write(f'VBX_DEVELOPER_ID_APP="{FAKE["VBX_DEVELOPER_ID_APP"]}"\n')
+        handle.write("VBX_NOTARY_PROFILE=test-notary-profile\n")
+        current = handle.name
+    try:
+        result = subprocess.run(
+            [str(PACKAGE), "--check"], capture_output=True, text=True,
+            env={**os.environ, "VBX_SIGNING_CONFIG": current})
+        check("a VBX_ config is not flagged", "pre-rename" not in result.stderr)
+    finally:
+        os.unlink(current)
+
+
+def test_cask_lint() -> None:
+    """brew style is the mechanical check that can run without a release."""
+    print("\nCask lint")
+    release = RELEASE.read_text()
+    check("release.sh has a --lint-cask mode", "--lint-cask) LINT_CASK=1" in release)
+    check("the template is rendered before linting, not linted raw",
+          "render_cask" in release)
+    check("the rendered release cask is linted too",
+          release.count("brew style") >= 2)
+    # brew audit takes a cask *name*, which only resolves for an installed tap.
+    check("audit is named rather than run", "brew audit --cask --new" in release)
+
+    if not shutil.which("brew"):
+        print("  skip  brew is not on the PATH")
+        return
+    result = subprocess.run([str(RELEASE), "--lint-cask"],
+                            capture_output=True, text=True, cwd=ROOT)
+    check("the cask passes brew style",
+          result.returncode == 0 and "no offenses detected" in result.stdout,
+          (result.stdout + result.stderr).strip()[-300:])
+
+
 def main() -> int:
     print("Packaging and signing tests")
     check("package-app.sh is executable", os.access(PACKAGE, os.X_OK))
@@ -858,6 +920,8 @@ def main() -> int:
     test_version_bump()
     test_release_notes()
     test_release_workflow()
+    test_stale_prefix_is_named()
+    test_cask_lint()
 
     print()
     if failures:
