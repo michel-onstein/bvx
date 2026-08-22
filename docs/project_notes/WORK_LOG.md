@@ -5,6 +5,59 @@ store was empty until 2026-08-21, so earlier entries carry no id.
 
 ---
 
+## 2026-08-22 — Per-segment tooltips, and one window per workspace
+
+`vbx-2wp`, `vbx-zlu`.
+
+**The view switcher's segments each name their view now** (`vbx-2wp`). The
+bead asked whether `.help` on the labels inside the picker reaches the
+segments. It does not: with a `.help` on all twelve labels,
+`toolTip(forSegment:)` is nil for every one, and the control's own tooltip is
+nil too. A segmented picker is one `NSSegmentedControl` and per-segment
+tooltips have no SwiftUI surface at all.
+
+Rather than the bead's fallback — replacing the picker with buttons, which
+costs its keyboard handling and system styling — the tooltips are written onto
+the control through the same AppKit-introspection pattern the column markers
+and link cursors already use. The search starts at the nearest ancestor
+holding a segmented control rather than at the window, because the toolbar has
+three of them and starting at the top would label the wrong one.
+
+**One window per workspace** (`vbx-zlu`). The store moved from the `App` to a
+per-window `WorkspaceWindow`. That is the whole change: `WindowGroup` always
+made several windows, they simply all rendered one store.
+
+Decisions the bead asked to be resolved, and how:
+
+- **The scene is keyed on the workspace path.** Free state restoration, and
+  `openWindow(value:)` raises the window already showing a path instead of
+  opening a second one — so a recents entry or a `vbx://` link goes to the
+  window that already has it.
+- **Commands act on the key window** through `@FocusedValue`, not a captured
+  store, and disable themselves when there is no focused window. A menu item
+  that silently acted on the wrong window would be worse than a disabled one.
+  The export sheet is focused the same way, so ⌘⇧E opens it on the window
+  being looked at.
+- **`RecentWorkspaces` became app-wide** (`.shared`). Where you have been
+  belongs to the person, not to one window, and every window writes the same
+  preferences key — without sharing, a workspace opened in one window would be
+  missing from the other's menu.
+- **The tutorial gets its own store.** It reads `surface` to highlight the
+  matching section, and following whichever window was last focused would make
+  it jump around while being read.
+
+**Left unresolved, deliberately:** the two Settings toggles — terminal keys and
+skip-Phase-2 — are still per-workspace, so Settings binds to the focused
+window and says so when there is none. They read like app preferences rather
+than workspace state and probably should become exactly that, but changing
+where they live is a separate decision from where the store lives.
+
+Multi-window behaviour itself is not assertable headlessly; what the tests pin
+is the property the change rests on — two stores share nothing: workspace,
+surface, filters, selection and navigation history are all per-store.
+
+---
+
 ## 2026-08-22 — Six beads: columns, label filters, and the first write path
 
 `vbx-zu2`, `vbx-lmj`, `vbx-ce2`, `vbx-s0k`, `vbx-jg8`, `vbx-z8a`.
