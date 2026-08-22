@@ -45,7 +45,6 @@ struct SidebarRecipesSection: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
         }
-        .task { await store.loadRecipes() }
         .sheet(isPresented: $isEditorPresented) {
             if let editing {
                 RecipeEditor(recipe: editing) { saved in
