@@ -7,5 +7,48 @@ edit.** The engineering-facing views live elsewhere:
 [BUGS.md](project_notes/BUGS.md) records a bug and the regression test locking
 it in, and [WORK_LOG.md](project_notes/WORK_LOG.md) records dated work.
 
-No releases yet. `scripts/version-bump.sh` cuts the first one; until then every
-build reports `0.0.0`, which sorts below any real tag.
+## 0.0.1 — 2026-08-22
+
+### Fixes
+
+- Land on a workspace, ship universal, and version from git ([#33](https://github.com/michel-onstein/vbx/pull/33))
+- Land the two distribution beads that existed only in a working tree ([#32](https://github.com/michel-onstein/vbx/pull/32))
+- File the release-versioning and generated-notes task ([#31](https://github.com/michel-onstein/vbx/pull/31))
+- Hand the priority cell its store, so scrolling the list cannot crash ([#29](https://github.com/michel-onstein/vbx/pull/29))
+- Load recipes when a workspace opens ([#30](https://github.com/michel-onstein/vbx/pull/30))
+- Show the licences vbx is obliged to ship, in an About window ([#27](https://github.com/michel-onstein/vbx/pull/27))
+- Record the single-edition decision as ADR-011 ([#26](https://github.com/michel-onstein/vbx/pull/26))
+- Name each view switcher segment, and give each window its workspace ([#25](https://github.com/michel-onstein/vbx/pull/25))
+- Implement six beads, including the first write to bead data ([#24](https://github.com/michel-onstein/vbx/pull/24))
+- Confine the hidden-column rule to the header, and add a recents menu ([#23](https://github.com/michel-onstein/vbx/pull/23))
+- Mark where columns are hidden, and unhide them on a double-click ([#22](https://github.com/michel-onstein/vbx/pull/22))
+- Let columns be hidden, and remember the layout ([#21](https://github.com/michel-onstein/vbx/pull/21))
+- Make the Open panel navigable, and record bead selection as navigation ([#20](https://github.com/michel-onstein/vbx/pull/20))
+- Reset filters when a different workspace is opened ([#19](https://github.com/michel-onstein/vbx/pull/19))
+- File the workspace-open filter reset task ([#17](https://github.com/michel-onstein/vbx/pull/17))
+- Licence the repo MIT, with an AI training rider ([#16](https://github.com/michel-onstein/vbx/pull/16))
+- Implement the five open beads ([#18](https://github.com/michel-onstein/vbx/pull/18))
+- File the bead-link affordance and view-history tasks ([#15](https://github.com/michel-onstein/vbx/pull/15))
+- Mint new beads as vbx-, and file the two list-column tasks ([#14](https://github.com/michel-onstein/vbx/pull/14))
+- Rename the project from bvx to vbx — Visual Beads ([#13](https://github.com/michel-onstein/vbx/pull/13))
+- Ignore .claude/ ([#12](https://github.com/michel-onstein/vbx/pull/12))
+- Record the two notarytool failures, and correct a stale README ([#11](https://github.com/michel-onstein/vbx/pull/11))
+- Distinguish "nothing to scan for" from "no config at all" ([#10](https://github.com/michel-onstein/vbx/pull/10))
+- Scan only the settings that are actually secret ([#9](https://github.com/michel-onstein/vbx/pull/9))
+- Ignore the files an editor leaves beside signing.env ([#8](https://github.com/michel-onstein/vbx/pull/8))
+- Add signed distribution: a notarized .dmg and an App Store .pkg ([#7](https://github.com/michel-onstein/vbx/pull/7))
+- Give bvx an app icon ([#5](https://github.com/michel-onstein/vbx/pull/5))
+- Track .beads/issues.jsonl ([#6](https://github.com/michel-onstein/vbx/pull/6))
+- Add list multi-selection, a row context menu, and an Open-panel guard ([#4](https://github.com/michel-onstein/vbx/pull/4))
+- Build the engine archive for the declared deployment target ([#3](https://github.com/michel-onstein/vbx/pull/3))
+- Restore .beads/.gitignore ([#2](https://github.com/michel-onstein/vbx/pull/2))
+- Implement the remainder of bvx: all 16 open beads ([#1](https://github.com/michel-onstein/vbx/pull/1))
+- Render bead descriptions as Markdown in the inspector
+- Bring repo in line with the global conventions
+- Add offscreen view snapshot tests
+- Add triage recommendations to bvx
+- Add Markdown report export to bvx
+- Add live reload and label analytics to bvx
+- Implement bvx: native macOS app over bv's Go engine
+- Add bvx design document and static HTML docs
+- Initial empty commit
