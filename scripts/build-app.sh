@@ -5,6 +5,14 @@
 #   ./scripts/build-app.sh              # debug build
 #   ./scripts/build-app.sh --release    # optimised
 #   ./scripts/build-app.sh --run        # build, then open the demo fixture
+#   ./scripts/build-app.sh --universal  # arm64 + x86_64 in both binaries
+#
+# --universal roughly doubles the build: the engine archive is built twice and
+# lipo'd, and SwiftPM compiles and links each product for both architectures.
+# That is why the host-only build stays the default for development and why the
+# universal check is not in CLAUDE.md's verify block — it is implied by every
+# distribution build instead, where the cost is paid once and shipping an
+# arm64-only app would reach a user.
 #
 # Distribution builds — see scripts/package-app.sh, which these hand off to:
 #
@@ -21,12 +29,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG=debug
 RUN=0
+UNIVERSAL=0
 PACKAGE_ARGS=()
 
 for arg in "$@"; do
   case "$arg" in
     --release) CONFIG=release ;;
     --run) RUN=1 ;;
+    --universal) UNIVERSAL=1 ;;
     # Forwarded verbatim. The signing configuration and the redaction that
     # keeps account identifiers out of the log both live in one place rather
     # than being half-implemented here as well.
@@ -42,25 +52,85 @@ if [[ ${#PACKAGE_ARGS[@]} -gt 0 && "$CONFIG" != release ]]; then
   CONFIG=release
 fi
 
-cd "$ROOT"
-
-if [[ ! -f Engine/build/libvbxengine.a ]]; then
-  echo "==> Engine archive missing; building it first"
-  ./scripts/build-engine.sh
+# ...and it is always universal. An arm64-only app does not run on an Intel Mac
+# at all — Rosetta translates x86_64 to arm64, not the reverse — so a .dmg built
+# without this excludes half the Macs, silently, and only the user finds out.
+if [[ ${#PACKAGE_ARGS[@]} -gt 0 && $UNIVERSAL -eq 0 ]]; then
+  echo "==> Distribution build implies --universal"
+  UNIVERSAL=1
 fi
 
-echo "==> Building vbx ($CONFIG)"
-swift build -c "$CONFIG" --product vbx
-swift build -c "$CONFIG" --product vbx-cli
+cd "$ROOT"
 
-BIN_DIR="$ROOT/.build/$CONFIG"
+ARCH_ARGS=()
+if [[ $UNIVERSAL -eq 1 ]]; then
+  ARCH_ARGS=(--arch arm64 --arch x86_64)
+fi
+
+# The archive has to carry both slices before the Swift link can, so a host-only
+# archive left over from a development build is rebuilt rather than linked
+# against — the failure it causes otherwise is a linker error about a missing
+# architecture, a long way from the flag that caused it.
+if [[ ! -f Engine/build/libvbxengine.a ]]; then
+  echo "==> Engine archive missing; building it first"
+  if [[ $UNIVERSAL -eq 1 ]]; then
+    ./scripts/build-engine.sh --universal
+  else
+    ./scripts/build-engine.sh
+  fi
+elif [[ $UNIVERSAL -eq 1 ]] && ! lipo -archs Engine/build/libvbxengine.a | grep -q x86_64; then
+  echo "==> Engine archive is host-only; rebuilding it universal"
+  ./scripts/build-engine.sh --universal
+fi
+
+LABEL="$CONFIG"
+if [[ $UNIVERSAL -eq 1 ]]; then LABEL="$CONFIG, universal"; fi
+echo "==> Building vbx ($LABEL)"
+swift build -c "$CONFIG" "${ARCH_ARGS[@]+"${ARCH_ARGS[@]}"}" --product vbx
+swift build -c "$CONFIG" "${ARCH_ARGS[@]+"${ARCH_ARGS[@]}"}" --product vbx-cli
+
+# Asked rather than assumed: with several `--arch` flags SwiftPM writes to
+# .build/apple/Products/<Config> instead of .build/<config>, and a hardcoded
+# path would quietly bundle the previous host-only binaries.
+BIN_DIR="$(swift build -c "$CONFIG" "${ARCH_ARGS[@]+"${ARCH_ARGS[@]}"}" --show-bin-path)"
 APP="$ROOT/.build/vbx.app"
+
+# Stamped from the git tag, never written down here. See scripts/version.sh for
+# why: the app, the .dmg filename and a Homebrew cask all have to agree, and a
+# literal in this file is what makes them drift.
+VERSION="$("$ROOT/scripts/version.sh")"
+BUILD_NUMBER="$("$ROOT/scripts/version.sh" --build)"
+echo "==> Version $VERSION ($BUILD_NUMBER)"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 cp "$BIN_DIR/vbx" "$APP/Contents/MacOS/vbx"
 cp "$BIN_DIR/vbx-cli" "$APP/Contents/MacOS/vbx-cli"
+
+# assert_binary_slices checks the artefact, not the flag.
+#
+# The same reasoning as build-engine.sh's assert_archive_target: "--universal
+# was passed" and "--universal took effect" are different claims, and only the
+# second one is what ships. Both binaries are checked — vbx-cli is installed
+# onto the user's PATH, so an arm64-only CLI inside a universal app is just the
+# same bug one level down.
+assert_binary_slices() {
+  local binary="$1" archs
+  archs="$(lipo -archs "$binary" 2>/dev/null || true)"
+  if [[ $UNIVERSAL -eq 1 ]]; then
+    for want in arm64 x86_64; do
+      if [[ " $archs " != *" $want "* ]]; then
+        echo "$(basename "$binary") is missing the $want slice (got: ${archs:-none})" >&2
+        exit 1
+      fi
+    done
+  fi
+  echo "  $(basename "$binary"): $archs"
+}
+
+assert_binary_slices "$APP/Contents/MacOS/vbx"
+assert_binary_slices "$APP/Contents/MacOS/vbx-cli"
 
 if [[ -f "$ROOT/Resources/vbx.icns" ]]; then
   cp "$ROOT/Resources/vbx.icns" "$APP/Contents/Resources/vbx.icns"
@@ -95,8 +165,10 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleExecutable</key>      <string>vbx</string>
     <key>CFBundleIconFile</key>        <string>vbx</string>
     <key>CFBundlePackageType</key>     <string>APPL</string>
-    <key>CFBundleShortVersionString</key> <string>0.1.0</string>
-    <key>CFBundleVersion</key>         <string>1</string>
+    <!-- Both are overwritten from the git tag immediately below; these
+         placeholders exist only so the keys are present and typed. -->
+    <key>CFBundleShortVersionString</key> <string>0.0.0</string>
+    <key>CFBundleVersion</key>         <string>0</string>
     <key>LSMinimumSystemVersion</key>  <string>14.0</string>
     <!-- Required for an App Store submission, and harmless otherwise. -->
     <key>LSApplicationCategoryType</key> <string>public.app-category.developer-tools</string>
@@ -117,11 +189,17 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" \
+  "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" \
+  "$APP/Contents/Info.plist"
+
 # Ad-hoc signature so the app launches locally without a Developer ID.
 #
 # Skipped for a distribution build: package-app.sh signs a staged copy with a
 # real certificate, and an ad-hoc signature here would only be thrown away.
 if [[ ${#PACKAGE_ARGS[@]} -eq 0 ]]; then
+  codesign --force --sign - "$APP/Contents/MacOS/vbx-cli" 2>/dev/null || true
   codesign --force --sign - "$APP" 2>/dev/null || \
     echo "  (ad-hoc signing skipped)"
 fi

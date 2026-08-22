@@ -65,7 +65,11 @@ struct WorkspaceWindow: View {
             .focusedSceneValue(\.projectStore, store)
             .task {
                 if let path {
-                    await store.open(path: path)
+                    // Not `open(path:)`: a restored window's workspace is not
+                    // something the user chose this launch, so one that has
+                    // since moved lands in the neutral empty state instead of
+                    // reporting an error nobody asked for.
+                    await store.openRestoredWorkspace(path: path)
                 } else {
                     await store.openInitialWorkspace()
                     // Record what the window landed on, so reopening it later

@@ -13,6 +13,7 @@ same functionality, the same metrics, and the same agent-facing JSON protocol.
 |---|---|
 | [**vbx Design Document**](VBX_DESIGN.md) | The full architecture: engine reuse decision, C ABI bridge, data model, analysis pipeline, UI design, graph rendering, robot protocol, build and distribution, delivery plan, risks |
 | [**Feature Parity Matrix**](FEATURE_PARITY.md) | Every `bv` capability mapped to its `vbx` surface, mechanism, and delivery phase — plus the deliberate divergences |
+| [**Releases**](RELEASES.md) | What changed for someone using the app, newest release first — generated from the git tags |
 
 ## The one-paragraph version
 

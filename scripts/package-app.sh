@@ -89,6 +89,18 @@ if [[ -f "$CONFIG_FILE" ]]; then
   [[ -n "$_env_as_app" ]]  && VBX_APP_STORE_APP="$_env_as_app"
   [[ -n "$_env_as_inst" ]] && VBX_APP_STORE_INSTALLER="$_env_as_inst"
   [[ -n "$_env_profile" ]] && VBX_PROVISION_PROFILE="$_env_profile"
+
+  # A config written before the bvx -> vbx rename defines BVX_* keys, which
+  # nothing reads. Every channel then reports itself unconfigured, which reads
+  # as "not set up yet" rather than "set up under the old name" — so the file
+  # sits there, complete and ignored. Naming it costs one grep and turns a
+  # silent dead end into a one-line fix.
+  if grep -qE '^[[:space:]]*(export[[:space:]]+)?BVX_' "$CONFIG_FILE"; then
+    echo "error: ${CONFIG_FILE##*/} uses the pre-rename BVX_ prefix; the scripts read VBX_." >&2
+    echo "  The project was renamed from bvx to vbx, and these keys are ignored." >&2
+    echo "  Fix it in place:  sed -i '' 's/^\\([[:space:]]*\\)BVX_/\\1VBX_/' \"$CONFIG_FILE\"" >&2
+    exit 1
+  fi
 fi
 
 TEAM_ID="${VBX_TEAM_ID:-}"

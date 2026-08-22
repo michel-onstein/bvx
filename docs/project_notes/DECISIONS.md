@@ -384,3 +384,143 @@ never about Pro:
 
 Not selling the software removes the sharpest version of that exposure — a
 purchase we could not refuse — but not the question itself.
+
+---
+
+## ADR-012 — Distribution ships universal, and the cask lives in a personal tap
+
+**Date:** 2026-08-22 · **Status:** Accepted
+
+**Context.** vbx built for the host architecture only, so a `.dmg` cut on an
+Apple-silicon machine produced an app that will not launch on an Intel Mac at
+all — `lipo -archs` on the bundle reported `arm64` and nothing else. Rosetta
+does not cover this: it translates x86_64 to arm64, not the reverse. Half of the
+work already existed, in that `build-engine.sh --universal` had been written and
+never wired up; the Swift build and the packaging path simply never asked for
+it.
+
+At the same time `brew install --cask vbx` was wanted, and a cask cannot be
+written against a version that is a literal in a build script.
+
+**Decision.**
+
+- **Every distribution build is universal**, implied by `--dmg`, `--app-store`
+  and `--sign` in the same way and for the same reason those already imply
+  `--release`. `--universal` exists as a flag for a deliberate local check;
+  development builds stay host-only because it roughly doubles the build.
+- **The version comes from the git tag, and the tag is the version.**
+  `scripts/version.sh` reads `0.2.0` — no `v` — straight into
+  `CFBundleShortVersionString`, with the commit count as `CFBundleVersion`. The
+  `v` is a widespread git convention, but it is a prefix that then has to be
+  removed at every point of use: the plist, the `.dmg` filename and the cask's
+  `version`, each a place the strip can be forgotten. Dropping it removes the
+  class of mistake, so `release.sh` refuses `--tag v0.2.0` rather than quietly
+  accepting and stripping it.
+- **The cask goes to a personal tap**, `michel-onstein/homebrew-tap`, not to
+  `homebrew/homebrew-cask`.
+
+**Why a personal tap.** `homebrew-cask`'s acceptance criteria require a track
+record — a notable user base, stable versioning, a maintained upstream. A newly
+published app is normally rejected, so submitting now spends a review cycle on a
+predictable no. A tap costs one repository and gives the same two commands:
+
+```
+brew tap michel-onstein/tap
+brew install --cask vbx
+```
+
+**Consequences.**
+
+- **Build time roughly doubles for a release**, and the engine archive is 51 MB
+  per slice. Paid once per release, which is the right place to pay it.
+- **The flag is not the artefact.** `lipo -archs` is asserted on both binaries
+  in the bundle — `vbx` and `vbx-cli`, since the CLI is installed onto the
+  user's PATH — rather than trusting that `--universal` took effect. This is the
+  same distinction `assert_archive_target` already draws for the deployment
+  target, and it caught a real failure: `lipo` strips the linker's ad-hoc
+  signature when it fuses slices, so the bundle's own signing had to move to
+  signing nested code first.
+- **Notarization stops being optional on the release path.** A cask installing
+  an un-notarized app gives every user a Gatekeeper block, so `release.sh`
+  refuses `--no-notarize` and fails if the ticket did not staple.
+- **`zap` cannot reach the Keychain.** A cask can trash preferences, saved
+  state and caches, but the deploy credentials in `com.qjam.vbx` need
+  `security delete-generic-password`. The cask's `caveats` say so rather than
+  leaving an uninstall quietly incomplete.
+- **The last check cannot be run here.** `brew install --cask` on a machine
+  that has never seen the build, confirming it launches without a Gatekeeper
+  prompt, needs a published release and a clean Mac.
+- **`brew style` is what can be run, and it earns its place.**
+  `./scripts/release.sh --lint-cask` renders the template with a placeholder
+  checksum and styles it; on its first run it rejected four things: a missing
+  frozen-string comment, the word "macOS" in a cask description (every cask is
+  macOS), mis-grouped stanzas, and an unsorted `zap` array. None needed a build
+  to find. `brew audit` is *not* run: it takes a cask name, which only resolves
+  for an installed tap, and installing one inside a linter writes into the
+  user's Homebrew prefix. It belongs to the tap repository's own CI.
+
+---
+
+## ADR-013 — The version bump comes from a PR label, and the notes from the tags
+
+**Date:** 2026-08-22 · **Status:** Accepted
+
+**Context.** Every build vbx had ever produced claimed to be version 0.1.0,
+build 1: both were literals in `build-app.sh`'s plist heredoc, nothing bumped
+them, and there were no git tags at all. So there was no way to answer "which
+build is this?" — not from the About window, not from a `.dmg` filename, not
+from git. [ADR-012](#adr-012--distribution-ships-universal-and-the-cask-lives-in-a-personal-tap)
+made that urgent rather than untidy: a Homebrew cask cannot be written against a
+version a script carries as a literal.
+
+The obvious implementation reads Conventional Commits off the merge commit.
+**That does not work here.** This repository's subjects are deliberately prose —
+"Hand the priority cell its store, so scrolling the list cannot crash (#29)" —
+and a `feat:`/`fix:` parser classifies every one of the 38 commits as no bump.
+Adopting the prefixes would overwrite a house style the log has held from the
+beginning, for the convenience of a script.
+
+**Decision.**
+
+- **The bump level is a `semver:major` / `semver:minor` / `semver:patch` label
+  on the pull request.** Every change lands here squash-merged — every subject
+  ends in `(#N)` — so the PR is a reliable handle, and the label is set during
+  review, by someone who knows what the change is.
+- **A missing label defaults to patch, and the script says which rule fired.**
+- **Before 1.0.0 a breaking change bumps MINOR.** Promoting to 1.0.0 is a
+  decision about the software being finished, not one a label should make.
+- **The label is read once and written into the annotated tag.** Everything
+  downstream reads git alone.
+- **`docs/RELEASES.md` is generated** from those tags, newest first, grouped
+  into Features and Fixes.
+
+**Why the tag carries the label.** It is what makes `--check` offline. A check
+that reached GitHub would fail on a plane and pass in CI, which is worse than
+not having one — and every other script here (`build-engine.sh`,
+`build-icon.sh`, `build-notices.py`) has a `--check` that belongs in the verify
+block. Recording the decision at the moment it is made also means a later
+relabelling cannot silently rewrite history.
+
+**Considered and rejected.**
+
+- **A commit trailer (`Semver: minor`).** Survives outside GitHub, but has to be
+  remembered at commit time and cannot be corrected during review, which is
+  exactly when the level is actually known.
+- **Adopting Conventional Commits.** Cheapest to automate, and it costs the
+  thing the log is for. CLAUDE.md's own guidance is that a subject should say
+  what changed and why.
+
+**Consequences.**
+
+- **`RELEASES.md` must not become a fourth copy.** `BUGS.md` keeps a bug and its
+  regression test; `WORK_LOG.md` keeps dated engineering work. `RELEASES.md` is
+  the user-facing view and says nothing about implementation.
+- **The bump has to be idempotent**, because pushing the release-notes commit
+  re-triggers the workflow that made it. A commit that is already tagged is a
+  no-op, which is the whole of the loop guard.
+- **The labels do not exist yet.** `semver:major`, `semver:minor` and
+  `semver:patch` need creating on the repository; until they do, every release
+  is a patch and the script says so on every run.
+- **This is the repository's first GitHub Actions workflow.** It only tags and
+  records; nothing is built, signed or published on a runner, because no runner
+  here holds the signing identity.

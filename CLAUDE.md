@@ -15,6 +15,7 @@ box, the README title.
 |---|---|---|---|
 | [VBX_DESIGN.md](docs/VBX_DESIGN.md) | ADR-001 | Architecture: engine reuse, C ABI bridge, data model, UI, distribution | Built |
 | [FEATURE_PARITY.md](docs/FEATURE_PARITY.md) | — | Every bv capability mapped to a vbx surface and delivery phase | Living |
+| [RELEASES.md](docs/RELEASES.md) | ADR-013 | User-facing changes per release — generated from the git tags, never edited | Generated |
 | [project_notes/BUGS.md](docs/project_notes/BUGS.md) | — | Bug log with the regression test locking each fix in | Living |
 | [project_notes/DECISIONS.md](docs/project_notes/DECISIONS.md) | ADR-001…011 | Architectural decisions and their trade-offs | Living |
 | [project_notes/KEY_FACTS.md](docs/project_notes/KEY_FACTS.md) | — | Toolchain, commands, layout, gotchas | Living |
@@ -62,6 +63,32 @@ them.
 - **Tests that write into a workspace use `Fixture.writableStore()`**, which
   copies the fixture to a temporary directory. Swift Testing runs tests in
   parallel, and two writing to the shared fixture interfere.
+- **The version is the git tag, never a literal, and the tag carries no `v`.**
+  `scripts/version.sh` is the only source: the tag `0.2.0` *is*
+  `CFBundleShortVersionString`, and the commit count becomes `CFBundleVersion`.
+  Three things have to agree — the app, the `.dmg` filename and a Homebrew
+  cask's `version` — and a cask that disagrees with what the app reports cannot
+  be upgraded. A `v` prefix is three more places to forget the strip, so
+  `release.sh` refuses `--tag v0.2.0` rather than accepting and stripping it.
+- **The bump level comes from a `semver:*` PR label, not the commit subject.**
+  Subjects here are prose, so a Conventional Commits parser reads every one of
+  them as "no bump". `scripts/version-bump.sh` reads the label once, records it
+  in the annotated tag, and everything downstream reads git alone — which is why
+  `release-notes.py --check` is offline enough for the verify block. A missing
+  label defaults to patch **and says which rule fired**; a silent default is how
+  a feature ships as a patch. Before 1.0.0, a breaking change bumps MINOR. See
+  ADR-013.
+- **Every distribution build is universal**, implied by `--dmg`, `--app-store`
+  and `--sign` just as they already imply `--release`. Check the *artefact*, not
+  the flag: `lipo -archs` on both binaries in the bundle, the same distinction
+  `assert_archive_target` draws for the deployment target. `lipo` strips the
+  linker's ad-hoc signature, which is why nested code is signed before the
+  bundle. See ADR-012.
+- **Launch discovery probes; it never opens to find out.** `loadError` means the
+  user pointed at something and it did not work. A candidate found by discovery
+  — the recents list, the current directory, a restored window's path — is
+  skipped when it does not probe openable, so a launch with nothing to open
+  lands in the neutral empty state. Only an explicit choice reports a failure.
 - **Triage includes a bounded git-history walk**, because bv's does and it
   moves the scores. It is capped at 200 commits with a 10 s timeout, and
   reports `history_status` so an absent staleness signal is distinguishable
@@ -73,6 +100,8 @@ them.
 ./scripts/build-engine.sh --check   # Go archive + C ABI smoke test
 ./scripts/build-icon.sh --check     # committed .icns + README PNG are intact
 python3 scripts/build-notices.py --check  # every dependency is acknowledged
+python3 scripts/test-packaging.py   # signing, redaction, universal, version, cask
+python3 scripts/release-notes.py --check  # docs/RELEASES.md matches the tags
 swift test                          # Swift suite
 cd Engine/bridge && go test ./...   # Go suite
 gofmt -l Engine/bridge              # must print nothing

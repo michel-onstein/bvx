@@ -5,6 +5,85 @@ store was empty until 2026-08-21, so earlier entries carry no id.
 
 ---
 
+## 2026-08-22 — Versions advance from a PR label, and the notes generate themselves
+
+`vbx-xi1`. Picked up after the session that filed it left no worktree and no
+branch. It overlaps the version work above deliberately: `scripts/version.sh`
+had already made the tag the single source, so what was left was deciding the
+next tag and turning the tags into something a user can read.
+
+The decision that shaped it: the bump level cannot come from the commit
+subject. Subjects here are prose by house style, and a Conventional Commits
+parser reads all 38 of them as no bump. So the level is a `semver:*` label on
+the PR — set during review, when the person setting it knows what the change is
+— read once by `scripts/version-bump.sh` and written into the annotated tag.
+Everything after that reads git alone, which is what lets
+`release-notes.py --check` sit in the verify block without reaching the network.
+
+A missing label is a patch *and a printed line saying so*; a silent default is
+how a feature ships as a patch. Before 1.0.0 a breaking change bumps MINOR.
+
+`docs/RELEASES.md` is generated, user-facing, and deliberately not a fourth copy
+of BUGS.md and WORK_LOG.md. `.github/workflows/release.yml` — this repository's
+first workflow — runs the bump on merge and nothing else; it is idempotent
+because pushing its own release-notes commit re-triggers it. The `semver:*`
+labels still need creating on GitHub. See ADR-013.
+
+---
+
+## 2026-08-22 — Universal builds, a version from the tag, and a cask to paste
+
+`vbx-ttx`, `vbx-j3o`. Two beads that turned out to be one piece of work: a
+Homebrew cask cannot be written until the artefact it points at is both
+installable everywhere and versioned by something other than a literal.
+
+`lipo -archs` on the built app reported `arm64` and nothing else, so the `.dmg`
+would not have launched on an Intel Mac at all. Half the fix already existed and
+had never been wired up — `build-engine.sh --universal` was written, and nothing
+passed it. Now `--universal` reaches SwiftPM as `--arch arm64 --arch x86_64` for
+both products, distribution builds imply it, and both binaries in the bundle are
+checked with `lipo -archs` rather than trusted to the flag. That check earned
+itself immediately: `lipo` strips the linker's ad-hoc signature when it fuses
+the slices, so the local signing step had been failing silently and the bundle's
+nested CLI now gets signed first.
+
+`CFBundleShortVersionString` was the literal `0.1.0`. `scripts/version.sh` reads
+the git tag instead, with the commit count as the build number, and refuses a
+release from a dirty tree or a HEAD that has moved past its tag.
+
+`scripts/release.sh` runs the whole path — tag, universal build, notarize,
+verify the ticket stapled, checksum, render the cask — and prints the stanza
+ready to paste. Nothing has been published: there is no tagged release and no
+tap repository, so `brew install --cask vbx` does not work yet. That is
+deliberate and it is written down in the design doc's status rather than implied
+by the presence of the script. See ADR-012.
+
+Chased the remaining blockers afterwards rather than leaving them as a list.
+`--lint-cask` runs `brew style` on the rendered cask without a build, and found
+four real offences the first time: a missing frozen-string comment, "macOS" in a
+cask description, mis-grouped stanzas, an unsorted `zap` array. `brew audit`
+deliberately is not run — it takes a cask name, which needs an installed tap.
+
+And the reason `package-app.sh --check` reported nothing configured turned out
+not to be a missing certificate: `scripts/signing.env` still used the pre-rename
+`BVX_` prefix and had been inert since #13. Repaired, with a check that names
+the stale prefix instead of falling through to "unconfigured". The Developer ID
+certificate was in the keychain all along. What is genuinely still missing is
+the notary profile — `xcrun notarytool store-credentials` needs an Apple ID —
+and the tap repository.
+
+---
+
+## 2026-08-22 — Launch stopped opening onto an error
+
+`vbx-jo9`. Launching from the Dock always showed "Could not open workspace",
+because discovery ended at the current directory and a GUI app's is `/`.
+Candidates are probed now rather than opened, the recents list joined the order,
+and a launch with nothing to discover lands in the neutral empty state. The
+error state is unchanged for anything the user actually chose. See BUGS.md.
+
+---
+
 ## 2026-08-22 — The bead list crashed when scrolled
 
 Reported as "vbx crashes when opening workspace of1". It was not about that

@@ -4,6 +4,113 @@ Found-and-fixed issues, with the regression test that locks each fix in.
 
 ---
 
+## 2026-08-22 — The signing config had been dead since the rename, and said nothing
+
+**Symptom:** `./scripts/package-app.sh --check` reported *"no distribution
+channel is configured. Copy scripts/signing.env.example to scripts/signing.env,
+or export the settings."* — with a complete, filled-in `scripts/signing.env`
+sitting right there, all seven keys set.
+
+**Cause:** the project was renamed from bvx to vbx in #13. The scripts were
+renamed with it; the local config file was not. Every key in it was still
+`BVX_TEAM_ID`, `BVX_DEVELOPER_ID_APP` and so on, and nothing reads those. The
+file is `source`d, so the assignments succeeded — they just landed on variables
+no one looks at.
+
+What made it survive so long is the *wording of the failure*. "No distribution
+channel is configured" reads as "you have not set this up yet", so the natural
+response is to go and set it up, find the file already correct, and conclude the
+check is about something else. A message can be accurate and still point away
+from the cause.
+
+It also made a real capability look absent: with the prefix fixed, `--check`
+reports **"Developer ID cert — in the keychain"**. The certificate had been
+there the whole time.
+
+**Fix:** the config loader greps for `^BVX_` and refuses with the actual
+diagnosis and the one-line `sed` that repairs it, rather than falling through to
+the generic "unconfigured" path. The local `signing.env` was repaired with that
+exact command (original kept as `signing.env.bvx-backup`).
+
+**Prevention:** `test-packaging.py` drives `--check` with a fabricated `BVX_`
+config and asserts it is rejected *by name* — and with a `VBX_` one, asserting
+it is not flagged, so the guard cannot start firing on a correct file.
+
+---
+
+## 2026-08-22 — The first host build after a universal one refused to run
+
+**Symptom:** `./scripts/build-engine.sh` failed with
+
+```
+build output ".../Engine/build/libvbxengine.a" already exists and is not an object file
+```
+
+Found while running the verify block immediately after a `--universal` build,
+which is exactly when a person would hit it: the flag is new, so the state it
+leaves behind is new too.
+
+**Cause:** `go build -o` will overwrite an object file it produced, and refuses
+anything else. A universal archive is a *fat* file rather than an object file,
+so once `--universal` had written one, every subsequent host-only build stopped
+on it. The error names the archive, not the flag that produced it, so the
+obvious reading — a corrupt build directory — is wrong.
+
+Latent before today in that `--universal` existed; unreachable in practice
+because nothing called it. Wiring it into every distribution build is what made
+it a normal thing to hit.
+
+**Fix:** `build_slice` removes its target first. The universal path already
+overwrote through `lipo -create`, which has no such restriction, so only the
+host path needed it — but it is done in `build_slice` so both are covered.
+
+**Prevention:** `test-packaging.py` asserts the archive is cleared before the
+slice is built.
+
+---
+
+## 2026-08-22 — Every launch from the Dock opened onto an error
+
+**Symptom:** launching vbx from the Dock or Finder showed **"Could not open
+workspace"** with an error triangle, every time, before the user had asked for
+anything. Launching it from a terminal that happened to be sitting in a
+workspace worked, which is how it had been tested and why it was not caught.
+
+**Cause:** `openInitialWorkspace()` tried a path argument, then `VBX_WORKSPACE`,
+then `FileManager.default.currentDirectoryPath` — and *opened* each rather than
+asking whether it could be opened. A GUI app launched from Finder or the Dock
+has a current directory of `/`, which holds no `.beads`, so the third candidate
+always failed, set `loadError`, and the error state won over the neutral "No
+workspace open" state sitting a few lines below it in `ContentView`. It also
+never consulted the recents list, although `RecentWorkspaces.shared` already
+held exactly "the last workspace opened".
+
+The distinction that had been lost: **"nothing to open yet" is not "what you
+asked for failed."** `loadError` should mean the user pointed at something and
+it did not work.
+
+**Fix:** candidates are *probed* — `BeadsEngine.probe`, the same discovery code
+the Open panel greys rows with — rather than opened, so a dead candidate is
+skipped instead of producing an error. The order gained the recents list: a path
+argument, `VBX_WORKSPACE`, the recent workspaces, then the current directory.
+When none probes openable, nothing opens and `loadError` stays nil, so the
+existing empty state appears on its own with its Choose Workspace… button. No
+new UI was needed.
+
+Two neighbours moved with it. A restored window goes through
+`openRestoredWorkspace(path:)`, which probes for the same reason — being told a
+folder you did not choose this session has vanished is the same unhelpful error,
+one launch later. And a path the user *named* on the command line or in
+`VBX_WORKSPACE` still reports why it failed, provided it exists: a stray launch
+argument (`YES`, left behind by `-NSDocumentRevisionsDebugMode`) names nothing
+and must stay silent.
+
+**Prevention:** `LaunchDiscoveryTests` — ten cases, including the guard against
+over-correcting: `open(path:)` on a folder holding no beads must still set
+`loadError`, or a fix here could quietly make every failure silent.
+
+---
+
 ## 2026-08-22 — Scrolling the bead list crashed the app
 
 **Symptom:** open a workspace with more beads than fit in the window, scroll the

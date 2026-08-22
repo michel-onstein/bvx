@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>vbx Documentation</title>
+<title>Releases</title>
 <style>
 :root {
   --bg: #ffffff;
@@ -188,17 +188,11 @@ pre.mermaid svg { max-width: 100%; height: auto; }
 <div class="shell">
   <aside class="nav">
     <div class="brand"><span class="dot"></span> vbx docs</div>
-    <nav><a href="README.html" class="current">vbx Documentation</a><a href="VBX_DESIGN.html">vbx — Design Document</a><a href="FEATURE_PARITY.html">vbx — Feature Parity Matrix</a><a href="RELEASES.html">Releases</a></nav>
+    <nav><a href="README.html">vbx Documentation</a><a href="VBX_DESIGN.html">vbx — Design Document</a><a href="FEATURE_PARITY.html">vbx — Feature Parity Matrix</a><a href="RELEASES.html" class="current">Releases</a></nav>
     <div class="toc-head">On this page</div>
     <nav class="toc"><div class="toc">
 <ul>
-<li><a href="#vbx-documentation">vbx Documentation</a><ul>
-<li><a href="#documents">Documents</a></li>
-<li><a href="#the-one-paragraph-version">The one-paragraph version</a></li>
-<li><a href="#reading-order">Reading order</a></li>
-<li><a href="#static-html">Static HTML</a></li>
-</ul>
-</li>
+<li><a href="#releases">Releases</a></li>
 </ul>
 </div>
 </nav>
@@ -206,72 +200,16 @@ pre.mermaid svg { max-width: 100%; height: auto; }
   </aside>
   <main id="content" class="page">
     <article class="prose">
-<h1 id="vbx-documentation"><a class="toclink" href="#vbx-documentation">vbx Documentation</a></h1>
-<p><strong>vbx</strong> is a native macOS implementation of <a href="https://github.com/Dicklesworthstone/beads_viewer"><code>bv</code> (Beads Viewer)</a> —
-a dependency-graph-aware viewer for <strong>beads</strong> issue stores.</p>
-<p>Where <code>bv</code> is a Bubble Tea terminal UI, <code>vbx</code> is a SwiftUI/AppKit application: document-based,
-multi-window, menu-driven, with hit-testable graph rendering and native charts. It keeps the
-same functionality, the same metrics, and the same agent-facing JSON protocol.</p>
-<h2 id="documents"><a class="toclink" href="#documents">Documents</a></h2>
-<div class="table-wrap"><table>
-<thead>
-<tr>
-<th>Document</th>
-<th>What it covers</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><a href="VBX_DESIGN.html"><strong>vbx Design Document</strong></a></td>
-<td>The full architecture: engine reuse decision, C ABI bridge, data model, analysis pipeline, UI design, graph rendering, robot protocol, build and distribution, delivery plan, risks</td>
-</tr>
-<tr>
-<td><a href="FEATURE_PARITY.html"><strong>Feature Parity Matrix</strong></a></td>
-<td>Every <code>bv</code> capability mapped to its <code>vbx</code> surface, mechanism, and delivery phase — plus the deliberate divergences</td>
-</tr>
-<tr>
-<td><a href="RELEASES.html"><strong>Releases</strong></a></td>
-<td>What changed for someone using the app, newest release first — generated from the git tags</td>
-</tr>
-</tbody>
-</table></div>
-<h2 id="the-one-paragraph-version"><a class="toclink" href="#the-one-paragraph-version">The one-paragraph version</a></h2>
-<p><code>bv</code> is about 85,000 lines of Go, of which roughly 34,000 are terminal UI and 50,000 are a
-platform-neutral engine: tolerant JSONL/SQLite loading, a two-phase graph analyser computing
-nine metrics with per-metric deadlines and status reporting, git↔bead correlation, search,
-and export. <code>vbx</code> <strong>reuses that engine unmodified</strong> — compiled with <code>go build -buildmode=c-archive</code>
-and packaged as <code>BeadsEngine.xcframework</code> behind a deliberately tiny C ABI — and replaces only
-the UI layer with native Swift. That gives exact numerical parity with upstream by construction,
-makes tracking new <code>bv</code> releases a submodule bump, and confines new code to the part that
-actually benefits from being native.</p>
-<div class="mermaid-wrap"><pre class="mermaid">flowchart LR
-    classDef n fill:#f5f3ff,stroke:#a78bfa,stroke-width:2px,color:#5b21b6,rx:8
-    classDef b fill:#fffbeb,stroke:#fcd34d,stroke-width:2px,color:#92400e,rx:8
-    classDef g fill:#ecfeff,stroke:#67e8f9,stroke-width:2px,color:#155e75,rx:8
-    classDef d fill:#f0fdf4,stroke:#86efac,stroke-width:2px,color:#166534,rx:8
-
-    UI[&quot;SwiftUI + AppKit&lt;br/&gt;&lt;i&gt;rewritten&lt;/i&gt;&quot;]:::n
-    BR[&quot;C ABI bridge&lt;br/&gt;&lt;i&gt;new, minimal&lt;/i&gt;&quot;]:::b
-    EN[&quot;bv Go engine&lt;br/&gt;&lt;i&gt;reused verbatim&lt;/i&gt;&quot;]:::g
-    DA[&quot;.beads/ · beads.db · .git&quot;]:::d
-
-    UI --&gt; BR --&gt; EN --&gt; DA</pre></div>
-<h2 id="reading-order"><a class="toclink" href="#reading-order">Reading order</a></h2>
-<ol>
-<li><a href="VBX_DESIGN.html#1-summary">Design doc §1–4</a> — what <code>bv</code> is and why the engine is reused</li>
-<li><a href="VBX_DESIGN.html#5-system-architecture">§5–9</a> — architecture, bridge, model, data flow</li>
-<li><a href="VBX_DESIGN.html#10-user-interface-design">§10–12</a> — the UI, graph rendering, search</li>
-<li><a href="VBX_DESIGN.html#13-robot-protocol-cli-and-automation">§13–17</a> — agents, exports, performance, testing, distribution</li>
-<li><a href="VBX_DESIGN.html#18-delivery-plan">§18–20</a> — plan, risks, open questions</li>
-<li><a href="FEATURE_PARITY.html">Parity matrix</a> — the checklist</li>
-</ol>
-<h2 id="static-html"><a class="toclink" href="#static-html">Static HTML</a></h2>
-<p>A rendered, self-contained HTML version of these documents lives in <a href="index.html"><code>html/</code></a>.
-Regenerate it with:</p>
-<pre><code class="language-bash">python3 scripts/build-docs.py
-</code></pre>
+<h1 id="releases"><a class="toclink" href="#releases">Releases</a></h1>
+<p>What changed for someone using Visual Beads, newest release first.</p>
+<p><strong>Generated by <code>scripts/release-notes.py</code> from the annotated git tags — do not
+edit.</strong> The engineering-facing views live elsewhere:
+<a href="project_notes/BUGS.html">BUGS.md</a> records a bug and the regression test locking
+it in, and <a href="project_notes/WORK_LOG.html">WORK_LOG.md</a> records dated work.</p>
+<p>No releases yet. <code>scripts/version-bump.sh</code> cuts the first one; until then every
+build reports <code>0.0.0</code>, which sorts below any real tag.</p>
     </article>
-    <footer class="foot">Generated from <code>docs/README.md</code> &middot; vbx design documentation</footer>
+    <footer class="foot">Generated from <code>docs/RELEASES.md</code> &middot; vbx design documentation</footer>
   </main>
 </div>
 <script src="assets/mermaid.min.js"></script>

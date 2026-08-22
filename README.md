@@ -42,6 +42,28 @@ flowchart LR
     V --> S --> E --> C --> G --> D
 ```
 
+## Install
+
+Not yet. `vbx` is meant to be installed with two commands:
+
+```bash
+brew tap michel-onstein/tap
+brew install --cask vbx
+```
+
+Nothing is published yet — there is no tagged release and no tap — so today the
+only route is building it, below. The pipeline that will produce the release is
+`scripts/release.sh`, and the cask it renders is
+`packaging/homebrew/vbx.rb.template`.
+
+`--zap` cannot reach the Keychain, so an uninstall that should also remove the
+deploy credentials needs:
+
+```bash
+security delete-generic-password -s com.qjam.vbx -a github-token
+security delete-generic-password -s com.qjam.vbx -a cloudflare-token
+```
+
 ## Build and run
 
 Requires Go 1.25+, Swift 6 / Xcode 16+, macOS 14+.
@@ -58,7 +80,11 @@ workspace:
 open -a .build/vbx.app --args ~/src/my-project
 ```
 
-With no argument the app uses `$VBX_WORKSPACE`, then the current directory.
+With no argument the app reopens the workspace it was last in: it tries
+`$VBX_WORKSPACE`, then the recently opened workspaces, then the current
+directory, and each candidate is probed rather than opened. When none of them
+holds bead data it opens nothing and offers **Choose Workspace…** — launching
+from the Dock is not a failed request.
 
 ## Distribution builds
 
@@ -69,6 +95,38 @@ Two channels, both driven from the same script:
 ./scripts/build-app.sh --release --dmg        # Developer ID, notarized, stapled .dmg
 ./scripts/build-app.sh --release --app-store  # sandboxed .pkg for App Store Connect
 ./scripts/build-app.sh --release --dmg --dry-run   # print the plan, run nothing
+```
+
+Both are **universal** — arm64 and x86_64 — and so is every other distribution
+build, because an arm64-only app does not run on an Intel Mac at all and Rosetta
+translates the other way. `--universal` builds one deliberately; it roughly
+doubles the build, so development builds stay host-only. The slices are checked
+with `lipo -archs` on both binaries in the bundle rather than assumed from the
+flag. See [ADR-012](docs/project_notes/DECISIONS.md).
+
+The version is the git tag, not a literal — and the tag *is* the version, with
+no `v` in front of it. `scripts/version.sh` reads `0.2.0` straight into
+`CFBundleShortVersionString`, with the commit count as `CFBundleVersion`, so the
+app, the `.dmg` filename and a Homebrew cask cannot disagree.
+
+The tag itself advances on merge to `main`, from a `semver:major` /
+`semver:minor` / `semver:patch` label on the pull request — not from the commit
+subject, which is prose here by house style. A missing label is a patch, and the
+script says which rule fired. [`docs/RELEASES.md`](docs/RELEASES.md) is
+generated from the tags; see [ADR-013](docs/project_notes/DECISIONS.md).
+
+```bash
+./scripts/version-bump.sh --dry-run   # what the next version would be, and why
+python3 scripts/release-notes.py      # regenerate docs/RELEASES.md
+```
+
+A release runs the whole path in one pass, and prints the cask ready to paste:
+
+```bash
+./scripts/release.sh --lint-cask    # brew style the rendered cask, build nothing
+./scripts/release.sh --dry-run      # rehearse it: preflight, build, render the cask
+./scripts/release.sh --tag 0.2.0    # tag, build universal, notarize, staple, checksum
+./scripts/release.sh --publish      # ...and push the tag + create the GitHub release
 ```
 
 Signing needs an Apple developer account, and **none of its identifiers are in
@@ -173,7 +231,10 @@ with `library 'vbxengine' not found`.
 | Live reload via FSEvents, debounced and hash-gated | ✅ |
 | Label analytics dashboard (health, velocity, completion) | ✅ |
 | Signed distribution: notarized `.dmg`, sandboxed App Store `.pkg` | ✅ |
-| Universal binary, Sparkle appcast, Homebrew cask | ❌ Not yet |
+| Universal binary (arm64 + x86_64), implied by every distribution build | ✅ |
+| Release pipeline: tag → universal → notarized `.dmg` → rendered cask | ✅ `scripts/release.sh` |
+| Homebrew cask | ❌ The cask is generated; nothing is published, so `brew install` does not work yet |
+| Sparkle appcast | ❌ Not yet |
 | Multi-repo workspaces | ✅ |
 
 ## View snapshots

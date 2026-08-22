@@ -478,17 +478,89 @@ public final class ProjectStore: ObservableObject {
 
     // MARK: - Loading
 
-    /// Opens the workspace named by the first CLI argument, the VBX_WORKSPACE
-    /// environment variable, or the current directory — in that order.
+    /// Whether `path` would open, asked without loading it.
+    ///
+    /// Routed through ``OpenPanelGuard/engineProbe(_:)`` rather than calling
+    /// the engine again here, so launch discovery, the Open panel and the
+    /// loader all answer from one predicate. A probe that could not answer
+    /// counts as "no".
+    static func canOpen(_ path: String) -> Bool {
+        OpenPanelGuard.engineProbe(path).canOpen
+    }
+
+    /// Opens whichever workspace launch should land on, or none.
+    ///
+    /// Candidates, in order: a path argument, `VBX_WORKSPACE`, the most
+    /// recently opened workspaces, and finally the current directory.
+    ///
+    /// Each is *probed* rather than opened. Launched from the Dock or Finder a
+    /// GUI app's current directory is `/`, which holds no beads, so attempting
+    /// it set ``loadError`` and every launch opened onto "Could not open
+    /// workspace" before the user had asked for anything. `loadError` means
+    /// *you pointed at something and it did not work*; discovery pointing at
+    /// nothing is not that. When no candidate probes openable this opens
+    /// nothing and leaves `loadError` nil, and the "No workspace open" empty
+    /// state — with its Choose Workspace… button — appears on its own.
     public func openInitialWorkspace() async {
-        let args = CommandLine.arguments.dropFirst().filter { !$0.hasPrefix("-") }
-        if let path = args.first {
-            await open(path: path)
-        } else if let env = ProcessInfo.processInfo.environment["VBX_WORKSPACE"] {
-            await open(path: env)
-        } else {
-            await open(path: FileManager.default.currentDirectoryPath)
+        await openInitialWorkspace(
+            arguments: Array(CommandLine.arguments.dropFirst()),
+            environment: ProcessInfo.processInfo.environment,
+            currentDirectory: FileManager.default.currentDirectoryPath,
+            probe: Self.canOpen)
+    }
+
+    /// - Parameter probe: injected so tests can drive discovery without a
+    ///   workspace on disk for every candidate.
+    func openInitialWorkspace(
+        arguments: [String],
+        environment: [String: String],
+        currentDirectory: String,
+        probe: (String) -> Bool
+    ) async {
+        // Flags are dropped: a Finder or Xcode launch adds its own, and none
+        // of them name a workspace.
+        let requested = [
+            arguments.first { !$0.hasPrefix("-") },
+            environment["VBX_WORKSPACE"],
+        ].compactMap { $0 }
+
+        // All the recents rather than only the newest: a list whose head has
+        // been deleted should still return the user to where they were, and
+        // `entries` has already dropped the paths that no longer exist.
+        let candidates = requested + recents.entries.map(\.path) + [currentDirectory]
+
+        if let openable = candidates.first(where: probe) {
+            await open(path: openable)
+            return
         }
+
+        // Nothing opened — but a path the user named on the command line or in
+        // the environment is still something they pointed at, so it is worth an
+        // error rather than silence. Only when it exists: an argument that is
+        // not a path at all is launch noise, not a request.
+        if let named = requested.first(where: { FileManager.default.fileExists(atPath: $0) }) {
+            await open(path: named)
+            return
+        }
+
+        loadError = nil
+    }
+
+    /// Opens the workspace a restored window was showing, or nothing.
+    ///
+    /// Same rule as discovery: the user did not choose this path *this* launch,
+    /// so a workspace that has since moved leaves the window in the neutral
+    /// empty state rather than reporting a failure nobody asked for.
+    public func openRestoredWorkspace(path: String) async {
+        await openRestoredWorkspace(path: path, probe: Self.canOpen)
+    }
+
+    func openRestoredWorkspace(path: String, probe: (String) -> Bool) async {
+        guard probe(path) else {
+            loadError = nil
+            return
+        }
+        await open(path: path)
     }
 
     public func presentOpenPanel() {
