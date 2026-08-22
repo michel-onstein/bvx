@@ -13,9 +13,13 @@
 # installed copy is already current — and `brew info` then contradicts the About
 # window. One source removes the class of mistake rather than one instance.
 #
-# Tags are `vX.Y.Z`. The leading `v` is a git convention and is stripped: Apple
-# requires `CFBundleShortVersionString` to be dotted digits, and Homebrew's
-# `version` is compared as a version string, not matched literally.
+# Tags are the version, exactly: `0.2.0`, not `v0.2.0`. The `v` is a widespread
+# git convention, but it is a prefix on the *tag* that then has to be stripped
+# everywhere the version is actually used — Apple requires
+# `CFBundleShortVersionString` to be dotted digits, Homebrew compares `version`
+# as a version string, and the `.dmg` filename carries the bare number. Every
+# one of those was a `${tag#v}`, and each is a place the strip can be forgotten.
+# Naming the tag after the version removes the class of mistake.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -31,19 +35,19 @@ git_available() {
   git rev-parse --git-dir >/dev/null 2>&1
 }
 
-# The most recent vX.Y.Z reachable from HEAD, with the `v` removed.
+# The most recent X.Y.Z reachable from HEAD.
 marketing_version() {
   local tag
   if ! git_available; then
     echo "$UNTAGGED"
     return
   fi
-  tag="$(git describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null || true)"
+  tag="$(git describe --tags --match '[0-9]*.[0-9]*.[0-9]*' --abbrev=0 2>/dev/null || true)"
   if [[ -z "$tag" ]]; then
     echo "$UNTAGGED"
     return
   fi
-  echo "${tag#v}"
+  echo "$tag"
 }
 
 # A number that only ever increases, which is all CFBundleVersion has to be.
@@ -71,13 +75,13 @@ assert_release_point() {
 
   version="$(marketing_version)"
   if [[ "$version" == "$UNTAGGED" ]]; then
-    echo "no vX.Y.Z tag is reachable from HEAD — tag the release first" >&2
+    echo "no X.Y.Z tag is reachable from HEAD — tag the release first" >&2
     exit 1
   fi
 
-  tag="$(git describe --tags --match 'v[0-9]*' --exact-match 2>/dev/null || true)"
+  tag="$(git describe --tags --match '[0-9]*.[0-9]*.[0-9]*' --exact-match 2>/dev/null || true)"
   if [[ -z "$tag" ]]; then
-    echo "HEAD is not at a release tag (nearest is v$version)" >&2
+    echo "HEAD is not at a release tag (nearest is $version)" >&2
     echo "a published version must name the commit it was built from" >&2
     exit 1
   fi

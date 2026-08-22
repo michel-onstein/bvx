@@ -74,20 +74,20 @@ fi
 # Run twice on the same commit — a re-run of a workflow, a retried job — and the
 # second run must do nothing rather than cut 0.2.1 for no change.
 
-EXISTING="$(git describe --tags --match 'v[0-9]*' --exact-match 2>/dev/null || true)"
+EXISTING="$(git describe --tags --match '[0-9]*.[0-9]*.[0-9]*' --exact-match 2>/dev/null || true)"
 if [[ -n "$EXISTING" ]]; then
   say "==> $EXISTING already names this commit; nothing to bump"
   exit 0
 fi
 
-LAST_TAG="$(git describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null || true)"
+LAST_TAG="$(git describe --tags --match '[0-9]*.[0-9]*.[0-9]*' --abbrev=0 2>/dev/null || true)"
 if [[ -z "$LAST_TAG" ]]; then
   RANGE=""
   CURRENT="0.0.0"
   say "==> No previous release; starting from $CURRENT"
 else
   RANGE="$LAST_TAG..HEAD"
-  CURRENT="${LAST_TAG#v}"
+  CURRENT="$LAST_TAG"
   say "==> Last release $LAST_TAG"
 fi
 
@@ -168,7 +168,8 @@ case "$LEVEL" in
 esac
 
 NEXT="$MAJOR.$MINOR.$PATCH"
-TAG="v$NEXT"
+# The tag is the version, with no `v` in front of it. See scripts/version.sh.
+TAG="$NEXT"
 say "==> $CURRENT -> $NEXT ($LEVEL)"
 
 MESSAGE="vbx $NEXT"$'\n\n'"$(printf '%s\n' "${CHANGES[@]}")"

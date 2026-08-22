@@ -68,7 +68,7 @@ python3 scripts/release-notes.py    # regenerate docs/RELEASES.md from the tags
 ./scripts/version.sh                # the version, from the git tag
 ./scripts/release.sh --lint-cask    # brew style the rendered cask, build nothing
 ./scripts/release.sh --dry-run      # rehearse: preflight, build, render the cask
-./scripts/release.sh --tag v0.2.0   # tag, build universal, notarize, print the cask
+./scripts/release.sh --tag 0.2.0    # tag, build universal, notarize, print the cask
 ./scripts/release.sh --publish      # ...and push the tag + create the GitHub release
 ```
 
@@ -147,9 +147,13 @@ view snapshots for inspection.
   fuses slices, which is why `build-app.sh` signs the nested `vbx-cli` before
   the bundle. See ADR-012.
 - **The version is the git tag, never a literal.** `scripts/version.sh` maps
-  `vX.Y.Z` to `CFBundleShortVersionString` and the commit count to
+  the tag straight into `CFBundleShortVersionString` and the commit count to
   `CFBundleVersion`. An untagged checkout reports `0.0.0`, which sorts below
   every real tag; `--check` refuses a dirty tree or a HEAD past its tag.
+- **The tag carries no `v`** — it is `0.2.0`, not `v0.2.0`. A prefix only has to
+  be stripped again at the plist, the `.dmg` name and the cask, so
+  `release.sh --tag v0.2.0` is refused rather than silently stripped. See
+  ADR-013.
 - **The bump level is a `semver:*` PR label, not the commit subject.** Prose
   subjects are the house style, so a Conventional Commits parser reads every
   commit here as no bump. `version-bump.sh` reads the label once and writes it

@@ -104,8 +104,9 @@ doubles the build, so development builds stay host-only. The slices are checked
 with `lipo -archs` on both binaries in the bundle rather than assumed from the
 flag. See [ADR-012](docs/project_notes/DECISIONS.md).
 
-The version is the git tag, not a literal: `scripts/version.sh` maps `vX.Y.Z` to
-`CFBundleShortVersionString` and the commit count to `CFBundleVersion`, so the
+The version is the git tag, not a literal — and the tag *is* the version, with
+no `v` in front of it. `scripts/version.sh` reads `0.2.0` straight into
+`CFBundleShortVersionString`, with the commit count as `CFBundleVersion`, so the
 app, the `.dmg` filename and a Homebrew cask cannot disagree.
 
 The tag itself advances on merge to `main`, from a `semver:major` /
@@ -124,7 +125,7 @@ A release runs the whole path in one pass, and prints the cask ready to paste:
 ```bash
 ./scripts/release.sh --lint-cask    # brew style the rendered cask, build nothing
 ./scripts/release.sh --dry-run      # rehearse it: preflight, build, render the cask
-./scripts/release.sh --tag v0.2.0   # tag, build universal, notarize, staple, checksum
+./scripts/release.sh --tag 0.2.0    # tag, build universal, notarize, staple, checksum
 ./scripts/release.sh --publish      # ...and push the tag + create the GitHub release
 ```
 

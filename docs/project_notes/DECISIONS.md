@@ -408,8 +408,14 @@ written against a version that is a literal in a build script.
   and `--sign` in the same way and for the same reason those already imply
   `--release`. `--universal` exists as a flag for a deliberate local check;
   development builds stay host-only because it roughly doubles the build.
-- **The version comes from the git tag.** `scripts/version.sh` maps `vX.Y.Z` to
-  `CFBundleShortVersionString` and the commit count to `CFBundleVersion`.
+- **The version comes from the git tag, and the tag is the version.**
+  `scripts/version.sh` reads `0.2.0` — no `v` — straight into
+  `CFBundleShortVersionString`, with the commit count as `CFBundleVersion`. The
+  `v` is a widespread git convention, but it is a prefix that then has to be
+  removed at every point of use: the plist, the `.dmg` filename and the cask's
+  `version`, each a place the strip can be forgotten. Dropping it removes the
+  class of mistake, so `release.sh` refuses `--tag v0.2.0` rather than quietly
+  accepting and stripping it.
 - **The cask goes to a personal tap**, `michel-onstein/homebrew-tap`, not to
   `homebrew/homebrew-cask`.
 

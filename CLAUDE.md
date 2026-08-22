@@ -63,11 +63,13 @@ them.
 - **Tests that write into a workspace use `Fixture.writableStore()`**, which
   copies the fixture to a temporary directory. Swift Testing runs tests in
   parallel, and two writing to the shared fixture interfere.
-- **The version is the git tag, never a literal.** `scripts/version.sh` is the
-  only source: `vX.Y.Z` becomes `CFBundleShortVersionString`, the commit count
-  becomes `CFBundleVersion`. Three things have to agree — the app, the `.dmg`
-  filename and a Homebrew cask's `version` — and a cask that disagrees with what
-  the app reports cannot be upgraded.
+- **The version is the git tag, never a literal, and the tag carries no `v`.**
+  `scripts/version.sh` is the only source: the tag `0.2.0` *is*
+  `CFBundleShortVersionString`, and the commit count becomes `CFBundleVersion`.
+  Three things have to agree — the app, the `.dmg` filename and a Homebrew
+  cask's `version` — and a cask that disagrees with what the app reports cannot
+  be upgraded. A `v` prefix is three more places to forget the strip, so
+  `release.sh` refuses `--tag v0.2.0` rather than accepting and stripping it.
 - **The bump level comes from a `semver:*` PR label, not the commit subject.**
   Subjects here are prose, so a Conventional Commits parser reads every one of
   them as "no bump". `scripts/version-bump.sh` reads the label once, records it

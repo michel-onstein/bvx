@@ -23,6 +23,8 @@ signal comes from the PR's ``semver:*`` label, which is read once — by
     Change: minor: Load recipes when a workspace opens (#30)
     Change: patch: Hand the priority cell its store (#29)
 
+Tags are the bare version — ``0.2.0``, not ``v0.2.0``.
+
 Everything downstream then reads git alone. That is what lets ``--check`` join
 the verify block: it needs no network, no GitHub, and no ordering assumption
 beyond the tags themselves.
@@ -89,7 +91,7 @@ def releases() -> list[tuple[str, str, list[tuple[str, str]]]]:
     """Every release tag, newest first, as (version, date, [(heading, text)])."""
     # Sorted by version rather than by date: a tag can be created out of order,
     # and what a reader wants is the version sequence.
-    raw = git("tag", "-l", "v[0-9]*", "--sort=-v:refname",
+    raw = git("tag", "-l", "[0-9]*.[0-9]*.[0-9]*", "--sort=-v:refname",
               "--format=%(refname:short)%09%(creatordate:short)")
     found = []
     for line in raw.splitlines():
@@ -102,7 +104,8 @@ def releases() -> list[tuple[str, str, list[tuple[str, str]]]]:
             match = CHANGE.match(entry)
             if match:
                 changes.append((HEADING[match.group(1)], match.group(2)))
-        found.append((tag.removeprefix("v"), date.strip(), changes))
+        # The tag is the version — no prefix to strip. See scripts/version.sh.
+        found.append((tag, date.strip(), changes))
     return found
 
 

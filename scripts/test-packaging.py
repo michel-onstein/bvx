@@ -602,16 +602,16 @@ def test_version_comes_from_the_tag() -> None:
         check("...and says why", "tag" in result.stderr)
 
         tagged = Path(raw) / "tagged"
-        git_repo(tagged, tag="v1.2.3")
+        git_repo(tagged, tag="1.2.3")
         result = run_version(tagged)
-        check("the tag is the version, without the v", result.stdout.strip() == "1.2.3")
+        check("the tag is the version verbatim", result.stdout.strip() == "1.2.3")
         check("the build number is the commit count",
               run_version(tagged, "--build").stdout.strip() == "1")
         check("a clean tag is a release point",
               run_version(tagged, "--check").returncode == 0)
 
         ahead = Path(raw) / "ahead"
-        git_repo(ahead, tag="v1.2.3", commits=3)
+        git_repo(ahead, tag="1.2.3", commits=3)
         check("commits after the tag keep its version",
               run_version(ahead).stdout.strip() == "1.2.3")
         result = run_version(ahead, "--check")
@@ -620,7 +620,7 @@ def test_version_comes_from_the_tag() -> None:
               "not at a release tag" in result.stderr)
 
         dirty = Path(raw) / "dirty"
-        git_repo(dirty, tag="v1.2.3")
+        git_repo(dirty, tag="1.2.3")
         (dirty / "file0").write_text("changed\n")
         result = run_version(dirty, "--check")
         check("a dirty tree is not a release point", result.returncode != 0)
@@ -675,14 +675,19 @@ def test_cask_and_release_script() -> None:
     result = subprocess.run([str(RELEASE), "--nonsense"], capture_output=True, text=True)
     check("an unknown flag is rejected", result.returncode == 2)
 
-    result = subprocess.run([str(RELEASE), "--tag", "0.2.0"], capture_output=True, text=True)
-    check("a tag without the v is refused before anything happens",
-          result.returncode == 1 and "vX.Y.Z" in result.stderr)
+    result = subprocess.run([str(RELEASE), "--tag", "v0.2.0"], capture_output=True, text=True)
+    check("a tag with a leading v is refused before anything happens",
+          result.returncode == 1 and "X.Y.Z" in result.stderr,
+          result.stderr.strip()[:160])
+    check("...and says the v is the problem", "no leading v" in result.stderr)
+
+    result = subprocess.run([str(RELEASE), "--tag", "nonsense"], capture_output=True, text=True)
+    check("so is a tag that is not a version at all", result.returncode == 1)
 
     # With a well-formed tag it must still refuse here — either the tree is
     # dirty or signing is unconfigured. What matters is that it stops before
     # building, so neither outcome can be mistaken for a release.
-    result = subprocess.run([str(RELEASE), "--tag", "v99.0.0"], capture_output=True, text=True)
+    result = subprocess.run([str(RELEASE), "--tag", "99.0.0"], capture_output=True, text=True)
     check("a release is refused before building when preflight fails",
           result.returncode != 0 and "Building" not in result.stdout)
 
@@ -758,7 +763,7 @@ def test_version_bump() -> None:
         bump_repo(again)
         commit(again, "Do a thing")
         result = run_bump(again)
-        check("a real run tags", result.returncode == 0 and "Tagged v0.0.1" in result.stdout,
+        check("a real run tags", result.returncode == 0 and "Tagged 0.0.1" in result.stdout,
               result.stdout.strip() + result.stderr.strip())
         check("the notes list the release",
               "## 0.0.1" in (again / "docs" / "RELEASES.md").read_text())
@@ -772,7 +777,7 @@ def test_version_bump() -> None:
               "nothing to bump" in result.stdout, result.stdout.strip())
         tags = subprocess.run(["git", "tag"], cwd=again, capture_output=True,
                               text=True).stdout.split()
-        check("...and leaves exactly one tag", tags == ["v0.0.1"], str(tags))
+        check("...and leaves exactly one tag, unprefixed", tags == ["0.0.1"], str(tags))
 
         # Nothing landed since the tag: also nothing to bump, but for a
         # different reason, and it should say so rather than cut an empty patch.
@@ -782,6 +787,30 @@ def test_version_bump() -> None:
         run_bump(empty)
         result = run_bump(empty, "--dry-run")
         check("a run with nothing new is a no-op", "nothing to bump" in result.stdout)
+
+
+def test_no_v_prefix() -> None:
+    """The tag is the version. Nothing may prepend a v, or strip one.
+
+    A `v` on the tag is a prefix that then has to be removed everywhere the
+    version is actually used — the plist, the .dmg filename, the cask. Each of
+    those is a place the strip can be forgotten, and forgetting it produces a
+    cask version of "v0.2.0" that brew compares wrongly. Checked across the
+    scripts rather than in one, because the convention drifts back one script at
+    a time.
+    """
+    print("\nNo v prefix")
+    for script in (BUMP, NOTES, RELEASE, VERSION, BUILD_APP):
+        code = "\n".join(
+            line for line in script.read_text().splitlines()
+            if not line.lstrip().startswith("#"))
+        check(f"{script.name} does not prepend a v",
+              'v$VERSION' not in code and 'v$NEXT' not in code
+              and '"v$' not in code and "v{version}" not in code)
+        check(f"{script.name} does not strip a v",
+              "#v}" not in code and 'removeprefix("v")' not in code)
+        check(f"{script.name} does not match tags on a v",
+              "'v[0-9]" not in code and '"v[0-9]' not in code)
 
 
 def test_release_notes() -> None:
@@ -918,6 +947,7 @@ def main() -> int:
     test_version_comes_from_the_tag()
     test_cask_and_release_script()
     test_version_bump()
+    test_no_v_prefix()
     test_release_notes()
     test_release_workflow()
     test_stale_prefix_is_named()

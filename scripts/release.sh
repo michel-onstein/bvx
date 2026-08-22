@@ -3,7 +3,7 @@
 # Takes a tag all the way to a Homebrew-installable release.
 #
 #   ./scripts/release.sh --dry-run           # prove the plan, build nothing
-#   ./scripts/release.sh --tag v0.2.0        # tag, build, package, render cask
+#   ./scripts/release.sh --tag 0.2.0         # tag, build, package, render cask
 #   ./scripts/release.sh                     # same, for the tag HEAD already has
 #   ./scripts/release.sh --publish           # ...and push the tag + GitHub release
 #   ./scripts/release.sh --lint-cask         # brew style + audit the cask, build nothing
@@ -67,7 +67,7 @@ render_cask() {
   repo="$(cask_repo)"
   [[ -n "$repo" ]] || fail "could not read owner/repo from the origin remote"
   homepage="https://github.com/$repo"
-  url="$homepage/releases/download/v$version/vbx-$version.dmg"
+  url="$homepage/releases/download/$version/vbx-$version.dmg"
   mkdir -p "$(dirname "$dest")"
   sed -e "s|@VERSION@|$version|g" \
       -e "s|@SHA256@|$sha|g" \
@@ -135,8 +135,11 @@ run() {
 # and, if a tag was pushed, has left a version number spent.
 
 if [[ -n "$TAG" ]]; then
-  [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || \
-    fail "a release tag is vX.Y.Z (got \"$TAG\")"
+  # The tag is the version itself — no `v`. A `v0.2.0` is refused rather than
+  # quietly accepted and stripped, because the stripping is exactly what this
+  # convention exists to remove.
+  [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || \
+    fail "a release tag is X.Y.Z, with no leading v (got \"$TAG\")"
 fi
 
 say "==> Preflight"
@@ -172,7 +175,7 @@ fi
 # In a dry run the tag was not actually created, so the check below would fail
 # on the very thing the run is rehearsing. Reported instead.
 if [[ $DRY_RUN -eq 1 && -n "$TAG" ]]; then
-  VERSION="${TAG#v}"
+  VERSION="$TAG"
   say "  release point: $TAG (would be created at $(git rev-parse --short HEAD))"
 else
   "$ROOT/scripts/version.sh" --check
@@ -247,15 +250,15 @@ say ""
 # ---------------------------------------------------------------------------
 
 if [[ $PUBLISH -eq 1 ]]; then
-  say "==> Pushing $([[ -n "$TAG" ]] && echo "$TAG" || echo "v$VERSION")"
-  run git push origin "v$VERSION"
+  say "==> Pushing $VERSION"
+  run git push origin "$VERSION"
   say "==> Creating the GitHub release"
-  run gh release create "v$VERSION" "$DMG" \
+  run gh release create "$VERSION" "$DMG" \
     --title "vbx $VERSION" --generate-notes
 else
   say "Not published. To publish:"
-  say "  git push origin v$VERSION"
-  say "  gh release create v$VERSION ${DMG#"$ROOT"/} --title \"vbx $VERSION\" --generate-notes"
+  say "  git push origin $VERSION"
+  say "  gh release create $VERSION ${DMG#"$ROOT"/} --title \"vbx $VERSION\" --generate-notes"
 fi
 
 say ""
