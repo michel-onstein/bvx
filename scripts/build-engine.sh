@@ -65,6 +65,12 @@ assert_package_target() {
 build_slice() {
   local arch="$1" out="$2"
   echo "  building darwin/$arch (deployment target $MACOS_DEPLOYMENT_TARGET)"
+  # `go build -o` refuses to overwrite anything it does not recognise as an
+  # object file, and the fat archive a --universal build leaves behind is not
+  # one. Without this, the next host-only build fails with "already exists and
+  # is not an object file", which names the archive rather than the flag that
+  # produced it.
+  rm -f "$out"
   # Both the environment variable and the explicit compiler flags are set, and
   # the flags are the ones that actually work: with this toolchain
   # MACOSX_DEPLOYMENT_TARGET alone leaves every object — the Go-linked `go.o`
@@ -103,6 +109,23 @@ assert_archive_target() {
   echo "  verified minos $found across all objects"
 }
 
+# assert_archive_universal verifies both slices are really in the archive.
+#
+# `--universal` passing is not the same claim as `lipo` having produced two
+# architectures — a slice that failed to build would otherwise be noticed only
+# when the app refuses to launch on the Mac it was meant for.
+assert_archive_universal() {
+  local archive="$1" archs
+  archs="$(lipo -archs "$archive" 2>/dev/null || true)"
+  for want in arm64 x86_64; do
+    if [[ " $archs " != *" $want "* ]]; then
+      echo "universal build is missing the $want slice (got: ${archs:-none})" >&2
+      exit 1
+    fi
+  done
+  echo "  verified slices: $archs"
+}
+
 assert_package_target
 
 echo "==> Building vbx engine archive"
@@ -125,6 +148,9 @@ cp "$BUILD/libvbxengine.h" "$HEADER_DEST"
 echo "==> Built $(du -h "$OUT" | cut -f1) archive"
 lipo -info "$OUT" 2>/dev/null || true
 assert_archive_target "$OUT"
+if [[ $UNIVERSAL -eq 1 ]]; then
+  assert_archive_universal "$OUT"
+fi
 
 # SwiftPM does not treat the archive as a build input, so a rebuilt engine on
 # its own does NOT trigger a relink — `swift test` happily keeps running the

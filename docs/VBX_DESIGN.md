@@ -902,12 +902,33 @@ and `--app-store`. The two channels ship deliberately different apps
 ([ADR-010](project_notes/DECISIONS.md)), and no signing identifier is in this
 repository ([ADR-009](project_notes/DECISIONS.md)).
 
-Not built: the **universal binary** (the engine archive is host-architecture by
-default; `build-engine.sh --universal` lipos arm64 with x86_64, but the app is
-not yet archived that way), the **Sparkle appcast**, and the **Homebrew cask**.
-The diagram above describes the intended end state, not today's pipeline —
-there is no xcframework, and `build-app.sh` assembles the bundle directly from
-SwiftPM output rather than through `xcodebuild archive`.
+The **universal binary** is built. `build-app.sh --universal` builds the engine
+archive for both architectures and asks SwiftPM for both slices of each product,
+and every distribution build implies it — an arm64-only `.dmg` excludes every
+Intel Mac, and Rosetta is no help because it translates x86_64 to arm64, not the
+reverse. The slices are asserted with `lipo -archs` on both binaries in the
+bundle rather than inferred from the flag, for the same reason
+`assert_archive_target` exists. It roughly doubles the build, so the host-only
+build stays the default for development.
+
+The **version** comes from the git tag (`scripts/version.sh`), because
+`CFBundleShortVersionString`, the `.dmg` filename and a Homebrew cask's
+`version` all have to agree and a literal in one of them is what makes them
+drift.
+
+**The release pipeline is built; nothing has been released.** `scripts/release.sh`
+tags, builds universal, packages, notarizes, verifies the ticket is stapled,
+computes the `sha256` and renders `packaging/homebrew/vbx.rb.template` into a
+ready-to-paste cask. What does not exist yet is anything outside this
+repository: there is no tagged release, no published `.dmg`, and no
+`homebrew-tap` repository — so `brew install --cask vbx` does not work today.
+See [ADR-012](project_notes/DECISIONS.md) for why the cask goes to a personal
+tap rather than `homebrew/homebrew-cask`.
+
+Not built: the **Sparkle appcast**. The diagram above describes the intended end
+state, not today's pipeline — there is no xcframework, and `build-app.sh`
+assembles the bundle directly from SwiftPM output rather than through
+`xcodebuild archive`.
 
 ---
 

@@ -31,6 +31,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGE = ROOT / "scripts" / "package-app.sh"
 EXAMPLE = ROOT / "scripts" / "signing.env.example"
+BUILD_APP = ROOT / "scripts" / "build-app.sh"
+BUILD_ENGINE = ROOT / "scripts" / "build-engine.sh"
+RELEASE = ROOT / "scripts" / "release.sh"
+VERSION = ROOT / "scripts" / "version.sh"
+CASK_TEMPLATE = ROOT / "packaging" / "homebrew" / "vbx.rb.template"
 
 # Fabricated, and deliberately distinctive: a substring that appears nowhere
 # else means an assertion that it is absent cannot pass by coincidence.
@@ -497,6 +502,188 @@ def test_build_app_forwards() -> None:
     check("a distribution build forces --release", "implies --release" in text)
 
 
+def test_universal_is_implied_and_verified() -> None:
+    """An arm64-only .dmg excludes every Intel Mac, and only the user finds out.
+
+    So the flag has to exist, distribution has to imply it, and — separately —
+    the artefact has to be checked. "--universal was passed" and "--universal
+    took effect" are different claims; build-engine.sh already made that
+    distinction for the deployment target, and it applies here for the same
+    reason.
+    """
+    print("\nUniversal binary")
+    app = BUILD_APP.read_text()
+    engine = BUILD_ENGINE.read_text()
+
+    check("build-app.sh accepts --universal", "--universal) UNIVERSAL=1" in app)
+    check("a distribution build forces --universal", "implies --universal" in app)
+    check("both architectures are asked of SwiftPM",
+          "--arch arm64 --arch x86_64" in app)
+    check("the bin path is asked for, not hardcoded", "--show-bin-path" in app)
+
+    check("the app binary's slices are asserted",
+          'assert_binary_slices "$APP/Contents/MacOS/vbx"' in app)
+    check("the CLI binary's slices are asserted too",
+          'assert_binary_slices "$APP/Contents/MacOS/vbx-cli"' in app)
+    check("the assertion reads the artefact", "lipo -archs" in app)
+
+    check("the engine archive's slices are asserted",
+          "assert_archive_universal" in engine)
+    # A universal archive is a fat file, which `go build -o` will not overwrite:
+    # without this, the first host-only build after a release fails with
+    # "already exists and is not an object file".
+    check("a stale archive is removed before the slice is built",
+          'rm -f "$out"' in engine)
+    check("the deployment target is still checked across objects",
+          "assert_archive_target" in engine)
+
+    # The nested binary loses its linker signature when lipo fuses the slices,
+    # so signing the bundle alone fails with "code object is not signed at all".
+    check("nested code is signed before the bundle",
+          app.index('codesign --force --sign - "$APP/Contents/MacOS/vbx-cli"')
+          < app.index('codesign --force --sign - "$APP"'))
+
+
+def git_repo(directory: Path, *, tag: str | None = None, commits: int = 1) -> None:
+    """A throwaway repository, so version.sh can be driven at a known state."""
+    env = {
+        **os.environ,
+        "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "test@example.invalid",
+        "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "test@example.invalid",
+    }
+    def git(*args: str) -> None:
+        subprocess.run(["git", *args], cwd=directory, env=env,
+                       check=True, capture_output=True)
+    git("init", "-q")
+    for index in range(commits):
+        (directory / f"file{index}").write_text(f"{index}\n")
+        git("add", ".")
+        git("commit", "-qm", f"commit {index}")
+        if tag and index == 0:
+            git("tag", "-a", tag, "-m", tag)
+
+
+def run_version(directory: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(directory / "scripts" / "version.sh"), *args],
+        capture_output=True, text=True)
+
+
+def test_version_comes_from_the_tag() -> None:
+    """The version has to agree in three places at once.
+
+    CFBundleShortVersionString, the .dmg filename and a cask's `version`. A cask
+    whose version disagrees with what the app reports cannot be upgraded, so the
+    literal that used to be in build-app.sh is the bug this prevents.
+    """
+    print("\nVersion derivation")
+    app = BUILD_APP.read_text()
+    check("no hardcoded marketing version in build-app.sh",
+          "<string>0.1.0</string>" not in app)
+    check("the version is stamped from version.sh",
+          "scripts/version.sh" in app and "CFBundleShortVersionString $VERSION" in app)
+
+    with tempfile.TemporaryDirectory() as raw:
+        for state in ("untagged", "tagged", "ahead", "dirty"):
+            directory = Path(raw) / state
+            (directory / "scripts").mkdir(parents=True)
+            (directory / "scripts" / "version.sh").write_bytes(VERSION.read_bytes())
+            (directory / "scripts" / "version.sh").chmod(0o755)
+
+        untagged = Path(raw) / "untagged"
+        git_repo(untagged)
+        result = run_version(untagged)
+        check("an untagged checkout still builds", result.stdout.strip() == "0.0.0")
+        result = run_version(untagged, "--check")
+        check("...but is not a release point", result.returncode != 0)
+        check("...and says why", "tag" in result.stderr)
+
+        tagged = Path(raw) / "tagged"
+        git_repo(tagged, tag="v1.2.3")
+        result = run_version(tagged)
+        check("the tag is the version, without the v", result.stdout.strip() == "1.2.3")
+        check("the build number is the commit count",
+              run_version(tagged, "--build").stdout.strip() == "1")
+        check("a clean tag is a release point",
+              run_version(tagged, "--check").returncode == 0)
+
+        ahead = Path(raw) / "ahead"
+        git_repo(ahead, tag="v1.2.3", commits=3)
+        check("commits after the tag keep its version",
+              run_version(ahead).stdout.strip() == "1.2.3")
+        result = run_version(ahead, "--check")
+        check("...but are not a release point", result.returncode != 0)
+        check("...because the tag does not name that commit",
+              "not at a release tag" in result.stderr)
+
+        dirty = Path(raw) / "dirty"
+        git_repo(dirty, tag="v1.2.3")
+        (dirty / "file0").write_text("changed\n")
+        result = run_version(dirty, "--check")
+        check("a dirty tree is not a release point", result.returncode != 0)
+        check("...and says so", "dirty" in result.stderr)
+
+
+def test_cask_and_release_script() -> None:
+    """Every placeholder the template carries must be one release.sh fills.
+
+    A leftover `@SHA256@` in a published cask is a checksum that can never
+    match; a substitution release.sh makes for a placeholder that no longer
+    exists is silently nothing. Both directions are checked.
+    """
+    print("\nRelease and Homebrew cask")
+    release = RELEASE.read_text()
+    template = CASK_TEMPLATE.read_text()
+
+    check("release.sh is executable", os.access(RELEASE, os.X_OK))
+    check("version.sh is executable", os.access(VERSION, os.X_OK))
+    for script in (RELEASE, VERSION):
+        syntax = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
+        check(f"{script.name} parses", syntax.returncode == 0, syntax.stderr.strip())
+
+    placeholders = set(re.findall(r"@[A-Z0-9_]+@", template))
+    substituted = set(re.findall(r"s\|(@[A-Z0-9_]+@)\|", release))
+    check("every placeholder is substituted",
+          placeholders <= substituted, f"unfilled: {sorted(placeholders - substituted)}")
+    check("every substitution has a placeholder",
+          substituted <= placeholders, f"stale: {sorted(substituted - placeholders)}")
+
+    # A cask installing an un-notarized app gives every user a Gatekeeper block.
+    code = "\n".join(
+        line for line in release.splitlines() if not line.lstrip().startswith("#"))
+    check("release.sh never skips notarization", "--no-notarize" not in code)
+    check("release.sh fails rather than warns on an unstapled ticket",
+          "stapler validate" in release and "not stapled" in release)
+
+    # The bundle on disk is vbx.app; a cask naming "Visual Beads.app" installs
+    # nothing and fails at the end of a download.
+    check("the cask names the real bundle", 'app "vbx.app"' in template)
+    check("the cask zaps the preferences the app writes",
+          "com.qjam.vbx.plist" in template)
+    check("the cask says how to remove the Keychain items --zap cannot reach",
+          "delete-generic-password" in template)
+    check("the cask tracks new releases", "livecheck" in template)
+
+    result = subprocess.run([str(RELEASE), "--help"], capture_output=True, text=True)
+    check("--help succeeds", result.returncode == 0)
+    check("--help explains the modes",
+          "--dry-run" in result.stdout and "--publish" in result.stdout)
+
+    result = subprocess.run([str(RELEASE), "--nonsense"], capture_output=True, text=True)
+    check("an unknown flag is rejected", result.returncode == 2)
+
+    result = subprocess.run([str(RELEASE), "--tag", "0.2.0"], capture_output=True, text=True)
+    check("a tag without the v is refused before anything happens",
+          result.returncode == 1 and "vX.Y.Z" in result.stderr)
+
+    # With a well-formed tag it must still refuse here — either the tree is
+    # dirty or signing is unconfigured. What matters is that it stops before
+    # building, so neither outcome can be mistaken for a release.
+    result = subprocess.run([str(RELEASE), "--tag", "v99.0.0"], capture_output=True, text=True)
+    check("a release is refused before building when preflight fails",
+          result.returncode != 0 and "Building" not in result.stdout)
+
+
 def main() -> int:
     print("Packaging and signing tests")
     check("package-app.sh is executable", os.access(PACKAGE, os.X_OK))
@@ -518,6 +705,9 @@ def main() -> int:
     test_check_reports_per_channel()
     test_help_and_bad_flags()
     test_build_app_forwards()
+    test_universal_is_implied_and_verified()
+    test_version_comes_from_the_tag()
+    test_cask_and_release_script()
 
     print()
     if failures:

@@ -1348,12 +1348,30 @@ Developer ID <code>.dmg</code> — hardened runtime, notarized, stapled — and 
 and <code>--app-store</code>. The two channels ship deliberately different apps
 (<a href="project_notes/DECISIONS.html">ADR-010</a>), and no signing identifier is in this
 repository (<a href="project_notes/DECISIONS.html">ADR-009</a>).</p>
-<p>Not built: the <strong>universal binary</strong> (the engine archive is host-architecture by
-default; <code>build-engine.sh --universal</code> lipos arm64 with x86_64, but the app is
-not yet archived that way), the <strong>Sparkle appcast</strong>, and the <strong>Homebrew cask</strong>.
-The diagram above describes the intended end state, not today's pipeline —
-there is no xcframework, and <code>build-app.sh</code> assembles the bundle directly from
-SwiftPM output rather than through <code>xcodebuild archive</code>.</p>
+<p>The <strong>universal binary</strong> is built. <code>build-app.sh --universal</code> builds the engine
+archive for both architectures and asks SwiftPM for both slices of each product,
+and every distribution build implies it — an arm64-only <code>.dmg</code> excludes every
+Intel Mac, and Rosetta is no help because it translates x86_64 to arm64, not the
+reverse. The slices are asserted with <code>lipo -archs</code> on both binaries in the
+bundle rather than inferred from the flag, for the same reason
+<code>assert_archive_target</code> exists. It roughly doubles the build, so the host-only
+build stays the default for development.</p>
+<p>The <strong>version</strong> comes from the git tag (<code>scripts/version.sh</code>), because
+<code>CFBundleShortVersionString</code>, the <code>.dmg</code> filename and a Homebrew cask's
+<code>version</code> all have to agree and a literal in one of them is what makes them
+drift.</p>
+<p><strong>The release pipeline is built; nothing has been released.</strong> <code>scripts/release.sh</code>
+tags, builds universal, packages, notarizes, verifies the ticket is stapled,
+computes the <code>sha256</code> and renders <code>packaging/homebrew/vbx.rb.template</code> into a
+ready-to-paste cask. What does not exist yet is anything outside this
+repository: there is no tagged release, no published <code>.dmg</code>, and no
+<code>homebrew-tap</code> repository — so <code>brew install --cask vbx</code> does not work today.
+See <a href="project_notes/DECISIONS.html">ADR-012</a> for why the cask goes to a personal
+tap rather than <code>homebrew/homebrew-cask</code>.</p>
+<p>Not built: the <strong>Sparkle appcast</strong>. The diagram above describes the intended end
+state, not today's pipeline — there is no xcframework, and <code>build-app.sh</code>
+assembles the bundle directly from SwiftPM output rather than through
+<code>xcodebuild archive</code>.</p>
 <hr />
 <h2 id="18-delivery-plan"><a class="toclink" href="#18-delivery-plan">18. Delivery Plan</a></h2>
 <div class="table-wrap"><table>

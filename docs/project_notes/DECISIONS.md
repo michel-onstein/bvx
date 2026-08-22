@@ -384,3 +384,64 @@ never about Pro:
 
 Not selling the software removes the sharpest version of that exposure — a
 purchase we could not refuse — but not the question itself.
+
+---
+
+## ADR-012 — Distribution ships universal, and the cask lives in a personal tap
+
+**Date:** 2026-08-22 · **Status:** Accepted
+
+**Context.** vbx built for the host architecture only, so a `.dmg` cut on an
+Apple-silicon machine produced an app that will not launch on an Intel Mac at
+all — `lipo -archs` on the bundle reported `arm64` and nothing else. Rosetta
+does not cover this: it translates x86_64 to arm64, not the reverse. Half of the
+work already existed, in that `build-engine.sh --universal` had been written and
+never wired up; the Swift build and the packaging path simply never asked for
+it.
+
+At the same time `brew install --cask vbx` was wanted, and a cask cannot be
+written against a version that is a literal in a build script.
+
+**Decision.**
+
+- **Every distribution build is universal**, implied by `--dmg`, `--app-store`
+  and `--sign` in the same way and for the same reason those already imply
+  `--release`. `--universal` exists as a flag for a deliberate local check;
+  development builds stay host-only because it roughly doubles the build.
+- **The version comes from the git tag.** `scripts/version.sh` maps `vX.Y.Z` to
+  `CFBundleShortVersionString` and the commit count to `CFBundleVersion`.
+- **The cask goes to a personal tap**, `michel-onstein/homebrew-tap`, not to
+  `homebrew/homebrew-cask`.
+
+**Why a personal tap.** `homebrew-cask`'s acceptance criteria require a track
+record — a notable user base, stable versioning, a maintained upstream. A newly
+published app is normally rejected, so submitting now spends a review cycle on a
+predictable no. A tap costs one repository and gives the same two commands:
+
+```
+brew tap michel-onstein/tap
+brew install --cask vbx
+```
+
+**Consequences.**
+
+- **Build time roughly doubles for a release**, and the engine archive is 51 MB
+  per slice. Paid once per release, which is the right place to pay it.
+- **The flag is not the artefact.** `lipo -archs` is asserted on both binaries
+  in the bundle — `vbx` and `vbx-cli`, since the CLI is installed onto the
+  user's PATH — rather than trusting that `--universal` took effect. This is the
+  same distinction `assert_archive_target` already draws for the deployment
+  target, and it caught a real failure: `lipo` strips the linker's ad-hoc
+  signature when it fuses slices, so the bundle's own signing had to move to
+  signing nested code first.
+- **Notarization stops being optional on the release path.** A cask installing
+  an un-notarized app gives every user a Gatekeeper block, so `release.sh`
+  refuses `--no-notarize` and fails if the ticket did not staple.
+- **`zap` cannot reach the Keychain.** A cask can trash preferences, saved
+  state and caches, but the deploy credentials in `com.qjam.vbx` need
+  `security delete-generic-password`. The cask's `caveats` say so rather than
+  leaving an uninstall quietly incomplete.
+- **The last check cannot be run here.** `brew install --cask` on a machine that
+  has never seen the build, confirming it launches without a Gatekeeper prompt,
+  needs a published release and a clean Mac. `brew audit --cask` and
+  `brew style` catch the mechanical problems first.

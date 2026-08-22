@@ -5,6 +5,45 @@ store was empty until 2026-08-21, so earlier entries carry no id.
 
 ---
 
+## 2026-08-22 — Universal builds, a version from the tag, and a cask to paste
+
+`vbx-ttx`, `vbx-j3o`. Two beads that turned out to be one piece of work: a
+Homebrew cask cannot be written until the artefact it points at is both
+installable everywhere and versioned by something other than a literal.
+
+`lipo -archs` on the built app reported `arm64` and nothing else, so the `.dmg`
+would not have launched on an Intel Mac at all. Half the fix already existed and
+had never been wired up — `build-engine.sh --universal` was written, and nothing
+passed it. Now `--universal` reaches SwiftPM as `--arch arm64 --arch x86_64` for
+both products, distribution builds imply it, and both binaries in the bundle are
+checked with `lipo -archs` rather than trusted to the flag. That check earned
+itself immediately: `lipo` strips the linker's ad-hoc signature when it fuses
+the slices, so the local signing step had been failing silently and the bundle's
+nested CLI now gets signed first.
+
+`CFBundleShortVersionString` was the literal `0.1.0`. `scripts/version.sh` reads
+the git tag instead, with the commit count as the build number, and refuses a
+release from a dirty tree or a HEAD that has moved past its tag.
+
+`scripts/release.sh` runs the whole path — tag, universal build, notarize,
+verify the ticket stapled, checksum, render the cask — and prints the stanza
+ready to paste. Nothing has been published: there is no tagged release and no
+tap repository, so `brew install --cask vbx` does not work yet. That is
+deliberate and it is written down in the design doc's status rather than implied
+by the presence of the script. See ADR-012.
+
+---
+
+## 2026-08-22 — Launch stopped opening onto an error
+
+`vbx-jo9`. Launching from the Dock always showed "Could not open workspace",
+because discovery ended at the current directory and a GUI app's is `/`.
+Candidates are probed now rather than opened, the recents list joined the order,
+and a launch with nothing to discover lands in the neutral empty state. The
+error state is unchanged for anything the user actually chose. See BUGS.md.
+
+---
+
 ## 2026-08-22 — The bead list crashed when scrolled
 
 Reported as "vbx crashes when opening workspace of1". It was not about that

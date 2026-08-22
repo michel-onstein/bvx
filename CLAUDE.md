@@ -62,6 +62,22 @@ them.
 - **Tests that write into a workspace use `Fixture.writableStore()`**, which
   copies the fixture to a temporary directory. Swift Testing runs tests in
   parallel, and two writing to the shared fixture interfere.
+- **The version is the git tag, never a literal.** `scripts/version.sh` is the
+  only source: `vX.Y.Z` becomes `CFBundleShortVersionString`, the commit count
+  becomes `CFBundleVersion`. Three things have to agree — the app, the `.dmg`
+  filename and a Homebrew cask's `version` — and a cask that disagrees with what
+  the app reports cannot be upgraded.
+- **Every distribution build is universal**, implied by `--dmg`, `--app-store`
+  and `--sign` just as they already imply `--release`. Check the *artefact*, not
+  the flag: `lipo -archs` on both binaries in the bundle, the same distinction
+  `assert_archive_target` draws for the deployment target. `lipo` strips the
+  linker's ad-hoc signature, which is why nested code is signed before the
+  bundle. See ADR-012.
+- **Launch discovery probes; it never opens to find out.** `loadError` means the
+  user pointed at something and it did not work. A candidate found by discovery
+  — the recents list, the current directory, a restored window's path — is
+  skipped when it does not probe openable, so a launch with nothing to open
+  lands in the neutral empty state. Only an explicit choice reports a failure.
 - **Triage includes a bounded git-history walk**, because bv's does and it
   moves the scores. It is capped at 200 commits with a 10 s timeout, and
   reports `history_status` so an absent staleness signal is distinguishable
@@ -73,6 +89,7 @@ them.
 ./scripts/build-engine.sh --check   # Go archive + C ABI smoke test
 ./scripts/build-icon.sh --check     # committed .icns + README PNG are intact
 python3 scripts/build-notices.py --check  # every dependency is acknowledged
+python3 scripts/test-packaging.py   # signing, redaction, universal, version, cask
 swift test                          # Swift suite
 cd Engine/bridge && go test ./...   # Go suite
 gofmt -l Engine/bridge              # must print nothing
