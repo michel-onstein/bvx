@@ -9,8 +9,24 @@ import SwiftUI
 /// first time vbx changes bead data at all, so the states where it must refuse
 /// are as much of the design as the states where it works.
 struct PriorityCell: View {
-    @EnvironmentObject var store: ProjectStore
     let issue: Issue
+
+    /// Handed in, never read from the environment.
+    ///
+    /// A `Table` cell is not an ordinary child view: SwiftUI hosts each cell's
+    /// body in a subgraph of its own, and when the row set changes — a search
+    /// keystroke, a filter, a reload after a write — the cell is re-evaluated
+    /// in a subgraph that no longer carries the ancestors' environment
+    /// objects. `@EnvironmentObject` there is not "occasionally stale", it
+    /// traps: *No ObservableObject of type ProjectStore found*, on the main
+    /// thread, during layout. It survived review because the first render is
+    /// fine; only the second one crashes.
+    ///
+    /// This is also why the other columns in ``IssueListView`` read `store`
+    /// from the enclosing view rather than through a cell of their own. A
+    /// stored reference cannot go missing, so the popover and its write are
+    /// covered by the same change — a popover gets a fresh environment too.
+    @ObservedObject var store: ProjectStore
 
     @State private var isPicking = false
     @State private var isWriting = false

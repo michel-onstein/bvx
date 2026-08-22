@@ -22,14 +22,11 @@ enum Snapshot {
         return dir
     }
 
-    /// Renders `view` and writes it as `<name>.png`.
+    /// Renders `view` once and writes it as `<name>.png`.
     ///
-    /// Uses a real `NSHostingView` inside an offscreen window rather than
-    /// `ImageRenderer`. That matters: `ImageRenderer` does not lay out
-    /// `ScrollView` content, so every scrolling view (Board, Insights, Labels,
-    /// Inspector) renders completely blank through it. Hosting performs a
-    /// genuine AppKit layout and draw, which is also closer to what the running
-    /// app puts on screen.
+    /// The whole of what almost every test needs. ``hosted(_:size:)`` and
+    /// ``capture(_:name:)`` are the same three steps taken apart, for a test
+    /// that has to change something between the layout and the draw.
     @discardableResult
     static func render<V: View>(
         _ view: V,
@@ -37,6 +34,44 @@ enum Snapshot {
         size: CGSize,
         scale: CGFloat = 2
     ) throws -> RenderResult {
+        let live = hosted(view, size: size)
+        live.settle()
+        return try capture(live, name: name)
+    }
+
+    /// A hosted view kept alive so a test can change the store under it.
+    ///
+    /// ``render(_:name:size:scale:)`` draws once and is done, which cannot
+    /// express "and then the row set changed" — the pass that broke the
+    /// priority cell. Holding the host and its window lets a test lay out
+    /// again after a mutation, the way the running app does.
+    struct Live {
+        let host: NSHostingView<AnyView>
+        let window: NSWindow
+
+        /// Lay out, then let SwiftUI settle.
+        ///
+        /// Both halves are needed: lazy containers — the table included —
+        /// resolve their content on the run loop rather than synchronously
+        /// inside layout, so a layout with no run loop after it renders a
+        /// table that has not yet built a single cell.
+        func settle(_ interval: TimeInterval = 0.15) {
+            host.needsLayout = true
+            host.layoutSubtreeIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(interval))
+            host.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+        }
+    }
+
+    /// Puts `view` in an offscreen window, laid out but not yet drawn.
+    ///
+    /// Uses a real `NSHostingView` rather than `ImageRenderer`. That matters:
+    /// `ImageRenderer` does not lay out `ScrollView` content, so every
+    /// scrolling view (Board, Insights, Labels, Inspector) renders completely
+    /// blank through it. Hosting performs a genuine AppKit layout and draw,
+    /// which is also closer to what the running app puts on screen.
+    static func hosted<V: View>(_ view: V, size: CGSize) -> Live {
         let root =
             view
             .frame(width: size.width, height: size.height)
@@ -57,14 +92,13 @@ enum Snapshot {
         )
         window.contentView = host
         window.setFrame(host.frame, display: true)
+        return Live(host: host, window: window)
+    }
 
-        host.layoutSubtreeIfNeeded()
-        // Let SwiftUI settle: lazy containers resolve their content on the
-        // run loop, not synchronously inside layout.
-        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
-        host.layoutSubtreeIfNeeded()
-        window.displayIfNeeded()
-
+    /// Draws what is currently on screen and writes it as `<name>.png`.
+    @discardableResult
+    static func capture(_ live: Live, name: String) throws -> RenderResult {
+        let host = live.host
         guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
             throw SnapshotError.renderProducedNoImage(name)
         }

@@ -52,6 +52,12 @@ them.
   toolchain, and `build-app.sh` has to be able to bundle an icon on a bare
   clone. `./scripts/build-icon.sh` rebuilds both from the SVG, so the README
   image cannot drift from the icon. See ADR-008.
+- **A `Table` cell may not read anything from the environment.** A cell's
+  subgraph loses its ancestors' environment objects when the row set changes,
+  so `@EnvironmentObject` in a cell traps during layout — and only on the
+  *second* render, so a snapshot test that draws the list once passes. Pass the
+  store in. Popover and sheet content needs the same treatment for the same
+  reason. See the 2026-08-22 entry in `BUGS.md`.
 - **Snapshot tests must not use `ImageRenderer`** — it does not lay out
   `ScrollView` content, so scrolling views render blank and pass a naive
   file-exists check. Use `NSHostingView`, and assert on ink coverage.

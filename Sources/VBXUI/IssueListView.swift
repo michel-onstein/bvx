@@ -151,7 +151,10 @@ struct IssueListView: View {
         .disabledCustomizationBehavior(.all)
 
         TableColumn("P", value: \.priority) { row in
-            PriorityCell(issue: row.issue)
+            // The store is passed, not inherited: a table cell's subgraph
+            // loses its ancestors' environment objects when the row set
+            // changes. See ``PriorityCell/store``.
+            PriorityCell(issue: row.issue, store: store)
         }
         .width(30)
         .customizationID(SortColumn.priority.rawValue)

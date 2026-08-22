@@ -4,6 +4,62 @@ Found-and-fixed issues, with the regression test that locks each fix in.
 
 ---
 
+## 2026-08-22 — A table cell read the store from the environment, and the app died on the second layout
+
+**Symptom:** `EXC_BREAKPOINT` on the main thread, reported as frequent during
+ordinary use. The stack is unambiguous:
+
+```
+libswiftCore  _assertionFailure
+SwiftUICore   EnvironmentObject.error()
+vbx           PriorityCell.store.getter
+vbx           PriorityCell.body.getter  (PriorityCell.swift:34)
+...           NSHostingView.layout()
+```
+
+Not at launch — the report's window was up for 24 seconds first — and no
+existing test caught it, including the snapshot tests that render
+``IssueListView`` against the fixture.
+
+**Cause:** ``PriorityCell`` read the store with `@EnvironmentObject`. A `Table`
+cell is not an ordinary child view: SwiftUI hosts each cell's body in a
+subgraph of its own, and when the row set changes — a search keystroke, a
+filter, a reload after a write — the cell is re-evaluated in a subgraph that no
+longer carries the ancestors' environment objects. The read then calls
+`fatalError`, during layout, with no way to recover.
+
+The first render is always fine, which is exactly why this shipped: every
+snapshot test drew the list once and passed, and the app crashed on the
+keystroke after. Reproduced in-process, pre-fix, from one search keystroke
+followed by a second layout pass — the same fatal error, the same signal 5.
+
+**Fix:** the cell takes the store as a stored `@ObservedObject` and
+``IssueListView`` passes its own. A stored reference cannot go missing. This
+also covers the picker popover and the `br` write behind it, which had the same
+exposure for a different reason — a popover is presented in its own window with
+a fresh environment, the reason ``WeightsEditor`` is handed the store
+explicitly too.
+
+Every other column was already safe: they read `store` from the enclosing
+``IssueListView`` through the cell closure, so there was nothing to resolve.
+``PriorityCell`` is a separate view only because it needs `@State` for the
+popover, and that is what let it reach for the environment.
+
+**Prevention:** `PriorityCellTests` locks both halves in, and both were
+verified to fail — by killing the test process, which is how a `fatalError`
+fails — against a deliberately reintroduced `@EnvironmentObject`:
+
+- *Changing the row set does not take the priority column down with it* renders
+  the list, then churns the rows through searches and every filter, laying out
+  after each. This is the reproduction; it needed `Snapshot.hosted`/`capture`,
+  because `Snapshot.render` draws once and cannot express "and then the data
+  changed".
+- *The priority cell renders with nothing in the environment* hosts the cell
+  with no `environmentObject` at all, stating the invariant directly rather
+  than waiting for a table to break it.
+
+---
+
 ## 2026-08-21 — The Open panel could not be navigated to a workspace
 
 **Symptom:** folders without `.beads` could not be double-clicked to enter
