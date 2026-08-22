@@ -154,6 +154,10 @@ public final class ProjectStore: ObservableObject {
     /// ``open(path:)`` once a load has actually succeeded.
     @Published public var recents = RecentWorkspaces()
 
+    /// The only thing that writes bead data. See ``BeadWriter`` for why it
+    /// goes through `br` rather than touching the JSONL.
+    @Published public var writer = BeadWriter()
+
     /// Every selected bead. Bound directly to the list's `Table`.
     ///
     /// A set rather than a single id, because the table supports shift- and
@@ -777,6 +781,74 @@ public final class ProjectStore: ObservableObject {
         clearRecipe()
         alertSeverityFilter = nil
         alertTypeFilter = nil
+    }
+
+    /// Whether beads can be edited right now.
+    ///
+    /// Two reasons they cannot. `br` may not be installed, which is a normal
+    /// state — vbx stays a viewer and the affordance says why. And while time
+    /// travelling the list shows a *past* revision, so an edit would write
+    /// today's data from a view of last week's; refusing is the honest answer.
+    public var canEditBeads: Bool {
+        writer.isAvailable && isLoaded && !isTimeTravelling
+    }
+
+    /// Why editing is unavailable, for the disabled control to explain itself.
+    public var editingUnavailableReason: String? {
+        if !writer.isAvailable {
+            return "Install br to edit beads from vbx."
+        }
+        if isTimeTravelling {
+            return "Editing is unavailable while viewing a past revision."
+        }
+        return nil
+    }
+
+    /// Sets a bead's priority, through `br`.
+    ///
+    /// Reloads afterwards rather than patching the in-memory bead: `br` owns
+    /// the database and the export, so the file on disk is what is true and
+    /// the copy in memory is stale the moment the command returns.
+    @discardableResult
+    public func setPriority(_ priority: Int, for id: Issue.ID) async -> Bool {
+        guard canEditBeads, let workspace = workspaceDirectory else { return false }
+        do {
+            try await writer.setPriority(priority, for: id, in: workspace)
+            await reload(force: true)
+            return true
+        } catch {
+            loadError = error.localizedDescription
+            return false
+        }
+    }
+
+    /// The directory `br` should run in — the workspace, not the data file.
+    var workspaceDirectory: String? {
+        guard let source = info?.source else { return nil }
+        // `<workspace>/.beads/issues.jsonl` → `<workspace>`.
+        return URL(fileURLWithPath: source)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .path
+    }
+
+    /// Adds a label to the filter, or removes it if it is already there.
+    ///
+    /// One gesture in both directions, so the pill reads as a toggle rather
+    /// than two different commands depending on state.
+    ///
+    /// An active recipe is cleared. A recipe owns the filter and the sort
+    /// wholesale — `applyRecipe(named:)` writes `query` outright — so a filter
+    /// the user has since edited by hand is no longer the recipe's. Leaving it
+    /// active would keep the sidebar claiming a recipe that no longer
+    /// describes what is on screen.
+    public func toggleLabelFilter(_ label: String) {
+        if query.labels.contains(label) {
+            query.labels.remove(label)
+        } else {
+            query.labels.insert(label)
+        }
+        if activeRecipe != nil { clearRecipe() }
     }
 
     /// Returns to the ordinary filter and sort.

@@ -235,8 +235,12 @@ struct ColumnCustomizationTests {
         // column is headerless and would list as a blank menu row. Both are
         // deliberately exempt, and a later tidy-up must not quietly re-enable
         // them.
-        let exemptions = text.components(separatedBy: ".disabledCustomizationBehavior(.visibility)")
+        // `.all`, not `.visibility`. Disabling visibility alone still listed
+        // both columns in the header's customization menu, and a control that
+        // is present but does nothing is worse than no control — the reader
+        // has to try it to find out it is inert.
+        let exemptions = text.components(separatedBy: ".disabledCustomizationBehavior(.all)")
             .count - 1
-        #expect(exemptions == 2, "expected exactly 2 non-hideable columns, found \(exemptions)")
+        #expect(exemptions == 2, "expected exactly 2 non-customizable columns, found \(exemptions)")
     }
 }

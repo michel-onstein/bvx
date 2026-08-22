@@ -78,8 +78,23 @@ struct HiddenColumnMarkerTests {
         // Table with something else, this fails loudly here instead of the
         // markers quietly never appearing.
         let (table, _, store) = try await hostedTable(hiding: [])
-        #expect(table.tableColumns.count == 10)
+        #expect(table.tableColumns.count == 11)
         #expect(table.tableColumns.allSatisfy { !$0.isHidden })
+        await cleanUp(store)
+    }
+
+    @Test("The identifier stays visible even if storage says to hide it")
+    func idColumnCannotBeHidden() async throws {
+        // The menu itself cannot be inspected headlessly — SwiftUI builds it on
+        // demand when the header is right-clicked, and `headerView.menu` is nil
+        // — so this asserts the invariant underneath instead. A stored layout
+        // that marks `id` hidden must not actually hide it: every context menu,
+        // bead link and URL is keyed by that column.
+        let (table, _, store) = try await hostedTable(hiding: [.id])
+
+        let id = try #require(table.tableColumns.first { $0.headerCell.stringValue == "ID" })
+        #expect(!id.isHidden, "the identifier column was hidden")
+
         await cleanUp(store)
     }
 

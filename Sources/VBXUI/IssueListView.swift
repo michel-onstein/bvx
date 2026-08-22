@@ -26,9 +26,45 @@ struct IssueListView: View {
     @AppStorage("issueListColumnCustomization")
     private var columnCustomization: TableColumnCustomization<IssueRow>
 
+    /// Columns that must stay on screen whatever the stored layout says.
+    ///
+    /// The identifier, because every context menu, bead link and URL is keyed
+    /// by it; the type glyph, because it is 22pt of context rather than a
+    /// column to manage.
+    static let protectedColumnIDs = [SortColumn.id.rawValue, "type"]
+
+    /// The stored layout with the protected columns forced visible.
+    ///
+    /// `disabledCustomizationBehavior(.all)` removes those columns from the
+    /// header menu, but it does **not** enforce anything: a stored layout that
+    /// marks them hidden still hides them, which was measurable before this
+    /// existed. Sanitising on the way in and out is what actually keeps them
+    /// on screen — the menu entry and the enforcement are separate problems.
+    private var sanitizedCustomization: Binding<TableColumnCustomization<IssueRow>> {
+        Binding(
+            get: {
+                var customization = columnCustomization
+                for id in Self.protectedColumnIDs {
+                    customization[visibility: id] = .visible
+                }
+                return customization
+            },
+            set: { updated in
+                var customization = updated
+                for id in Self.protectedColumnIDs {
+                    customization[visibility: id] = .visible
+                }
+                columnCustomization = customization
+            }
+        )
+    }
+
     /// The columns the user has put away.
     private var hiddenColumns: Set<SortColumn> {
-        Set(SortColumn.allCases.filter { columnCustomization[visibility: $0.rawValue] == .hidden })
+        Set(
+            SortColumn.allCases.filter {
+                columnCustomization[visibility: $0.rawValue] == .hidden
+            })
     }
 
     /// Header title to customization ID.
@@ -46,6 +82,7 @@ struct IssueListView: View {
         "Blocked by": SortColumn.blockedBy.rawValue,
         "PageRank": SortColumn.pageRank.rawValue,
         "Labels": SortColumn.labels.rawValue,
+        "Created": SortColumn.created.rawValue,
         "Updated": SortColumn.updated.rawValue,
     ]
 
@@ -88,124 +125,180 @@ struct IssueListView: View {
         return store.visibleIssues.map { IssueRow(issue: $0, metrics: metrics) }
     }
 
+    // The columns are split across three builder properties rather than
+    // written as one block: `@TableColumnBuilder` accepts at most ten
+    // columns, and the single expression had also grown past what the
+    // type-checker will solve in reasonable time.
+
+    /// Who the bead is: identifier, priority and type.
+    @TableColumnBuilder<IssueRow, KeyPathComparator<IssueRow>>
+    private var identityColumns:
+        some TableColumnContent<
+            IssueRow, KeyPathComparator<IssueRow>
+        >
+    {
+        TableColumn("ID", value: \.id) { row in
+            Text(row.issue.id).monospaced().font(.callout)
+        }
+        .width(min: 70, ideal: 96, max: 160)
+        .customizationID(SortColumn.id.rawValue)
+        // Every context menu, bead link and URL is keyed by the id, so a
+        // row without one is hard to act on. `.all` rather than
+        // `.visibility`: disabling visibility alone still listed ID in the
+        // header's menu, and a control that is present but does nothing is
+        // worse than no control — the reader has to try it to learn it is
+        // inert.
+        .disabledCustomizationBehavior(.all)
+
+        TableColumn("P", value: \.priority) { row in
+            PriorityCell(issue: row.issue)
+        }
+        .width(30)
+        .customizationID(SortColumn.priority.rawValue)
+
+        // The type glyph has no header to click and no useful ordering of
+        // its own, so it stays an unsorted column.
+        TableColumn("") { row in
+            Image(systemName: row.issue.type.symbolName)
+                .foregroundStyle(.secondary)
+                .help(row.issue.type.displayName)
+        }
+        .width(22)
+        .customizationID("type")
+        // Headerless, so it would list as a blank row. `.all` for the same
+        // reason as ID above: the glyph is 22pt of context, not a column
+        // to manage, and an unnamed menu entry explains nothing.
+        .disabledCustomizationBehavior(.all)
+
+    }
+
+    /// What the bead says, and where it sits in the graph.
+    @TableColumnBuilder<IssueRow, KeyPathComparator<IssueRow>>
+    private var substanceColumns:
+        some TableColumnContent<
+            IssueRow, KeyPathComparator<IssueRow>
+        >
+    {
+        TableColumn("Title", value: \.titleKey) { row in
+            HStack(spacing: 6) {
+                // The badge leads the title while time travelling: it is
+                // the reason the row is interesting.
+                if let badge = store.badge(for: row.id) {
+                    DiffBadgeView(badge: badge)
+                }
+                if let repo = store.repo(of: row.id) {
+                    RepoBadge(repo: repo, isCrossRepo: store.isCrossRepo(row.id))
+                }
+                Text(row.issue.title).lineLimit(1)
+                if store.actionable.contains(row.id) {
+                    Image(systemName: "bolt.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.yellow)
+                        .help("Actionable now")
+                }
+            }
+        }
+        .width(min: 200, ideal: 360)
+        .customizationID(SortColumn.title.rawValue)
+
+        TableColumn("Status", value: \.statusKey) { row in
+            StatusChip(status: row.issue.status)
+        }
+        .width(min: 90, ideal: 110, max: 140)
+        .customizationID(SortColumn.status.rawValue)
+
+        // Grouped because `@TableColumnBuilder` accepts at most ten
+        // columns, and Created is the eleventh. `Group` nests the content
+        // so the limit applies inside each group rather than to the table.
+        TableColumn("Blocks", value: \.blocks) { row in
+            Text(row.blocks == 0 ? "—" : "\(row.blocks)")
+                .monospacedDigit()
+                .foregroundStyle(row.blocks > 0 ? .primary : .tertiary)
+                .help("Issues that depend on this one")
+        }
+        .width(52)
+        .customizationID(SortColumn.blocks.rawValue)
+
+        TableColumn("Blocked by", value: \.blockedBy) { row in
+            Text(row.blockedBy == 0 ? "—" : "\(row.blockedBy)")
+                .monospacedDigit()
+                .foregroundStyle(row.blockedBy > 0 ? .primary : .tertiary)
+        }
+        .width(74)
+        .customizationID(SortColumn.blockedBy.rawValue)
+
+        // Sortable in the same way as the rest, but the binding refuses
+        // the write until Phase 2 has values — see `sortOrder` above.
+    }
+
+    /// Computed and recorded values: the metric, labels and dates.
+    @TableColumnBuilder<IssueRow, KeyPathComparator<IssueRow>>
+    private var metadataColumns:
+        some TableColumnContent<
+            IssueRow, KeyPathComparator<IssueRow>
+        >
+    {
+        TableColumn("PageRank", value: \.pageRankKey) { row in
+            MetricCell(
+                value: row.pageRank,
+                status: store.metrics.status?.pageRank,
+                format: { String(format: "%.4f", $0) }
+            )
+        }
+        .width(min: 76, ideal: 86, max: 120)
+        .customizationID(SortColumn.pageRank.rawValue)
+
+        TableColumn("Labels", value: \.labelsKey) { row in
+            // Identity is the position, not the label: a bead carrying the
+            // same label twice is bad data, but it must not collide here
+            // and drop one of the pills.
+            HStack(spacing: 4) {
+                ForEach(Array(row.issue.labels.enumerated()), id: \.offset) { _, label in
+                    LabelPill(label: label, isFiltered: store.query.labels.contains(label))
+                        // Double-click filters by the label, or stops filtering
+                        // by it. The row owns single clicks for selection, so
+                        // this deliberately takes only the double.
+                        .onTapGesture(count: 2) { store.toggleLabelFilter(label) }
+                }
+            }
+            .help(row.issue.labels.joined(separator: ", "))
+        }
+        .width(min: 80, ideal: 140)
+        .customizationID(SortColumn.labels.rawValue)
+
+        // Formatted exactly like Updated below: two adjacent date columns
+        // disagreeing about how to write a date reads as a bug.
+        TableColumn("Created", value: \.createdKey) { row in
+            Text(
+                row.issue.createdAt.map {
+                    Self.relative.localizedString(for: $0, relativeTo: .now)
+                } ?? "—"
+            )
+            .foregroundStyle(.secondary)
+        }
+        .width(min: 80, ideal: 100, max: 140)
+        .customizationID(SortColumn.created.rawValue)
+
+        TableColumn("Updated", value: \.updatedKey) { row in
+            Text(
+                row.issue.updatedAt.map {
+                    Self.relative.localizedString(for: $0, relativeTo: .now)
+                } ?? "—"
+            )
+            .foregroundStyle(.secondary)
+        }
+        .width(min: 80, ideal: 100, max: 140)
+        .customizationID(SortColumn.updated.rawValue)
+    }
+
     var body: some View {
         Table(
             rows, selection: $store.selection, sortOrder: sortOrder,
-            columnCustomization: $columnCustomization
+            columnCustomization: sanitizedCustomization
         ) {
-            TableColumn("ID", value: \.id) { row in
-                Text(row.issue.id).monospaced().font(.callout)
-            }
-            .width(min: 70, ideal: 96, max: 160)
-            .customizationID(SortColumn.id.rawValue)
-            // Every context menu, bead link and URL is keyed by the id.
-            // A row without one is hard to act on, so it may be moved
-            // and resized but not put away.
-            .disabledCustomizationBehavior(.visibility)
-
-            TableColumn("P", value: \.priority) { row in
-                Text(row.issue.priorityLabel)
-                    .monospacedDigit()
-                    .foregroundStyle(row.issue.priority <= 1 ? .primary : .secondary)
-            }
-            .width(30)
-            .customizationID(SortColumn.priority.rawValue)
-
-            // The type glyph has no header to click and no useful ordering of
-            // its own, so it stays an unsorted column.
-            TableColumn("") { row in
-                Image(systemName: row.issue.type.symbolName)
-                    .foregroundStyle(.secondary)
-                    .help(row.issue.type.displayName)
-            }
-            .width(22)
-            .customizationID("type")
-            // Headerless, so it would appear as a blank row in the
-            // customization menu. Opted out rather than given a label:
-            // the glyph is 22pt of context, not a column to manage.
-            .disabledCustomizationBehavior(.visibility)
-
-            TableColumn("Title", value: \.titleKey) { row in
-                HStack(spacing: 6) {
-                    // The badge leads the title while time travelling: it is
-                    // the reason the row is interesting.
-                    if let badge = store.badge(for: row.id) {
-                        DiffBadgeView(badge: badge)
-                    }
-                    if let repo = store.repo(of: row.id) {
-                        RepoBadge(repo: repo, isCrossRepo: store.isCrossRepo(row.id))
-                    }
-                    Text(row.issue.title).lineLimit(1)
-                    if store.actionable.contains(row.id) {
-                        Image(systemName: "bolt.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.yellow)
-                            .help("Actionable now")
-                    }
-                }
-            }
-            .width(min: 200, ideal: 360)
-            .customizationID(SortColumn.title.rawValue)
-
-            TableColumn("Status", value: \.statusKey) { row in
-                StatusChip(status: row.issue.status)
-            }
-            .width(min: 90, ideal: 110, max: 140)
-            .customizationID(SortColumn.status.rawValue)
-
-            TableColumn("Blocks", value: \.blocks) { row in
-                Text(row.blocks == 0 ? "—" : "\(row.blocks)")
-                    .monospacedDigit()
-                    .foregroundStyle(row.blocks > 0 ? .primary : .tertiary)
-                    .help("Issues that depend on this one")
-            }
-            .width(52)
-            .customizationID(SortColumn.blocks.rawValue)
-
-            TableColumn("Blocked by", value: \.blockedBy) { row in
-                Text(row.blockedBy == 0 ? "—" : "\(row.blockedBy)")
-                    .monospacedDigit()
-                    .foregroundStyle(row.blockedBy > 0 ? .primary : .tertiary)
-            }
-            .width(74)
-            .customizationID(SortColumn.blockedBy.rawValue)
-
-            // Sortable in the same way as the rest, but the binding refuses
-            // the write until Phase 2 has values — see `sortOrder` above.
-            TableColumn("PageRank", value: \.pageRankKey) { row in
-                MetricCell(
-                    value: row.pageRank,
-                    status: store.metrics.status?.pageRank,
-                    format: { String(format: "%.4f", $0) }
-                )
-            }
-            .width(min: 76, ideal: 86, max: 120)
-            .customizationID(SortColumn.pageRank.rawValue)
-
-            TableColumn("Labels", value: \.labelsKey) { row in
-                // Identity is the position, not the label: a bead carrying the
-                // same label twice is bad data, but it must not collide here
-                // and drop one of the pills.
-                HStack(spacing: 4) {
-                    ForEach(Array(row.issue.labels.enumerated()), id: \.offset) { _, label in
-                        LabelPill(label: label)
-                    }
-                }
-                .help(row.issue.labels.joined(separator: ", "))
-            }
-            .width(min: 80, ideal: 140)
-            .customizationID(SortColumn.labels.rawValue)
-
-            TableColumn("Updated", value: \.updatedKey) { row in
-                Text(
-                    row.issue.updatedAt.map {
-                        Self.relative.localizedString(for: $0, relativeTo: .now)
-                    } ?? "—"
-                )
-                .foregroundStyle(.secondary)
-            }
-            .width(min: 80, ideal: 100, max: 140)
-            .customizationID(SortColumn.updated.rawValue)
+            identityColumns
+            substanceColumns
+            metadataColumns
         }
         // `forSelectionType:` is what makes "the selected beads, or the one
         // right-clicked when it is not selected" fall out of the framework:
@@ -407,15 +500,34 @@ struct MetricCell: View {
 /// would have been invisible. At 0.18 it reads.
 struct LabelPill: View {
     let label: String
+    /// True when this label is one the list is currently filtered by.
+    var isFiltered: Bool = false
 
     var body: some View {
         Text(label)
             .font(.caption)
+            // Weight as well as colour: a filtered pill has to be
+            // distinguishable in monochrome and to a colour-blind reader, the
+            // same reasoning that gives ``StatusChip`` a symbol beside its
+            // tint.
+            .fontWeight(isFiltered ? .semibold : .regular)
             .lineLimit(1)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(isFiltered ? Color.accentColor : Color.secondary)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(Color.secondary.opacity(0.18), in: Capsule())
+            .background(fill, in: Capsule())
+    }
+
+    /// The capsule behind the label.
+    ///
+    /// The neutral fill is heavier than ``StatusChip``'s 0.12 because it is
+    /// grey rather than tinted: measured against the window background, a
+    /// neutral capsule at 0.12 is indistinguishable from bare text (ink 0.049
+    /// vs 0.043). The filtered fill is coloured, so it reads at a lower
+    /// opacity — but it is still set deliberately rather than shared, and the
+    /// tests compare the two rather than trusting a number.
+    private var fill: Color {
+        isFiltered ? Color.accentColor.opacity(0.22) : Color.secondary.opacity(0.18)
     }
 }
 

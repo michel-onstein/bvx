@@ -31,6 +31,7 @@ struct MarkdownText: View {
                 .font(font)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
+                .overlay { linkAffordances }
         } else {
             VStack(alignment: .leading, spacing: 7) {
                 ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
@@ -39,6 +40,24 @@ struct MarkdownText: View {
             }
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay { linkAffordances }
+        }
+    }
+
+    /// The pointer and tooltip for linked ids.
+    ///
+    /// An overlay rather than attributes on the text: SwiftUI carries `.link`,
+    /// colour and underline into the backing text field but drops
+    /// `appKit.cursor` and `appKit.toolTip`, so both hover affordances have to
+    /// be added at the AppKit layer. See ``BeadLinkCursors``.
+    ///
+    /// Skipped entirely when the component has no workspace to link against,
+    /// which is also what keeps it out of the way in previews and tests.
+    @ViewBuilder
+    private var linkAffordances: some View {
+        if !beadTitles.isEmpty {
+            BeadLinkCursors(source: source, beadTitles: beadTitles)
+                .allowsHitTesting(false)
         }
     }
 
