@@ -72,6 +72,7 @@ them.
 ```bash
 ./scripts/build-engine.sh --check   # Go archive + C ABI smoke test
 ./scripts/build-icon.sh --check     # committed .icns + README PNG are intact
+python3 scripts/build-notices.py --check  # every dependency is acknowledged
 swift test                          # Swift suite
 cd Engine/bridge && go test ./...   # Go suite
 gofmt -l Engine/bridge              # must print nothing

@@ -5,6 +5,45 @@ store was empty until 2026-08-21, so earlier entries carry no id.
 
 ---
 
+## 2026-08-22 — An About window carrying the licence notices
+
+`vbx-x18`. The default About panel showed a name and a version while the engine
+linked 66 third-party modules, several of which require their notices to travel
+with the binary — and one of which requires its rider carried unmodified, with
+breach terminating the licence to the engine vbx is built on. None of it
+reached a user.
+
+`scripts/build-notices.py` generates `Resources/ACKNOWLEDGEMENTS.md` from
+`go.mod` and the module cache; the result is committed and `--check` is in the
+verify block. Committed for the same reason as the icon: regenerating needs a
+populated module cache, and `build-app.sh` has to bundle a shippable app on a
+bare clone. `--check` deliberately validates against `go.mod` rather than
+regenerating, so it works on a clone with no cache — which is most of the point.
+
+Three dependencies cannot be handled by reading one licence file, and each is a
+real case here rather than a hypothetical:
+
+- **`golang/freetype`** is dual-licensed, FreeType *or* GPLv2. The notices state
+  which arm vbx takes, because a reader who is not told assumes the GPL one.
+- **`cyphar/filepath-securejoin`** carries three licence files (a summary, BSD-3
+  and MPL-2.0). MPL is per-file copyleft, so the notice points at upstream for
+  the source of the covered files.
+- **`mattn/go-localereader`** ships *no* licence file; its README is the only
+  statement of terms, so the README is what is reproduced.
+
+A generator that took the first licence file it found would be wrong about two
+of the three, so they are declared rather than discovered.
+
+`build-app.sh` now **fails** rather than warns when the notices are missing: an
+icon-less bundle still runs, but a bundle without these is not distributable.
+
+The About window is a `Window` scene, not something a `WorkspaceWindow` owns —
+it names the app, and with per-window stores anything a workspace window owned
+would multiply. Name and version come from the bundle rather than literals,
+which would drift against `build-app.sh` where the real ones are written.
+
+---
+
 ## 2026-08-22 — Per-segment tooltips, and one window per workspace
 
 `vbx-2wp`, `vbx-zlu`.

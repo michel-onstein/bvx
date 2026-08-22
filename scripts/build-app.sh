@@ -69,6 +69,17 @@ else
   echo "  (no Resources/vbx.icns — run ./scripts/build-icon.sh)"
 fi
 
+# The third-party licence notices the About window displays. Several of the
+# engine's dependencies require their notice to be carried with the binary, and
+# beads_viewer's rider must travel unmodified, so a bundle without this file is
+# not distributable — hence the hard failure rather than a warning.
+if [[ -f "$ROOT/Resources/ACKNOWLEDGEMENTS.md" ]]; then
+  cp "$ROOT/Resources/ACKNOWLEDGEMENTS.md" "$APP/Contents/Resources/ACKNOWLEDGEMENTS.md"
+else
+  echo "Resources/ACKNOWLEDGEMENTS.md is missing; run ./scripts/build-notices.py" >&2
+  exit 1
+fi
+
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
