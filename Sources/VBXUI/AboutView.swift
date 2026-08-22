@@ -35,10 +35,13 @@ public struct AboutView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(Self.applicationName)
                     .font(.title2.weight(.semibold))
-                Text(Self.versionLine)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
+                let version = Self.versionLine
+                if !version.isEmpty {
+                    Text(version)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
                 Text("MIT with the AI Training Rider. Its full text is below.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -68,16 +71,34 @@ public struct AboutView: View {
             ?? "Visual Beads"
     }
 
-    static var versionLine: String {
-        let info = Bundle.main.infoDictionary
+    /// What the About box says the build is, e.g. `Version 0.0.1 (42)`.
+    ///
+    /// The marketing version comes from the git tag and the build number from
+    /// the commit count, stamped into the plist by `build-app.sh` — see
+    /// `scripts/version.sh` for why neither is written down anywhere else.
+    ///
+    /// Empty when the keys are absent, which is not a hypothetical: in a test
+    /// process `Bundle.main` is SwiftPM's helper binary and both keys are nil.
+    /// Absent rather than a placeholder, for the reason the whole codebase
+    /// prefers absent to zero — `Version 0.0.0 (0)` would be a claim, and a
+    /// wrong one. The header omits the line entirely rather than reserving a
+    /// blank row for it.
+    static func versionLine(from info: [String: Any]?) -> String {
         let short = info?["CFBundleShortVersionString"] as? String
         let build = info?["CFBundleVersion"] as? String
         switch (short, build) {
         case let (version?, build?): return "Version \(version) (\(build))"
         case let (version?, nil): return "Version \(version)"
+        // A build number with no marketing version says nothing a user can
+        // use, so it is not shown on its own.
         default: return ""
         }
     }
+
+    /// - Parameter info: injected so the formatting can be tested. The default
+    ///   is the real bundle, and a test process never has one — which is
+    ///   exactly why this had no coverage until it was made injectable.
+    static var versionLine: String { versionLine(from: Bundle.main.infoDictionary) }
 
     /// The generated notices, read from the bundle.
     ///

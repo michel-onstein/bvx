@@ -114,10 +114,73 @@ struct AcknowledgementsTests {
         #expect(text.contains("build-notices.py"), "the fallback does not say how to fix it")
     }
 
-    @Test("The version line comes from the bundle rather than a literal")
-    func versionComesFromTheBundle() {
-        // A literal drifts against build-app.sh, which is where the real
-        // version is written.
+    @Test("The application name is never empty, even with no bundle")
+    func applicationNameHasAFallback() {
+        // Named for what it checks. It used to be called "the version line
+        // comes from the bundle", which is how the version came to look
+        // covered while nothing asserted it at all.
         #expect(!AboutView.applicationName.isEmpty)
+    }
+
+    // MARK: - The version line
+    //
+    // The version travels git tag -> scripts/version.sh -> PlistBuddy -> the
+    // plist -> Bundle.main -> here. Nothing used to verify the last two hops:
+    // `versionLine` read `Bundle.main` directly, and in a test process
+    // `Bundle.main` is SwiftPM's helper binary with no version keys at all, so
+    // it returned "" in every test and the About snapshot rendered a blank row
+    // where the version belongs. The stamping could have broken silently and
+    // every check would still have passed.
+    //
+    // Taking the dictionary as a parameter is what makes the formatting
+    // testable at all; the packaging suite covers the stamping hop, by
+    // comparing a built bundle's plist against scripts/version.sh.
+
+    @Test("A stamped bundle shows the marketing version and the build number")
+    func versionLineIsFormatted() {
+        let line = AboutView.versionLine(from: [
+            "CFBundleShortVersionString": "0.0.1",
+            "CFBundleVersion": "42",
+        ])
+        #expect(line == "Version 0.0.1 (42)")
+    }
+
+    @Test("Without a build number, the version stands alone")
+    func versionLineWithoutBuild() {
+        let line = AboutView.versionLine(from: ["CFBundleShortVersionString": "1.2.3"])
+        #expect(line == "Version 1.2.3")
+    }
+
+    @Test("An unstamped bundle shows nothing rather than a placeholder")
+    func versionLineIsAbsentNotZero() {
+        // Absent, never a stand-in: `Version 0.0.0 (0)` would be a claim, and a
+        // wrong one. This is the case a test process actually hits.
+        #expect(AboutView.versionLine(from: nil).isEmpty)
+        #expect(AboutView.versionLine(from: [:]).isEmpty)
+
+        // A build number with no marketing version says nothing usable either.
+        #expect(AboutView.versionLine(from: ["CFBundleVersion": "42"]).isEmpty)
+    }
+
+    @Test("The header still draws when the version is absent")
+    func headerDrawsWithoutAVersion() throws {
+        // The state every test process is in: no bundle, so no version. What
+        // this rules out is the header collapsing or drawing blank when the
+        // line it used to reserve a row for is gone.
+        //
+        // Measured over the header band alone. A whole-image figure cannot
+        // answer this — the notices pane below fills most of the frame and its
+        // text alone clears any threshold, so a header that vanished entirely
+        // would still have passed.
+        #expect(AboutView.versionLine.isEmpty, "precondition: no bundle in a test process")
+
+        let result = try Snapshot.render(
+            AboutView(),
+            name: "about-window-unstamped",
+            size: CGSize(width: 620, height: 560))
+        let header = CGRect(x: 0, y: 0, width: 620, height: 100)
+        #expect(
+            result.inkCoverage(in: header) > 0.01,
+            "the header drew nothing without a version line")
     }
 }

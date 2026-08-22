@@ -4,6 +4,52 @@ Found-and-fixed issues, with the regression test that locks each fix in.
 
 ---
 
+## 2026-08-22 — The About window's version line was untested, and drew a blank row
+
+**Symptom:** rendering `AboutView` offscreen produced a header with the app name,
+then an empty row, then the licence line. The version was simply missing. In the
+real app it is correct — a built bundle reports `Version 0.0.1 (42)` — so this
+was only ever visible in a snapshot.
+
+**Cause:** `versionLine` read `Bundle.main.infoDictionary` directly, and in a
+test process `Bundle.main` is SwiftPM's helper binary:
+
+```
+bundlePath  = …/XcodeDefault.xctoolchain/usr/libexec/swift/pm
+short       = nil
+build       = nil
+versionLine = []
+```
+
+`applicationName` survived the same conditions because it ends in
+`?? "Visual Beads"`; `versionLine` had no fallback. And because the string was
+empty rather than absent, `Text("")` still occupied a row — hence the gap.
+
+**Why it mattered more than a cosmetic gap:** the version had just stopped being
+a literal. It now travels git tag → `scripts/version.sh` → `PlistBuddy` → the
+plist → `Bundle.main` → the About box, and **nothing verified the last two
+hops**. The test that sounded like it did — *"The version line comes from the
+bundle rather than a literal"* — asserted only that `applicationName` was
+non-empty and never touched `versionLine`. A broken stamp would have shipped a
+blank About box with every check green.
+
+**Fix:** `versionLine(from:)` takes the info dictionary, with
+`versionLine` defaulting it to `Bundle.main`, which is what makes the formatting
+testable at all. The header omits the row entirely when the string is empty,
+rather than reserving a blank one. The misleading test was renamed for what it
+actually asserts.
+
+**Prevention:** four cases on the formatting — both keys, marketing version
+alone, nothing, and a build number with no marketing version (which shows
+nothing, since it says nothing a user can use). Plus the hop Swift cannot reach:
+`test-packaging.py` compares a built bundle's plist against `scripts/version.sh`,
+and skips loudly when no bundle has been built rather than passing on a missing
+artefact. Both were confirmed to fail before passing — the plist check by
+setting the plist back to the old hardcoded `0.1.0`, and the header check by
+aiming its region at a band known to be blank.
+
+---
+
 ## 2026-08-22 — The signing config had been dead since the rename, and said nothing
 
 **Symptom:** `./scripts/package-app.sh --check` reported *"no distribution

@@ -192,7 +192,13 @@ pre.mermaid svg { max-width: 100%; height: auto; }
     <div class="toc-head">On this page</div>
     <nav class="toc"><div class="toc">
 <ul>
-<li><a href="#releases">Releases</a></li>
+<li><a href="#releases">Releases</a><ul>
+<li><a href="#001-2026-08-22">0.0.1 — 2026-08-22</a><ul>
+<li><a href="#fixes">Fixes</a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 </div>
 </nav>
@@ -206,8 +212,51 @@ pre.mermaid svg { max-width: 100%; height: auto; }
 edit.</strong> The engineering-facing views live elsewhere:
 <a href="project_notes/BUGS.html">BUGS.md</a> records a bug and the regression test locking
 it in, and <a href="project_notes/WORK_LOG.html">WORK_LOG.md</a> records dated work.</p>
-<p>No releases yet. <code>scripts/version-bump.sh</code> cuts the first one; until then every
-build reports <code>0.0.0</code>, which sorts below any real tag.</p>
+<h2 id="001-2026-08-22"><a class="toclink" href="#001-2026-08-22">0.0.1 — 2026-08-22</a></h2>
+<h3 id="fixes"><a class="toclink" href="#fixes">Fixes</a></h3>
+<ul>
+<li>Land on a workspace, ship universal, and version from git (<a href="https://github.com/michel-onstein/vbx/pull/33">#33</a>)</li>
+<li>Land the two distribution beads that existed only in a working tree (<a href="https://github.com/michel-onstein/vbx/pull/32">#32</a>)</li>
+<li>File the release-versioning and generated-notes task (<a href="https://github.com/michel-onstein/vbx/pull/31">#31</a>)</li>
+<li>Hand the priority cell its store, so scrolling the list cannot crash (<a href="https://github.com/michel-onstein/vbx/pull/29">#29</a>)</li>
+<li>Load recipes when a workspace opens (<a href="https://github.com/michel-onstein/vbx/pull/30">#30</a>)</li>
+<li>Show the licences vbx is obliged to ship, in an About window (<a href="https://github.com/michel-onstein/vbx/pull/27">#27</a>)</li>
+<li>Record the single-edition decision as ADR-011 (<a href="https://github.com/michel-onstein/vbx/pull/26">#26</a>)</li>
+<li>Name each view switcher segment, and give each window its workspace (<a href="https://github.com/michel-onstein/vbx/pull/25">#25</a>)</li>
+<li>Implement six beads, including the first write to bead data (<a href="https://github.com/michel-onstein/vbx/pull/24">#24</a>)</li>
+<li>Confine the hidden-column rule to the header, and add a recents menu (<a href="https://github.com/michel-onstein/vbx/pull/23">#23</a>)</li>
+<li>Mark where columns are hidden, and unhide them on a double-click (<a href="https://github.com/michel-onstein/vbx/pull/22">#22</a>)</li>
+<li>Let columns be hidden, and remember the layout (<a href="https://github.com/michel-onstein/vbx/pull/21">#21</a>)</li>
+<li>Make the Open panel navigable, and record bead selection as navigation (<a href="https://github.com/michel-onstein/vbx/pull/20">#20</a>)</li>
+<li>Reset filters when a different workspace is opened (<a href="https://github.com/michel-onstein/vbx/pull/19">#19</a>)</li>
+<li>File the workspace-open filter reset task (<a href="https://github.com/michel-onstein/vbx/pull/17">#17</a>)</li>
+<li>Licence the repo MIT, with an AI training rider (<a href="https://github.com/michel-onstein/vbx/pull/16">#16</a>)</li>
+<li>Implement the five open beads (<a href="https://github.com/michel-onstein/vbx/pull/18">#18</a>)</li>
+<li>File the bead-link affordance and view-history tasks (<a href="https://github.com/michel-onstein/vbx/pull/15">#15</a>)</li>
+<li>Mint new beads as vbx-, and file the two list-column tasks (<a href="https://github.com/michel-onstein/vbx/pull/14">#14</a>)</li>
+<li>Rename the project from bvx to vbx — Visual Beads (<a href="https://github.com/michel-onstein/vbx/pull/13">#13</a>)</li>
+<li>Ignore .claude/ (<a href="https://github.com/michel-onstein/vbx/pull/12">#12</a>)</li>
+<li>Record the two notarytool failures, and correct a stale README (<a href="https://github.com/michel-onstein/vbx/pull/11">#11</a>)</li>
+<li>Distinguish "nothing to scan for" from "no config at all" (<a href="https://github.com/michel-onstein/vbx/pull/10">#10</a>)</li>
+<li>Scan only the settings that are actually secret (<a href="https://github.com/michel-onstein/vbx/pull/9">#9</a>)</li>
+<li>Ignore the files an editor leaves beside signing.env (<a href="https://github.com/michel-onstein/vbx/pull/8">#8</a>)</li>
+<li>Add signed distribution: a notarized .dmg and an App Store .pkg (<a href="https://github.com/michel-onstein/vbx/pull/7">#7</a>)</li>
+<li>Give bvx an app icon (<a href="https://github.com/michel-onstein/vbx/pull/5">#5</a>)</li>
+<li>Track .beads/issues.jsonl (<a href="https://github.com/michel-onstein/vbx/pull/6">#6</a>)</li>
+<li>Add list multi-selection, a row context menu, and an Open-panel guard (<a href="https://github.com/michel-onstein/vbx/pull/4">#4</a>)</li>
+<li>Build the engine archive for the declared deployment target (<a href="https://github.com/michel-onstein/vbx/pull/3">#3</a>)</li>
+<li>Restore .beads/.gitignore (<a href="https://github.com/michel-onstein/vbx/pull/2">#2</a>)</li>
+<li>Implement the remainder of bvx: all 16 open beads (<a href="https://github.com/michel-onstein/vbx/pull/1">#1</a>)</li>
+<li>Render bead descriptions as Markdown in the inspector</li>
+<li>Bring repo in line with the global conventions</li>
+<li>Add offscreen view snapshot tests</li>
+<li>Add triage recommendations to bvx</li>
+<li>Add Markdown report export to bvx</li>
+<li>Add live reload and label analytics to bvx</li>
+<li>Implement bvx: native macOS app over bv's Go engine</li>
+<li>Add bvx design document and static HTML docs</li>
+<li>Initial empty commit</li>
+</ul>
     </article>
     <footer class="foot">Generated from <code>docs/RELEASES.md</code> &middot; vbx design documentation</footer>
   </main>
