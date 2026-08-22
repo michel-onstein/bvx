@@ -60,6 +60,39 @@ blind spot this slipped through.
 
 ---
 
+## 2026-08-22 — Recipes never loaded, so the feature looked inert
+
+**Symptom:** the sidebar's Recipes section offered "New recipe…" and nothing
+else, in every workspace. The feature appeared to do nothing, and was reported
+that way.
+
+**Cause:** `loadRecipes()` guards on `isLoaded` and was called from exactly
+three places — the sidebar section's `.task`, `saveRecipe` and `deleteRecipe`.
+**Nothing called it when a workspace opened.** The sidebar renders immediately
+at launch, before any workspace has loaded, so its `.task` fired while
+`isLoaded` was still false, returned early, and never ran again: `.task` does
+not re-run when the value it depended on changes. The one call that would have
+populated the list ran at the only moment it could not work.
+
+Measured by driving the store directly — after `open`, `recipes` was empty; an
+explicit `loadRecipes()` immediately returned eleven. `vbx-cli --robot-recipes`
+listed all eleven for the same workspace throughout, so nothing below the store
+was ever wrong.
+
+**Fix:** load them in `open(path:)` after `refreshAll()`, and in
+`reload(force:)` on the changed path — recipes live in the workspace, so an edit
+on disk can add or remove one. The `.task` is gone: two mechanisms for one job,
+and the view-driven one was the half that could not be relied on.
+
+**Prevention:** `openingLoadsRecipes` asserts the list is populated after
+`open`, and reports `recipes → []` against the unfixed store.
+`loadedRecipesAreUsable` guards the shape of the fix — loading a list that
+cannot be applied would satisfy the first test while leaving the feature just as
+inert. `noWorkspaceMeansNoRecipes` pins the legitimately-empty case, which is
+what made this bug easy to mistake for "recipes do nothing".
+
+---
+
 ## 2026-08-21 — The Open panel could not be navigated to a workspace
 
 **Symptom:** folders without `.beads` could not be double-clicked to enter

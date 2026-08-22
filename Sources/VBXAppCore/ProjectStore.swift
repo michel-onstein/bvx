@@ -534,6 +534,12 @@ public final class ProjectStore: ObservableObject {
             // load is not somewhere the user has been, and offering it again
             // in the menu would just reproduce the error.
             recents.record(path)
+            // Loaded here rather than from the sidebar section that shows
+            // them: that view renders before any workspace has, so its `.task`
+            // ran while `isLoaded` was still false, returned early, and never
+            // ran again. The recipes existed the whole time and the list was
+            // always empty.
+            await loadRecipes()
             startWatching()
             if !skipPhase2 { await computePhase2() }
         } catch {
@@ -562,6 +568,10 @@ public final class ProjectStore: ObservableObject {
             guard fresh.changed || force else { return false }
 
             try await refreshAll()
+            // Recipes live in the workspace, so one can be added or removed by
+            // an edit on disk — the same reason the beads themselves are
+            // re-read here.
+            await loadRecipes()
             if !skipPhase2 { await computePhase2() }
             // Every correlation attribution was computed against the old bead
             // set, so the report is stale. It is marked unloaded rather than
