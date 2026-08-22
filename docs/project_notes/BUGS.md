@@ -9,11 +9,24 @@ Found-and-fixed issues, with the regression test that locks each fix in.
 **Symptom:** reported from a real build — "the editing of Priority is not in
 this build". It was in the build. Double-clicking the priority cell did nothing.
 
-**Cause:** `PriorityCell` offers editing through `onTapGesture(count: 2)`, and
-inside a `Table` that gesture never arrives. macOS bridges `Table` to
-`NSTableView`, which consumes clicks for row selection, so the cell's subgraph
-never sees the double-click. Synthesising one on the cell opens no popover — the
-window count is unchanged before and after.
+**Cause:** `PriorityCell` offers editing through `onTapGesture(count: 2)` on
+cell content, and in the running app that does nothing.
+
+**Correction, recorded because the first write-up of this entry over-claimed:**
+the mechanism is *not* established. The original text said the gesture "never
+arrives" because `NSTableView` consumes the click, and cited a test that
+synthesised a double-click and saw no popover. That test was vacuous and has
+been deleted — the same harness cannot activate anything inside a `Table`, so it
+would have passed either way. Measured afterwards: a synthetic click does press
+a plain SwiftUI `Button` in a hosting view, and a `TextField` in a `Table` cell
+*is* a real editable `NSTextField`, yet neither that field's focus nor the
+table's `primaryAction` can be triggered headlessly.
+
+So what is known is narrower, and enough: with `br` present and
+`canEditBeads == true` the write path was open, and the double-click still did
+nothing in a real build. The widget is not the limit — `Table` supports
+interactive cell content — but a gesture layered over a `Text` in a cell is not
+a route to rely on.
 
 The obvious explanation was ruled out first: `br` **was** found, at
 `~/.cargo/bin/br`, and the store reported `canEditBeads == true` with

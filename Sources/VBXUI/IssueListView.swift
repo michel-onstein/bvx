@@ -361,19 +361,20 @@ struct IssueListView: View {
 
             Divider()
 
-            // The only working way to change a priority.
+            // The working way to change a priority.
             //
-            // `PriorityCell` offers a double-click, and inside a `Table` that
-            // gesture never arrives: macOS bridges the table to `NSTableView`,
-            // which consumes clicks for row selection, so the cell's
-            // `onTapGesture(count: 2)` does not fire. Synthesising a
-            // double-click on the cell opens no popover — see
-            // `PriorityCellTests`. The context menu goes through
-            // `contextMenu(forSelectionType:)`, which is `Table`'s own
-            // mechanism rather than a gesture layered over it.
+            // `PriorityCell` also offers a double-click, and in the running app
+            // it does nothing — reported from a real build, with `br` present
+            // and `canEditBeads` true, so the write path was open and the
+            // gesture was what failed. The precise reason is *not* established:
+            // synthesised clicks cannot activate anything inside a `Table`
+            // headlessly, so no test here can adjudicate it.
             //
-            // It is also the more discoverable of the two: the double-click
-            // had no affordance at all, on a 30pt column.
+            // What this route does not depend on is that question.
+            // `contextMenu(forSelectionType:)` is `Table`'s own mechanism
+            // rather than a gesture layered over cell content, it is verified
+            // end to end, and it is where a macOS user looks for a row action —
+            // the double-click had no affordance at all, on a 30pt column.
             Menu {
                 priorityItems(for: ids)
             } label: {

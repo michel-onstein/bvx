@@ -122,11 +122,15 @@ view snapshots for inspection.
   `Sources/vbx/Intents.swift` compile and execute correctly but are only *listed*
   in Shortcuts when the app is built through Xcode, or when that step is added
   to `scripts/build-app.sh`.
-- **`Table` cells do not receive gestures.** `onTapGesture` inside a
-  `TableColumn`'s content never fires — `NSTableView` takes the click for row
-  selection. Use `contextMenu(forSelectionType:)` for row actions.
-  `PriorityCellTests` pins this with a synthesised double-click that opens
-  nothing; if it ever starts working, that test fails and should be deleted.
+- **A gesture on `Table` cell content is not a reliable row action.** Priority
+  editing shipped as `onTapGesture(count: 2)` on a cell and did nothing in the
+  running app. Use `contextMenu(forSelectionType:)` or `primaryAction:`.
+  The widget itself is not the limit: a `TextField` in a cell is a real editable
+  `NSTextField`, one per row.
+- **Synthetic clicks do not reach `Table` content headlessly.** Measured: a
+  synthetic click presses a plain SwiftUI `Button`, but inside a `Table` it
+  neither focuses an editable `TextField` nor fires `primaryAction`. Any
+  headless test concluding "the click did nothing" is testing the harness.
 - **The demo fixture's dependency rows need `created_at`.** `br`'s preflight
   requires it and refuses the entire workspace without it — `br update` on the
   fixture reported "Found 13 invalid issue record(s)", which was exactly the 13

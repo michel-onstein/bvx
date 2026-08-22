@@ -109,54 +109,23 @@ struct PriorityCellTests {
         #expect(store.editingUnavailableReason == nil)
     }
 
-    @Test("A double-click on the priority cell opens nothing")
-    func doubleClickDoesNotReachTheCell() async throws {
-        // Pinned deliberately. This documents *why* the context menu exists, so
-        // that removing it in favour of "the double-click already does this"
-        // fails here rather than in someone's hands. If SwiftUI ever starts
-        // delivering the gesture, this test fails and should be deleted along
-        // with the note above — a passing double-click is good news.
-        let store = await Fixture.loadedStore()
-        let size = CGSize(width: 1000, height: 500)
-        let root = IssueListView().environmentObject(store)
-            .frame(width: size.width, height: size.height)
-        let host = NSHostingView(rootView: AnyView(root))
-        host.frame = CGRect(origin: .zero, size: size)
-        let window = NSWindow(
-            contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
-        window.contentView = host
-        window.makeKeyAndOrderFront(nil)
-        host.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.6))
-
-        func tables(in view: NSView) -> [NSTableView] {
-            var found: [NSTableView] = []
-            if let t = view as? NSTableView { found.append(t) }
-            for sub in view.subviews { found += tables(in: sub) }
-            return found
-        }
-        let table = try #require(tables(in: host).first, "the table did not render")
-        #expect(table.numberOfRows > 0)
-
-        let before = NSApp.windows.count
-        // Column 1 is "P"; column 0 is the id.
-        let rect = table.frameOfCell(atColumn: 1, row: 0)
-        let point = table.convert(NSPoint(x: rect.midX, y: rect.midY), to: nil)
-        for count in [1, 2] {
-            for phase in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-                if let event = NSEvent.mouseEvent(
-                    with: phase, location: point, modifierFlags: [],
-                    timestamp: ProcessInfo.processInfo.systemUptime,
-                    windowNumber: window.windowNumber, context: nil,
-                    eventNumber: 0, clickCount: count, pressure: 1) {
-                    window.sendEvent(event)
-                }
-            }
-            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
-        }
-        // A popover is an extra window. None appears.
-        #expect(NSApp.windows.count == before, "a popover opened — the gesture now works")
-    }
+    // There is deliberately no test here asserting that the double-click
+    // fails.
+    //
+    // One was written and removed: it synthesised a double-click on the cell
+    // and asserted no popover appeared. It passed — and it would have passed
+    // whether or not the feature worked, because the harness cannot activate
+    // anything inside a `Table`. Measured: a synthetic click *does* press a
+    // plain SwiftUI `Button` in a hosting view, and a `TextField` in a Table
+    // cell *is* a real editable `NSTextField` — yet the same synthetic click
+    // neither focuses that field nor fires the table's `primaryAction`. So a
+    // negative result from this harness says nothing about the app; it says
+    // the events do not reach Table content in a headless process.
+    //
+    // What is actually known is above and below: `br` is available and
+    // `canEditBeads` is true, so the write path is open, and the context-menu
+    // route is verified end to end. That the double-click does not work comes
+    // from running the app, not from a test.
 
     @Test("Setting a priority on several beads writes each one")
     func setPriorityAcrossASelection() async throws {
